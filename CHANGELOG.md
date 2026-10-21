@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `ax` command: `new` (hw, note, exam, slides, book, paper), `build` (PDF replaced only on success, first error with file:line, stale-state retry, timeout), `watch`, `both`, `doctor`, `freeze`, `upgrade`, `pack`. Projects pin a template version in `.ax.json`; `ax texinputs` serves it to latexmk.
+- `make test-ax`.
+
 ## v0.3 — 2026-10-21
 
 - `restatable` theorems (thmtools) and `proofof`; restated copies are not listed twice. `\listoftheorems`.

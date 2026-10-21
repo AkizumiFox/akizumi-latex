@@ -12,10 +12,40 @@
 | `aaron-book.cls` | 論文、長篇講義、書（章、封面、每章小目錄） |
 | `beamerthemeAaron.sty` | 簡報 |
 
+## ax：建立與編譯專案
+
+```sh
+ax new hw ode-hw3 --lang zh --course 常微分方程 --number 3 --due 2026/10/28
+ax new note rl4 --title "Self-Predictive Representations" --bib --layout margin
+ax new slides talk --title "The JEPA Flood" --course "ELSA Lab" --progress
+ax new book thesis --lang zh --title 自我預測表徵 --bib
+ax new paper neurips --title "..." --bib      # pdfLaTeX，只載入 aaron-math
+```
+
+`ax new` 產生 `main.tex`（序言已填好）、`latexmkrc`、`.gitignore`、`figures/`、需要時的 `refs.bib`，以及記錄模板版本的 `.ax.json`。沒給的標題會互動式詢問。作者、學號、預設語言放在 `~/.config/ax/config.json`（`{"author": "Aaron Lin", "id": "...", "lang": "zh"}`）。
+
+在專案資料夾裡：
+
+| 指令 | 作用 |
+|---|---|
+| `ax build` | 編譯一次。只有成功才覆蓋外面的 PDF；失敗時印出第一個錯誤的 `檔案:行號` 和那一行，保留舊 PDF。latexmk 卡在上次失敗的狀態時會自動清掉重試，超過 10 分鐘就停 |
+| `ax watch` | 存檔就重編，成功才更新 PDF；有 Skim 就用 Skim 開 |
+| `ax both` | 作業／考卷：`main.pdf`（不含解答）與 `main-solutions.pdf` |
+| `ax doctor` | 檢查 XeLaTeX、biber、字型、模板安裝與版本 |
+| `ax upgrade` | 改用最新的模板版本 |
+| `ax freeze` | 把目前版本的 `.sty`／`.cls` 複製進專案，之後不再依賴模板 repo（交件、封存時用） |
+| `ax pack` | 打包成 `<專案名>-overleaf.zip`，上傳後把編譯器設為 XeLaTeX（paper 為 pdfLaTeX） |
+
+### 版本固定
+
+新專案固定在當下最新的版本 tag（例如 `v0.3`）。之後模板改版，舊專案仍然用 `v0.3` 編譯，要換版本才跑 `ax upgrade`。專案的 `latexmkrc` 會呼叫 `ax texinputs` 取得該版本的路徑，所以從編輯器直接呼叫 latexmk 也一樣固定。各版本解開在 `~/Library/Caches/ax/<tag>/`。
+
+發佈新版本：改完模板、更新 `CHANGELOG.md`、`make check`、commit，然後 `git tag -a v0.4 -m v0.4`。
+
 ## 安裝
 
 ```sh
-./install.sh     # symlink 到 $(kpsewhich -var-value TEXMFHOME)/tex/latex/aaron-latex
+./install.sh     # symlink 到 $(kpsewhich -var-value TEXMFHOME)/tex/latex/aaron-latex，並把 ax、aaron-both 連到 ~/bin
 ```
 
 之後任何資料夾都能直接用，編譯時用 `xelatex`（或 `latexmk -xelatex`）。

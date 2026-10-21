@@ -10,6 +10,8 @@ fi
 ln -sfn "$here" "$dest"
 echo "linked $dest -> $here"
 mkdir -p "$HOME/bin"
-ln -sfn "$here/bin/aaron-both" "$HOME/bin/aaron-both"
-echo "linked ~/bin/aaron-both"
+for tool in ax aaron-both; do
+  ln -sfn "$here/bin/$tool" "$HOME/bin/$tool"
+  echo "linked ~/bin/$tool"
+done
 kpsewhich aaron-core.sty

@@ -1,0 +1,555 @@
+#!/usr/bin/env python3
+"""ax -- start and build LaTeX projects on the aaron-latex templates.
+
+  ax new KIND DIR [options]  start a project: hw, note, exam, slides, book, paper
+  ax build [FILE]            compile once; the PDF is replaced only on success
+  ax watch [FILE]            recompile on every save and keep the viewer open
+  ax both [FILE]             problem sheet and answer key (hw, exam)
+  ax doctor                  check the toolchain, fonts and template versions
+  ax freeze                  copy the pinned template files into the project
+  ax upgrade                 move the project to the newest template version
+  ax pack                    zip the project for Overleaf (compiler: XeLaTeX)
+
+Each project records its template version in .ax.json. Its latexmkrc asks
+`ax texinputs` for that version, so editors that call latexmk directly build
+against the same files as `ax build`.
+"""
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import zipfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+SKELETONS = REPO / "skeletons"
+CACHE = Path.home() / "Library" / "Caches" / "ax"
+USER_CONFIG = Path.home() / ".config" / "ax" / "config.json"
+PROJECT_CONFIG = ".ax.json"
+TEMPLATE_GLOBS = ("aaron-*.sty", "aaron-*.cls", "beamerthemeAaron.sty")
+TIMEOUT = 600  # seconds per latexmk run
+
+KINDS = {
+    "hw": "aaron-hw",
+    "note": "aaron-note",
+    "exam": "aaron-exam",
+    "book": "aaron-book",
+    "slides": "beamer",
+    "paper": "article",
+}
+
+LATEXMKRC = """\
+# Written by ax. Builds into build/; `ax build` copies the PDF out only when
+# the run succeeds.
+$pdf_mode = {pdf_mode};
+$out_dir = 'build';
+$aux_dir = 'build';
+
+# Template version pinned in .ax.json (empty when frozen or not found).
+my $ax_path = `ax texinputs 2>/dev/null`;
+chomp $ax_path;
+ensure_path('TEXINPUTS', "$ax_path//") if $ax_path;
+
+$pdf_previewer = 'open -a Skim' if -d '/Applications/Skim.app';
+"""
+
+GITIGNORE = """\
+build/
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.xdv
+*.synctex.gz
+"""
+
+
+# ---------- small helpers ----------
+
+def die(msg):
+    print(f"ax: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def git(*args):
+    return subprocess.run(["git", "-C", str(REPO), *args],
+                          capture_output=True, text=True)
+
+
+def template_tags():
+    """Template versions, newest first."""
+    out = git("tag", "--list", "v*", "--sort=-v:refname").stdout
+    return [t for t in out.split() if t]
+
+
+def load_json(path):
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def project_config():
+    return load_json(PROJECT_CONFIG)
+
+
+def save_project_config(cfg):
+    Path(PROJECT_CONFIG).write_text(json.dumps(cfg, indent=2) + "\n")
+
+
+def template_dir(pin):
+    """Directory holding the template files for a pinned version, or None to
+    use whatever is installed (pin 'latest') or the project's own copies
+    (pin 'frozen')."""
+    if not pin or pin in ("latest", "frozen"):
+        return None
+    target = CACHE / pin
+    if (target / "aaron-core.sty").exists():
+        return target
+    if git("rev-parse", "-q", "--verify", f"refs/tags/{pin}").returncode:
+        return None
+    CACHE.mkdir(parents=True, exist_ok=True)
+    tmp = Path(tempfile.mkdtemp(prefix=f".{pin}-", dir=CACHE))
+    archive = subprocess.run(["git", "-C", str(REPO), "archive", pin],
+                             capture_output=True)
+    if archive.returncode:
+        return None
+    subprocess.run(["tar", "-x", "-C", str(tmp)], input=archive.stdout, check=True)
+    if target.exists():
+        shutil.rmtree(tmp)
+    else:
+        tmp.rename(target)
+    return target
+
+
+def template_files(directory):
+    files = []
+    for pattern in TEMPLATE_GLOBS:
+        files += sorted(Path(directory).glob(pattern))
+    return files
+
+
+def main_file(arg):
+    name = arg or project_config().get("main", "main.tex")
+    path = Path(name if name.endswith(".tex") else name + ".tex")
+    if not path.exists():
+        die(f"{path} not found (run inside a project, or name the .tex file)")
+    return path
+
+
+# ---------- ax new ----------
+
+def cmd_new(a):
+    user = load_json(USER_CONFIG)
+    target = Path(a.dir)
+    if target.exists() and any(target.iterdir()) and not a.force:
+        die(f"{target} exists and is not empty (use --force)")
+
+    interactive = sys.stdin.isatty()
+    title = a.title
+    if title is None and a.kind != "hw" and interactive:
+        title = input("Title: ").strip() or None
+    if a.kind == "hw" and a.course is None and interactive:
+        a.course = input("Course (optional): ").strip() or None
+    author = a.author or user.get("author") or git("config", "user.name").stdout.strip()
+    student_id = a.id or user.get("id")
+    lang = a.lang or user.get("lang", "en")
+    tags = template_tags()
+    pin = a.pin or (tags[0] if tags else "latest")
+
+    if a.bib and a.kind in ("hw", "exam"):
+        print("ax: --bib is ignored for hw and exam", file=sys.stderr)
+        a.bib = False
+
+    # class options
+    opts = []
+    if a.kind == "slides":
+        opts = ["aspectratio=169", "11pt"]
+    elif a.kind != "paper":
+        if lang != "en":
+            opts.append(f"lang={lang}")
+        for key in ("text", "paper", "layout"):
+            value = getattr(a, key)
+            if value:
+                opts.append(f"{key}={value}")
+        if a.bib:
+            opts.append("bib=refs.bib")
+
+    lines = ["% !TEX program = " + ("pdflatex" if a.kind == "paper" else "xelatex")]
+    cls = KINDS[a.kind]
+    lines.append(f"\\documentclass{'[' + ', '.join(opts) + ']' if opts else ''}{{{cls}}}")
+
+    if a.kind == "slides":
+        theme_opts = [f"lang={lang}"] if lang != "en" else []
+        if a.progress:
+            theme_opts.append("progress")
+        lines.append(f"\\usetheme{'[' + ', '.join(theme_opts) + ']' if theme_opts else ''}{{Aaron}}")
+        if a.bib:
+            lines += ["\\usepackage[backend=biber, style=numeric-comp, sorting=none]{biblatex}",
+                      "\\addbibresource{refs.bib}"]
+    elif a.kind == "paper":
+        lines += ["\\usepackage{aaron-math}",
+                  "\\usepackage{hyperref}",
+                  "\\usepackage[capitalise, noabbrev]{cleveref}"]
+        if a.bib:
+            lines.append("\\usepackage[numbers]{natbib}")
+
+    setup = []
+    if a.course:
+        setup.append(f"kicker={{{a.course}}}" if a.kind == "book" else f"course={{{a.course}}}")
+    if a.kind == "hw":
+        if a.number:
+            setup.append(f"number={a.number}")
+        if a.due:
+            setup.append(f"due={a.due}")
+        if student_id:
+            setup.append(f"id={student_id}")
+    if setup and a.kind not in ("slides", "paper"):
+        lines.append("\\aaronsetup{" + ", ".join(setup) + "}")
+    if title:
+        lines.append(f"\\title{{{title}}}")
+    if author:
+        lines.append(f"\\author{{{author}}}")
+    if a.kind == "slides" and a.course:
+        lines.append(f"\\date{{{a.course}\\quad\\today}}")
+
+    body = (SKELETONS / f"{a.kind}.tex").read_text()
+    bibend = ""
+    if a.bib:
+        bibend = {
+            "slides": "\\begin{frame}[allowframebreaks]{References}\n"
+                      "  \\printbibliography\n\\end{frame}\n",
+            "paper": "\\bibliographystyle{plainnat}\n\\bibliography{refs}\n\n",
+        }.get(a.kind, "\\printbibliography\n\n")
+    body = body.replace("<<BIBEND>>", bibend)
+
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "figures").mkdir(exist_ok=True)
+    (target / "figures" / ".gitkeep").touch()
+    (target / "main.tex").write_text("\n".join(lines) + "\n\n" + body)
+    (target / "latexmkrc").write_text(
+        LATEXMKRC.format(pdf_mode=1 if a.kind == "paper" else 5))
+    (target / ".gitignore").write_text(GITIGNORE)
+    if a.bib:
+        (target / "refs.bib").write_text("% BibTeX entries go here.\n")
+    (target / PROJECT_CONFIG).write_text(json.dumps(
+        {"kind": a.kind, "main": "main.tex", "template": pin}, indent=2) + "\n")
+    template_dir(pin)  # fetch the pinned version now, while the repo is at hand
+
+    print(f"created {target}/ ({a.kind}, templates {pin})")
+    print(f"  cd {target} && ax watch")
+
+
+# ---------- building ----------
+
+ERROR_LINE = re.compile(r"^(?P<file>[^\s:][^:]*\.(?:tex|sty|cls|bib)):(?P<line>\d+): (?P<msg>.*)$")
+
+
+def first_error(log_path):
+    """First error in a LaTeX log as (location, message, context lines)."""
+    try:
+        lines = Path(log_path).read_text(errors="replace").splitlines()
+    except OSError:
+        return None
+    for i, line in enumerate(lines):
+        m = ERROR_LINE.match(line)
+        if m or line.startswith("! "):
+            location = f"{m['file']}:{m['line']}" if m else ""
+            message = m["msg"] if m else line[2:]
+            # TeX shows the offending source line split at the error point:
+            # "l.11 \undefinedmacro" then the rest of the line. Keep those two
+            # and drop the help text that follows.
+            context = []
+            for j in range(i + 1, min(i + 15, len(lines))):
+                if lines[j].startswith("l."):
+                    context = [lines[j]]
+                    if j + 1 < len(lines) and lines[j + 1].strip():
+                        context.append(lines[j + 1])
+                    break
+            if not location:
+                for c in context:
+                    lm = re.match(r"l\.(\d+)", c)
+                    if lm:
+                        location = f"line {lm.group(1)}"
+            return location, message, context
+    return None
+
+
+def warnings_summary(log_path):
+    try:
+        log = Path(log_path).read_text(errors="replace")
+    except OSError:
+        return []
+    found = []
+    refs = len(re.findall(r"Reference `[^']*' on page \d+ undefined", log))
+    cites = len(re.findall(r"Citation `[^']*' on page \d+ undefined", log)) + \
+        len(re.findall(r"Citation '[^']*' on page \d+ undefined", log))
+    overfull = len(re.findall(r"^Overfull \\hbox", log, re.M))
+    if refs:
+        found.append(f"{refs} undefined reference(s)")
+    if cites:
+        found.append(f"{cites} undefined citation(s)")
+    if overfull:
+        found.append(f"{overfull} overfull line(s)")
+    return found
+
+
+def latexmk(main, jobname=None, pretex=None, clean_first=False):
+    base = ["latexmk", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error"]
+    if jobname:
+        base.append(f"-jobname={jobname}")
+    if pretex:
+        base.append(f"-usepretex={pretex}")
+    if clean_first:
+        subprocess.run(base[:1] + ["-C"] + base[4:] + [str(main)], capture_output=True)
+    try:
+        return subprocess.run(base + [str(main)], capture_output=True, text=True,
+                              errors="replace", timeout=TIMEOUT)
+    except subprocess.TimeoutExpired:
+        die(f"gave up after {TIMEOUT} s; is something waiting for input?")
+
+
+def safe_build(main, jobname=None, pretex=None, quiet=False):
+    """Compile into build/ and copy the PDF next to the source only on success.
+    Returns True on success."""
+    job = jobname or main.stem
+    result = latexmk(main, jobname, pretex)
+    output = result.stdout + result.stderr
+    if result.returncode and "error in previous invocation" in output:
+        # latexmk remembers a failed run (biber, say) and refuses to retry
+        result = latexmk(main, jobname, pretex, clean_first=True)
+        output = result.stdout + result.stderr
+
+    built = Path("build") / f"{job}.pdf"
+    log = Path("build") / f"{job}.log"
+    if result.returncode == 0 and built.exists():
+        dest = Path(f"{job}.pdf")
+        fd, tmp = tempfile.mkstemp(dir=".", prefix=f".{job}-", suffix=".pdf")
+        os.close(fd)
+        shutil.copyfile(built, tmp)
+        os.replace(tmp, dest)
+        if not quiet:
+            notes = warnings_summary(log)
+            print(f"ok  {dest}" + (f"  ({'; '.join(notes)})" if notes else ""))
+        return True
+
+    print(f"failed  {main}" + (f" ({job})" if jobname else ""), file=sys.stderr)
+    err = first_error(log)
+    if err:
+        location, message, context = err
+        print(f"  {location}: {message}" if location else f"  {message}", file=sys.stderr)
+        for c in context:
+            print(f"    {c}", file=sys.stderr)
+    else:
+        tail = [l for l in output.splitlines() if re.search(r"error|failed", l, re.I)]
+        for l in tail[-5:]:
+            print(f"  {l.strip()}", file=sys.stderr)
+    if Path(f"{job}.pdf").exists():
+        print(f"  kept the previous {job}.pdf", file=sys.stderr)
+    return False
+
+
+def cmd_build(a):
+    sys.exit(0 if safe_build(main_file(a.file)) else 1)
+
+
+def cmd_watch(a):
+    main = main_file(a.file)
+    print("watching; Ctrl-C to stop")
+    cmd = ["latexmk", "-pvc", "-interaction=nonstopmode", "-file-line-error",
+           "-e", "$success_cmd = 'cp -f %D %R.pdf';", str(main)]
+    try:
+        sys.exit(subprocess.call(cmd))
+    except KeyboardInterrupt:
+        pass
+
+
+def cmd_both(a):
+    main = main_file(a.file)
+    kind = project_config().get("kind")
+    if kind and kind not in ("hw", "exam"):
+        die("ax both is for hw and exam projects")
+    ok = safe_build(main, pretex=r"\def\aaronsolutions{false}")
+    ok = safe_build(main, jobname=f"{main.stem}-solutions",
+                    pretex=r"\def\aaronsolutions{true}") and ok
+    sys.exit(0 if ok else 1)
+
+
+# ---------- versions ----------
+
+def cmd_texinputs(a):
+    d = template_dir(project_config().get("template"))
+    if d:
+        print(d)
+
+
+def cmd_freeze(a):
+    cfg = project_config()
+    if not cfg:
+        die("not in an ax project (no .ax.json)")
+    if cfg.get("template") == "frozen":
+        die("already frozen")
+    source = template_dir(cfg.get("template")) or REPO
+    for f in template_files(source):
+        shutil.copy2(f, f.name)
+        print(f"  copied {f.name}")
+    cfg["frozen_from"] = cfg.get("template")
+    cfg["template"] = "frozen"
+    save_project_config(cfg)
+    print("frozen: this project now builds from its own copies")
+
+
+def cmd_upgrade(a):
+    cfg = project_config()
+    if not cfg:
+        die("not in an ax project (no .ax.json)")
+    tags = template_tags()
+    if not tags:
+        die("the template repo has no version tags")
+    if cfg.get("template") == "frozen":
+        for f in template_files("."):
+            f.unlink()
+            print(f"  removed copy {f.name}")
+        cfg.pop("frozen_from", None)
+    old = cfg.get("template")
+    cfg["template"] = tags[0]
+    save_project_config(cfg)
+    template_dir(tags[0])
+    print(f"templates {old} -> {tags[0]}; check with ax build")
+
+
+# ---------- ax pack ----------
+
+def cmd_pack(a):
+    cfg = project_config()
+    if not cfg:
+        die("not in an ax project (no .ax.json)")
+    name = Path.cwd().name
+    out = Path(f"{name}-overleaf.zip")
+    skip_dirs = {"build", ".git"}
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for path in sorted(Path(".").rglob("*")):
+            if path.is_dir() or skip_dirs & set(path.parts) or path == out:
+                continue
+            if path.suffix == ".pdf" or path.name in (PROJECT_CONFIG, "latexmkrc"):
+                continue
+            z.write(path)
+        if cfg.get("template") != "frozen":
+            for f in template_files(template_dir(cfg.get("template")) or REPO):
+                z.write(f, f.name)
+        engine = 1 if cfg.get("kind") == "paper" else 5
+        z.writestr("latexmkrc", f"$pdf_mode = {engine};\n")
+    print(f"wrote {out}; on Overleaf set the compiler to "
+          f"{'pdfLaTeX' if cfg.get('kind') == 'paper' else 'XeLaTeX'}")
+
+
+# ---------- ax doctor ----------
+
+def cmd_doctor(a):
+    problems = 0
+
+    def report(ok, label, detail=""):
+        nonlocal problems
+        problems += not ok
+        print(f"  {'ok ' if ok else 'BAD'}  {label}" + (f"  {detail}" if detail else ""))
+
+    def run(*cmd):
+        try:
+            return subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+
+    print("tools")
+    for tool in ("xelatex", "latexmk", "pdflatex"):
+        report(bool(shutil.which(tool)), tool, shutil.which(tool) or "not on PATH")
+    r = run("biber", "--version")
+    biber_ok = bool(r) and r.returncode == 0
+    report(biber_ok, "biber", (r.stdout.strip().splitlines() or [""])[-1] if biber_ok else
+           "fails to start; see README, 'Known issue: biber'")
+    report(bool(shutil.which("ax")), "ax on PATH",
+           "" if shutil.which("ax") else "editors calling latexmk will not see pinned versions")
+    report(Path("/Applications/Skim.app").exists(), "Skim", "optional viewer for ax watch")
+
+    print("templates")
+    r = run("kpsewhich", "aaron-core.sty")
+    found = r.stdout.strip() if r else ""
+    report(bool(found), "aaron-core.sty installed", found or "run install.sh")
+    tags = template_tags()
+    report(bool(tags), "version tags", ", ".join(tags[:5]) or "none: git tag the repo")
+
+    print("fonts")
+    for f in ("Lato-Regular.ttf", "NewCM10-Book.otf", "bboldx.sty"):
+        r = run("kpsewhich", f)
+        report(bool(r and r.stdout.strip()), f)
+    for family in ("PingFang TC", "Songti TC", "JetBrains Mono"):
+        r = run("fc-list", family, "family")
+        ok = bool(r and r.stdout.strip())
+        report(ok, family, "" if ok else "falls back to Noto CJK / Fandol" if "TC" in family
+               else "falls back to Latin Modern Mono")
+
+    cfg = project_config()
+    if cfg:
+        print("this project")
+        pin = cfg.get("template")
+        if pin == "frozen":
+            report(bool(template_files(".")), "frozen copies present",
+                   f"from {cfg.get('frozen_from')}")
+        else:
+            d = template_dir(pin)
+            report(pin == "latest" or bool(d), f"templates {pin}", str(d or "installed version"))
+            if tags and pin not in ("latest", tags[0]):
+                print(f"       newer templates: {tags[0]} (ax upgrade)")
+    sys.exit(1 if problems else 0)
+
+
+# ---------- command line ----------
+
+def main():
+    p = argparse.ArgumentParser(prog="ax", description=__doc__.split("\n\n")[0])
+    p.add_argument("--version", action="version",
+                   version=f"ax (templates {', '.join(template_tags()[:1]) or 'untagged'})")
+    sub = p.add_subparsers(dest="command", required=True)
+
+    n = sub.add_parser("new", help="start a project")
+    n.add_argument("kind", choices=KINDS)
+    n.add_argument("dir")
+    n.add_argument("--title")
+    n.add_argument("--author")
+    n.add_argument("--course", help="course name (book: line above the title)")
+    n.add_argument("--number", help="homework number")
+    n.add_argument("--due", help="homework due date")
+    n.add_argument("--id", help="student ID")
+    n.add_argument("--lang", choices=["en", "zh"])
+    n.add_argument("--text", choices=["serif", "sans"])
+    n.add_argument("--paper", choices=["a4", "letter", "pad"])
+    n.add_argument("--layout", choices=["normal", "margin"])
+    n.add_argument("--bib", action="store_true", help="add refs.bib and a bibliography")
+    n.add_argument("--progress", action="store_true", help="slides: progress bar")
+    n.add_argument("--pin", help="template version (default: newest tag)")
+    n.add_argument("--force", action="store_true")
+    n.set_defaults(func=cmd_new)
+
+    for name, func, text in (("build", cmd_build, "compile once"),
+                             ("watch", cmd_watch, "recompile on save"),
+                             ("both", cmd_both, "problem sheet and answer key")):
+        c = sub.add_parser(name, help=text)
+        c.add_argument("file", nargs="?")
+        c.set_defaults(func=func)
+    for name, func, text in (("doctor", cmd_doctor, "check the toolchain"),
+                             ("freeze", cmd_freeze, "copy pinned templates into the project"),
+                             ("upgrade", cmd_upgrade, "move to the newest templates"),
+                             ("pack", cmd_pack, "zip for Overleaf"),
+                             ("texinputs", cmd_texinputs, None)):  # used by latexmkrc
+        (sub.add_parser(name, help=text) if text else sub.add_parser(name)).set_defaults(func=func)
+
+    a = p.parse_args()
+    a.func(a)
+
+
+if __name__ == "__main__":
+    main()

@@ -55,12 +55,29 @@ push @extra_xelatex_options, '-synctex=1';
 push @extra_pdflatex_options, '-synctex=1';
 
 # Template version pinned in .ax.json (empty when frozen or not found).
-my $ax_path = `ax texinputs 2>/dev/null`;
+# Absolute paths: editors started from the Dock do not have ~/bin on PATH.
+my $ax_path = `'{ax}' texinputs 2>/dev/null`;
 chomp $ax_path;
 ensure_path('TEXINPUTS', "$ax_path//") if $ax_path;
+$biber = "'$ENV{{HOME}}/bin/biber' %O %S" if -x "$ENV{{HOME}}/bin/biber";
 
 $pdf_previewer = 'open -a Skim' if -d '/Applications/Skim.app';
 """
+
+# Cursor / VS Code (LaTeX Workshop): build with latexmk so latexmkrc decides
+# the engine; a global pdflatex recipe would otherwise fail on XeLaTeX files.
+EDITOR_SETTINGS = {
+    "latex-workshop.latex.tools": [
+        {"name": "latexmk-ax", "command": "latexmk",
+         "args": ["-interaction=nonstopmode", "-file-line-error", "%DOC%"]}
+    ],
+    "latex-workshop.latex.recipes": [
+        {"name": "latexmk (ax)", "tools": ["latexmk-ax"]}
+    ],
+    "latex-workshop.latex.recipe.default": "latexmk (ax)",
+    "latex-workshop.latex.outDir": "%DIR%/build",
+    "latex-workshop.view.pdf.internal.synctex.keybinding": "double-click",
+}
 
 GITIGNORE = """\
 build/
@@ -272,8 +289,11 @@ def cmd_new(a):
     (target / "figures").mkdir(exist_ok=True)
     (target / "figures" / ".gitkeep").touch()
     (target / "main.tex").write_text("\n".join(lines) + "\n\n" + body)
-    (target / "latexmkrc").write_text(
-        LATEXMKRC.format(pdf_mode=1 if a.kind == "paper" else 5))
+    (target / "latexmkrc").write_text(LATEXMKRC.format(
+        pdf_mode=1 if a.kind == "paper" else 5, ax=REPO / "bin" / "ax"))
+    (target / ".vscode").mkdir(exist_ok=True)
+    (target / ".vscode" / "settings.json").write_text(
+        json.dumps(EDITOR_SETTINGS, indent=2) + "\n")
     (target / ".gitignore").write_text(GITIGNORE)
     if a.bib:
         (target / "refs.bib").write_text("% BibTeX entries go here.\n")
@@ -488,7 +508,7 @@ def cmd_pack(a):
         die("not in an ax project (no .ax.json)")
     name = Path.cwd().name
     out = Path(f"{name}-overleaf.zip")
-    skip_dirs = {"build", ".git"}
+    skip_dirs = {"build", ".git", ".vscode"}
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for path in sorted(Path(".").rglob("*")):
             if path.is_dir() or skip_dirs & set(path.parts) or path == out:

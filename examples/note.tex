@@ -1,0 +1,88 @@
+% !TEX program = xelatex
+\documentclass{aaron-note}
+\aaronsetup{course=Reinforcement Learning, kicker={Reinforcement Learning\aaronsep Lecture 4}}
+\title{Self-Predictive Representations}
+\author{Aaron Lin}
+
+\begin{document}
+\maketitle
+\blindfootnote{Notes for the ELSA Lab discussion, October 2026.}
+
+\section{Setup}
+Every method has this shape:
+\[
+  \vb{z}_t = f_\theta(\vb{o}_t), \qquad
+  \hat{\vb{z}}_{t+1} = g_\phi(\vb{z}_t, \vb{a}_t), \qquad
+  \mathcal{L}_{\text{pred}} = \E\norm[\big]{\hat{\vb{z}}_{t+1} - \sg(f_{\theta'}(\vb{o}_{t+1}))}^2 .
+\]
+\begin{itemize}
+  \item Problem: $f_\theta \equiv \text{const}$ drives the loss to zero, i.e.\ \textbf{collapse}.
+  \item Fixes: stop-grad, redundancy reduction, distribution matching.
+    \begin{itemize}
+      \item SIGReg pushes latents toward $\mathcal{N}(\vb{0}, \vb{I})$.
+    \end{itemize}
+\end{itemize}
+
+\begin{definition}[Collapse]
+An encoder $f$ \emph{collapses} if $\Var[f(\vb{o})] = 0$.
+\end{definition}
+
+\begin{restatable}[Cram\'er--Wold]{theorem}{cramerwold}\label{thm:cw}
+A random vector $\vb{z}$ is $\mathcal{N}(\vb{0},\vb{I})$ iff $\vb{u}\T\vb{z} \sim \mathcal{N}(0,1)$ for every unit $\vb{u}$.
+\end{restatable}
+The proof is in \cref{app:proofs}.\sidenote{With \texttt{layout=margin} this note sits in the margin.}
+
+\begin{notation}
+  \notn{$\vb{o}_t$, $\vb{a}_t$}{observation and action at time $t$}
+  \notn{$\vb{z}_t = f_\theta(\vb{o}_t)$}{latent state}
+  \notn{$\sg(\cdot)$}{stop-gradient}
+\end{notation}
+
+\begin{algorithm}[h]
+\caption{SIGReg training step}\label{alg:sigreg}
+\begin{algorithmic}[1]
+  \Require batch $\{\vb{o}_i\}$, directions $K$, weight $\lambda$
+  \State $\vb{Z} \gets f_\theta(\vb{o})$
+  \State $\mathcal{L} \gets \mathcal{L}_{\text{pred}} + \lambda\,\text{SIGReg}(\vb{Z})$
+  \State $\theta \gets \theta - \eta \nabla_\theta \mathcal{L}$
+\end{algorithmic}
+\end{algorithm}
+\Cref{alg:sigreg} uses \cref{thm:cw}.
+
+\begin{remark}
+SIGReg removes the need for an EMA target. 中文內容也可以直接混排。
+\end{remark}
+
+\begin{codeblock}[lang=Python, title=sigreg.py]
+def sigreg(z, num_dirs=64):
+    u = torch.randn(z.shape[1], num_dirs)   # random directions
+    u = u / u.norm(dim=0, keepdim=True)
+    return epps_pulley(z @ u).mean()
+\end{codeblock}
+
+\subsection{Mechanisms}
+\begin{table}[h]
+\centering\small
+\caption{Five anti-collapse mechanisms.}
+\begin{tabularx}{\linewidth}{@{}l Y@{}}
+\toprule
+Mechanism & Examples \\
+\midrule
+Stop-grad / EMA target & BYOL, SPR, MR.Q \\
+Distribution matching & \textbf{SIGReg} (LeJEPA, LeWM) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+See \href{https://arxiv.org}{arXiv} and Theorem~\ref{thm:x}.
+\begin{lemma}\label{thm:x}
+$\int_0^1 x \dd x = \tfrac12$. Code: \texttt{latexmk -pvc note.tex}.
+\end{lemma}
+\appendix
+\section{Proofs}\label{app:proofs}
+\cramerwold*
+\begin{proofof}{thm:cw}
+Characteristic functions agree on every line through the origin.
+\end{proofof}
+
+\listoftheorems
+\end{document}

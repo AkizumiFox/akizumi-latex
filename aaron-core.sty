@@ -1,0 +1,502 @@
+% aaron-core.sty -- shared visual identity: fonts, colors, theorem styles,
+% section / title / page styling. Loaded by aaron-hw, aaron-note, aaron-exam
+% and beamerthemeAaron. Requires XeLaTeX.
+%
+% Options:  lang = en | zh   (default en)
+%           cjk  = <font>    (default PingFangTC-Regular)
+%           cjk-bold = <font>(default PingFangTC-Semibold)
+%           bb   = light | regular | ams  (default light: bboldx, light weight)
+%           text = serif | sans  (body text; default serif. Headings, labels,
+%                  titles and slides stay Lato either way)
+%           bib  = <file.bib>[,<file2.bib>]  (loads biblatex + biber; documents only)
+%           paper  = a4 | letter | pad    (pad: 3:4 page for reading on a tablet)
+%           layout = normal | margin      (margin: wide right margin for sidenotes)
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{aaron-core}[2026/10/21 v0.3 Aaron Lin shared style]
+
+\RequirePackage{iftex}
+\RequireXeTeX
+
+\newif\ifaaron@zh
+\newif\ifaaron@bboldx
+\newif\ifaaron@serif
+\newif\ifaaron@marginlayout
+\ExplSyntaxOn
+\tl_new:N \l__aaron_bb_tl
+\clist_new:N \l__aaron_bib_clist
+\int_new:N \l__aaron_paper_int
+\keys_define:nn { aaron/core }
+  {
+    lang     .choices:nn = { en, zh }
+      { \str_if_eq:VnTF \l_keys_choice_tl { zh } { \aaron@zhtrue } { \aaron@zhfalse } },
+    cjk      .tl_set:N = \aaron@cjkfont,
+    cjk      .initial:n = PingFangTC-Regular,
+    cjk-bold .tl_set:N = \aaron@cjkboldfont,
+    cjk-bold .initial:n = PingFangTC-Semibold,
+    bb       .choices:nn = { light, regular, ams }
+      { \tl_set_eq:NN \l__aaron_bb_tl \l_keys_choice_tl },
+    bb       .initial:n = light,
+    text     .choices:nn = { sans, serif }
+      { \str_if_eq:VnTF \l_keys_choice_tl { serif } { \aaron@seriftrue } { \aaron@seriffalse } },
+    text     .initial:n = serif,
+    bib      .clist_set:N = \l__aaron_bib_clist,
+    paper    .choices:nn = { a4, letter, pad }
+      { \int_set_eq:NN \l__aaron_paper_int \l_keys_choice_int },
+    paper    .initial:n = a4,
+    layout   .choices:nn = { normal, margin }
+      { \str_if_eq:VnTF \l_keys_choice_tl { margin } { \aaron@marginlayouttrue } { \aaron@marginlayoutfalse } },
+    layout   .initial:n = normal,
+  }
+\ProcessKeyOptions [ aaron/core ]
+\cs_new:Npn \aaron@paper { \int_use:N \l__aaron_paper_int }
+\str_case:Vn \l__aaron_bb_tl
+  {
+    { light }   { \aaron@bboldxtrue \PassOptionsToPackage { light } { bboldx } }
+    { regular } { \aaron@bboldxtrue }
+  }
+\ExplSyntaxOff
+
+\RequirePackage{aaron-math}
+
+% Blackboard bold: bboldx covers upper/lowercase, digits and Greek, so
+% \mathbb{1} and \mathbb{k} work; \mathbfbb is the bold weight. Kept out of
+% aaron-math so papers keep the venue's default \mathbb.
+\ifaaron@bboldx\RequirePackage{bboldx}\fi
+
+% ---------- fonts ----------
+% Lato is the structure font: headings, labels, titles, headers, slides.
+% Body text is Lato too (text=sans) or New Computer Modern Book (text=serif),
+% which matches the Computer Modern math. Lato ships with TeX Live but is
+% invisible to fontconfig, so it is loaded by file name. Its standard
+% ligatures include a stylised "ti", so common ligatures are off.
+\RequirePackage{fontspec}
+\setsansfont{Lato}[
+  Extension      = .ttf,
+  UprightFont    = *-Regular,
+  BoldFont       = *-Bold,
+  ItalicFont     = *-Italic,
+  BoldItalicFont = *-BoldItalic,
+  Ligatures      = NoCommon]
+\@ifclassloaded{beamer}{\aaron@seriffalse}{}
+\ifaaron@serif
+  \setmainfont{NewCM10}[
+    Extension      = .otf,
+    UprightFont    = *-Book,
+    BoldFont       = *-Bold,
+    ItalicFont     = *-BookItalic,
+    BoldItalicFont = *-BoldItalic]
+\else
+  \renewcommand{\familydefault}{\sfdefault}
+\fi
+\IfFontExistsTF{JetBrains Mono}
+  {\setmonofont{JetBrains Mono}[Scale=MatchLowercase]}
+  {}
+
+\RequirePackage{xeCJK}
+% PingFang and Songti ship with macOS only. Elsewhere fall back to Noto CJK TC,
+% then to Fandol (always in TeX Live), with a warning instead of a hard error.
+\newcommand{\aaron@cjkserif}{STSongti-TC-Regular}
+\newcommand{\aaron@cjkserifbold}{STSongti-TC-Bold}
+\IfFontExistsTF{\aaron@cjkfont}{}{%
+  \IfFontExistsTF{Noto Sans CJK TC}
+    {\def\aaron@cjkfont{Noto Sans CJK TC}\def\aaron@cjkboldfont{Noto Sans CJK TC Bold}}
+    {\def\aaron@cjkfont{FandolHei-Regular.otf}\def\aaron@cjkboldfont{FandolHei-Bold.otf}}%
+  \PackageWarningNoLine{aaron-core}{CJK sans font not found; using \aaron@cjkfont}}
+\IfFontExistsTF{\aaron@cjkserif}{}{%
+  \IfFontExistsTF{Noto Serif CJK TC}
+    {\def\aaron@cjkserif{Noto Serif CJK TC}\def\aaron@cjkserifbold{Noto Serif CJK TC Bold}}
+    {\def\aaron@cjkserif{FandolSong-Regular.otf}\def\aaron@cjkserifbold{FandolSong-Bold.otf}}%
+  \PackageWarningNoLine{aaron-core}{CJK serif font not found; using \aaron@cjkserif}}
+% Chinese has no italic, so \emph / \textit on CJK text falls back to the bold
+% weight; Latin text in the same \emph still gets Lato Italic.
+% Serif body pairs with Songti TC; sans body and all structure use PingFang.
+\ifaaron@serif
+  \setCJKmainfont{\aaron@cjkserif}[BoldFont=\aaron@cjkserifbold,
+    ItalicFont=\aaron@cjkserifbold, BoldItalicFont=\aaron@cjkserifbold]
+\else
+  \setCJKmainfont{\aaron@cjkfont}[BoldFont=\aaron@cjkboldfont,
+    ItalicFont=\aaron@cjkboldfont, BoldItalicFont=\aaron@cjkboldfont]
+\fi
+\setCJKsansfont{\aaron@cjkfont}[BoldFont=\aaron@cjkboldfont,
+  ItalicFont=\aaron@cjkboldfont, BoldItalicFont=\aaron@cjkboldfont]
+\setCJKmonofont{\aaron@cjkfont}[ItalicFont=\aaron@cjkfont]
+\xeCJKsetup{CJKmath=true}
+
+% ---------- colors ----------
+\RequirePackage{xcolor}
+\definecolor{ink}{HTML}{1F2328}    % body text
+\definecolor{mute}{HTML}{6E7781}   % secondary text, numbers, bullets
+\definecolor{accent}{HTML}{0B6E99} % structure, links
+\definecolor{warn}{HTML}{B54708}   % alerts
+\definecolor{rule}{HTML}{D0D7DE}   % hairlines
+\definecolor{wash}{HTML}{F6F8FA}   % faint background
+\definecolor{softred}{HTML}{F4C7C3}
+\definecolor{softamber}{HTML}{FCE8B2}
+\definecolor{softgreen}{HTML}{CDEBD3}
+
+\newcommand{\muted}[1]{{\color{mute}#1}}
+\newcommand{\aaronsep}{\enspace\textperiodcentered\enspace} % "A · B"
+\newcommand{\aaronrule}{{\color{rule}\rule{\linewidth}{0.4pt}}}
+
+% ---------- tables ----------
+\RequirePackage{booktabs,array,tabularx}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\renewcommand{\arraystretch}{1.25}
+
+% ---------- metadata: \aaronsetup{course=..., number=..., due=..., id=...} ----------
+\newcommand{\aaron@course}{}
+\newcommand{\aaron@number}{}
+\newcommand{\aaron@due}{}
+\newcommand{\aaron@id}{}
+\newcommand{\aaron@kicker}{}
+\ExplSyntaxOn
+\keys_define:nn { aaron/meta }
+  {
+    course .tl_set:N = \aaron@course,
+    number .tl_set:N = \aaron@number,
+    due    .tl_set:N = \aaron@due,
+    id     .tl_set:N = \aaron@id,
+    kicker .tl_set:N = \aaron@kicker,
+  }
+\NewDocumentCommand \aaronsetup { m } { \keys_set:nn { aaron/meta } {#1} }
+\ExplSyntaxOff
+
+% Allow \\ in titles without hyperref warnings.
+\AtBeginDocument{\@ifpackageloaded{hyperref}{\pdfstringdefDisableCommands{\def\\{ }\def\quad{ }}}{}}
+
+% ---------- language ----------
+% lang only sets the document's main language: date format, caption / contents
+% names, problem labels and line spacing. Mixed text needs no markup: xeCJK
+% switches fonts per character and inserts the CJK--Latin gap whether or not a
+% space is typed. Theorem-like names (Theorem, Proof, Solution, ...) are English
+% in both languages.
+\newcommand{\aaron@today}{%
+  \ifaaron@zh \the\year\ 年 \the\month\ 月 \the\day\ 日%
+  \else \today \fi}
+
+% ---------- todo ----------
+% Yields to todonotes if that package is loaded.
+\AtBeginDocument{\providecommand{\todo}[1]{\textcolor{warn}{\sffamily\bfseries[TODO: #1]}}}
+
+\RequirePackage{needspace}
+\RequirePackage[most]{tcolorbox}
+
+% ---------- code ----------
+%   \begin{codeblock}[lang=Python, title=train.py, numbers=false] ... \end{codeblock}
+%   \inputcode[lang=Python]{train.py}
+%   \code{inline_code()}
+% Faint background, no frame. Long lines wrap with a muted hook; across pages
+% the box splits cleanly and continuation pieces are marked "cont.".
+\RequirePackage{listings}
+\colorlet{codenumber}{mute!60}
+% Wrap marker is typeset once: a \color inside postbreak breaks under beamer,
+% whose color mixins recompute the color in the middle of listings' internals.
+\newsavebox{\aaron@hookbox}
+\AtBeginDocument{\sbox{\aaron@hookbox}{\color{mute}$\hookrightarrow$}}
+\lstdefinestyle{aaron}{
+  basicstyle=\ttfamily\small, columns=fullflexible, keepspaces=true,
+  upquote=true, tabsize=4, showstringspaces=false, extendedchars=true,
+  breaklines=true,
+  postbreak=\usebox{\aaron@hookbox}\space,
+  numbers=left, numberstyle=\scriptsize\ttfamily\color{codenumber}, numbersep=1em,
+  keywordstyle=\color{accent}, commentstyle=\color{mute}\itshape,
+  stringstyle=\color{warn},
+  aboveskip=0pt, belowskip=0pt}
+\lstset{style=aaron}
+\tcbset{
+  aaron/code/.style={
+    enhanced jigsaw, breakable, listing only,
+    listing options={style=aaron},
+    colback=wash, colframe=rule, frame hidden, arc=0pt, boxrule=0pt,
+    left=2.4em, right=0.8em, top=0.55em, bottom=0.55em,
+    before skip=0.8em, after skip=0.8em,
+    coltitle=mute, colbacktitle=rule!45!wash, fonttitle=\ttfamily\footnotesize,
+    titlerule=0pt, toptitle=0.3em, bottomtitle=0.3em, lefttitle=0.8em,
+    overlay middle and last={\node[anchor=north east, inner sep=0.35em,
+      font=\ttfamily\scriptsize, text=codenumber] at (frame.north east) {cont.};}},
+  lang/.style={listing options app={language=#1}},
+  numbers/.is choice,
+  numbers/true/.style={left=2.4em, listing options app={numbers=left}},
+  numbers/false/.style={left=0.8em, listing options app={numbers=none}},
+}
+\DeclareTCBListing{codeblock}{ O{} }{aaron/code, #1}
+\DeclareTCBInputListing{\inputcode}{ O{} m }{aaron/code, listing file={#2}, #1}
+\AddToHook{env/codeblock/before}{\Needspace{6\baselineskip}}
+\NewDocumentCommand{\code}{v}{\texttt{#1}}
+
+% ---------- left bars (theorems, proofs, solutions; docs and slides) ----------
+\colorlet{accentsoft}{accent!35}
+\colorlet{asidebar}{mute!45}
+\tcbset{aaron/bar/.style 2 args={blank, breakable, parbox=false,
+  borderline west={#1}{0pt}{#2}, left=0.9em, right=0pt, top=0.1em, bottom=0.1em,
+  before skip=0.9em, after skip=0.9em}}
+
+% ---------- TikZ styles (the deck's diagram look) ----------
+%   \node[aaron/box] {...};  \draw[aaron/arrow] (a) -- (b);
+%   \node[aaron/label] {...};  \node[aaron/note] {...};
+\usetikzlibrary{arrows.meta,positioning,calc}
+\tikzset{
+  aaron/box/.style={draw=rule, rounded corners=2pt, fill=white, inner sep=4pt,
+    align=center, font=\sffamily\small, minimum height=0.9cm},
+  aaron/arrow/.style={-{Stealth[length=4pt]}, color=mute, thick},
+  aaron/label/.style={font=\sffamily\small\bfseries, text=accent},
+  aaron/note/.style={font=\sffamily\scriptsize, text=mute},
+  aaron/alert/.style={text=warn},
+}
+
+% Everything below is for documents only; beamerthemeAaron handles slides.
+\@ifclassloaded{beamer}{\endinput}{}
+
+% ---------- page geometry ----------
+% Classes call \aaron@setgeometry{<their a4/letter margins>}. paper=pad ignores
+% them for a 3:4 tablet page; layout=margin widens the right margin for notes.
+\RequirePackage{geometry}
+\newcommand{\aaron@setgeometry}[1]{%
+  \ifcase\aaron@paper\relax\or
+    \geometry{a4paper,#1}\or
+    \geometry{letterpaper,#1}\or
+    \geometry{paperwidth=15.6cm, paperheight=20.8cm, margin=1.3cm,
+      top=1.9cm, bottom=1.7cm, headsep=0.6cm, headheight=15pt}%
+    \ifaaron@marginlayout
+      \PackageWarningNoLine{aaron-core}{layout=margin needs a wider page; ignored with paper=pad}%
+      \aaron@marginlayoutfalse
+    \fi
+  \fi
+  \ifaaron@marginlayout
+    \geometry{left=2.2cm, right=7.6cm, marginparsep=0.7cm, marginparwidth=5.2cm}%
+  \fi}
+
+\ifaaron@zh
+  \renewcommand{\contentsname}{目錄}
+  \renewcommand{\figurename}{圖}
+  \renewcommand{\tablename}{表}
+  \@ifundefined{refname}{}{\renewcommand{\refname}{參考文獻}}
+  \@ifundefined{bibname}{}{\renewcommand{\bibname}{參考文獻}}
+  \@ifundefined{abstractname}{}{\renewcommand{\abstractname}{摘要}}
+  \@ifundefined{appendixname}{}{\renewcommand{\appendixname}{附錄}}
+\fi
+\ifaaron@zh\linespread{1.2}\frenchspacing\fi  % CJK: more leading, no wide sentence gaps
+\title{}\author{}  % empty defaults: page headers use them even without \maketitle
+\date{\aaron@today}
+
+\color{ink}
+\RequirePackage[verbose=silent]{microtype}
+\RequirePackage{graphicx}
+\RequirePackage[font=small,labelfont={sf,bf}]{caption}
+\RequirePackage{subcaption}
+\RequirePackage[bottom]{footmisc}  % footnotes stay at the page bottom
+% Footnote without a number; skips hyperref's anchor (there is no mark to link).
+\newcommand{\blindfootnote}{\gdef\@thefnmark{}%
+  \ifdefined\H@@footnotetext\expandafter\H@@footnotetext\else\expandafter\@footnotetext\fi}
+
+% ---------- sidenotes ----------
+%   \sidenote{...}  numbered note in the margin    \marginnote{...}  unnumbered
+%   marginfigure / margintable environments          fullwidth  spans text + margin
+% With layout=margin footnotes become sidenotes too. Without it, \sidenote is a
+% footnote, \marginnote an unnumbered footnote, and the margin floats ordinary
+% floats, so the same source compiles either way.
+\ifaaron@marginlayout
+  \RequirePackage{sidenotes}
+  \RequirePackage[strict]{changepage}
+  \renewcommand*{\marginfont}{\footnotesize}
+  \let\footnote\sidenote
+  \newenvironment{fullwidth}
+    {\begin{adjustwidth}{}{-\dimexpr\marginparwidth+\marginparsep\relax}}
+    {\end{adjustwidth}}
+\else
+  % (each only if free: exam, for one, has its own \fullwidth)
+  \providecommand{\sidenote}{\footnote}
+  \providecommand{\marginnote}[1]{\blindfootnote{#1}}
+  \@ifundefined{marginfigure}{\newenvironment{marginfigure}[1][]{\begin{figure}[htbp]\centering}{\end{figure}}}{}
+  \@ifundefined{margintable}{\newenvironment{margintable}[1][]{\begin{table}[htbp]\centering}{\end{table}}}{}
+  \@ifundefined{fullwidth}{\newenvironment{fullwidth}{}{}}{}
+\fi
+
+% Paragraphs: no indent, space between (matches the slides).
+\RequirePackage{parskip}
+
+% ---------- lists (same bullets as the slides) ----------
+\RequirePackage{enumitem}
+\setlist{itemsep=0.15em, topsep=0.4em}
+\setlist[itemize,1]{label=\textcolor{mute}{\raisebox{0.15ex}{\scriptsize$\bullet$}}}
+\setlist[itemize,2]{label=\textcolor{mute}{\scriptsize--}}
+
+% ---------- sections: bold ink title, muted number ----------
+\RequirePackage{titlesec}
+\titleformat{\section}{\sffamily\Large\bfseries}{\textcolor{mute}{\thesection}}{0.8em}{}
+\titleformat{\subsection}{\sffamily\large\bfseries}{\textcolor{mute}{\thesubsection}}{0.7em}{}
+\titleformat{\subsubsection}{\sffamily\normalsize\bfseries}{\textcolor{mute}{\thesubsubsection}}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.6em}{0.6em}
+\titlespacing*{\subsection}{0pt}{1.2em}{0.4em}
+\titlespacing*{\subsubsection}{0pt}{1em}{0.3em}
+
+% ---------- bibliography (bib=refs.bib) ----------
+% Numeric, compressed ([1-3]), in citation order, with back-references to the
+% pages that cite each entry. Print with \printbibliography.
+\ExplSyntaxOn
+\clist_if_empty:NF \l__aaron_bib_clist
+  {
+    \RequirePackage[backend=biber, style=numeric-comp, sorting=none,
+      maxbibnames=99, backref=true]{biblatex}
+    \clist_map_inline:Nn \l__aaron_bib_clist { \addbibresource{#1} }
+  }
+\ExplSyntaxOff
+
+% ---------- links and references ----------
+% amsthm, then hyperref, then cleveref.
+\RequirePackage{amsthm}
+\RequirePackage[pdfusetitle]{hyperref}
+\hypersetup{colorlinks, linkcolor=accent, urlcolor=accent, citecolor=accent}
+\RequirePackage[capitalise, noabbrev, nameinlink]{cleveref}
+\RequirePackage{thmtools}  % \listoftheorems, restatable; must precede \newtheorem
+\ifaaron@zh
+  \crefformat{section}{#2第~#1~節#3}
+  \crefname{figure}{圖}{圖}
+  \crefname{table}{表}{表}
+  \crefformat{equation}{#2式~(#1)#3}
+\fi
+
+% ---------- theorem-like environments ----------
+% A left bar marks where each one starts and ends. Kinds differ by bar weight
+% and tone, not by hue, so the page keeps one accent color:
+%   theorem lemma proposition corollary claim  1.6pt accent      accent label
+%   definition assumption                1.6pt accentsoft  accent label
+%   example remark                       1pt   asidebar    ink label
+%   proof, solution                      0.8pt rule        muted label + qed
+% Every kind also has an unnumbered starred form (theorem*, definition*, ...).
+% Bodies are upright (italic would turn whole CJK statements bold).
+\newtheoremstyle{aaron-claim}{0pt}{0pt}{}{}{\sffamily\bfseries\color{accent}}{.}{0.6em}
+  {\thmname{#1}\thmnumber{ #2}\thmnote{\mdseries\color{mute}\ (#3)}}
+\newtheoremstyle{aaron-aside}{0pt}{0pt}{}{}{\sffamily\bfseries}{.}{0.6em}
+  {\thmname{#1}\thmnumber{ #2}\thmnote{\mdseries\color{mute}\ (#3)}}
+\theoremstyle{aaron-claim}
+\newtheorem{theorem}{Theorem}
+\newtheorem*{theorem*}{Theorem}
+\crefname{theorem}{Theorem}{Theorems}
+% \aaron@thm{env}{Name}{Plural}: numbered on the shared theorem counter, plus
+% an unnumbered env*. cleveref cannot tell envs sharing a counter apart, so
+% each one aliases the counter to its own type while it is open.
+\def\aaron@thm#1#2#3{%
+  \newtheorem{#1}[theorem]{#2}\newtheorem*{#1*}{#2}%
+  \crefname{#1}{#2}{#3}%
+  \AddToHook{env/#1/begin}{\crefalias{theorem}{#1}}}
+\aaron@thm{lemma}{Lemma}{Lemmas}
+\aaron@thm{proposition}{Proposition}{Propositions}
+\aaron@thm{corollary}{Corollary}{Corollaries}
+\aaron@thm{claim}{Claim}{Claims}
+\aaron@thm{definition}{Definition}{Definitions}
+\aaron@thm{assumption}{Assumption}{Assumptions}
+\theoremstyle{aaron-aside}
+\aaron@thm{example}{Example}{Examples}
+\aaron@thm{remark}{Remark}{Remarks}
+\renewcommand{\proofname}{Proof}
+\renewcommand{\qedsymbol}{\textcolor{mute}{$\square$}}
+\renewenvironment{proof}[1][\proofname]{%
+  \par\pushQED{\qed}\normalfont\topsep\z@\relax
+  \trivlist\item[\hskip\labelsep{\sffamily\bfseries\color{mute}#1.}]\ignorespaces}
+  {\popQED\endtrivlist\@endpefalse}
+
+\def\aaron@onebar#1#2#3{%
+  \tcolorboxenvironment{#1}{aaron/bar={#2}{#3}}%
+  \AddToHook{env/#1/before}{\Needspace{4\baselineskip}}}
+\def\aaron@barenv#1#2#3{\aaron@onebar{#1}{#2}{#3}\aaron@onebar{#1*}{#2}{#3}}
+\aaron@barenv{theorem}{1.6pt}{accent}
+\aaron@barenv{lemma}{1.6pt}{accent}
+\aaron@barenv{proposition}{1.6pt}{accent}
+\aaron@barenv{corollary}{1.6pt}{accent}
+\aaron@barenv{claim}{1.6pt}{accent}
+\aaron@barenv{definition}{1.6pt}{accentsoft}
+\aaron@barenv{assumption}{1.6pt}{accentsoft}
+\aaron@barenv{example}{1pt}{asidebar}
+\aaron@barenv{remark}{1pt}{asidebar}
+\aaron@onebar{proof}{0.8pt}{rule}
+
+% ---------- restated theorems, proofs elsewhere ----------
+%   \begin{restatable}{theorem}{mainthm}\label{thm:main} ... \end{restatable}
+%   \mainthm*                      repeat it later (appendix) with the same number
+%   \begin{proofof}{thm:main} ...  "Proof of Theorem 1.2." linking back
+\newenvironment{proofof}[1]{\begin{proof}[Proof of \cref{#1}]}{\end{proof}}
+
+% ---------- list of theorems ----------
+%   \listoftheorems                           everything
+%   \listoftheorems[onlynamed]                only ones with a name, e.g. [Cramér--Wold]
+%   \listoftheorems[ignoreall, show={definition}]
+\renewcommand{\listtheoremname}{\ifaaron@zh 定理列表\else List of Theorems\fi}
+% A restated copy (\mainthm*) is not listed again: thmtools swaps \label for
+% \thmt@gobble@label inside the copy, which is how we recognise it.
+\newcommand{\aaron@noloe}[3]{}
+\addtotheorempreheadhook{\ifx\label\thmt@gobble@label\let\addcontentsline\aaron@noloe\fi}
+
+% \aaron@thmwithin{section}: number theorems per section/chapter. The kinds
+% sharing the counter copied the old format when defined, so reset theirs too
+% (the \theH... forms keep hyperref anchors unique).
+\newcommand{\aaron@thmwithin}[1]{%
+  \counterwithin{theorem}{#1}%
+  \@for\aaron@t:=lemma,proposition,corollary,claim,definition,assumption,example,remark\do{%
+    \expandafter\def\csname the\aaron@t\endcsname{\thetheorem}%
+    \expandafter\def\csname theH\aaron@t\endcsname{\theHtheorem}}}
+
+% ---------- algorithms ----------
+%   \begin{algorithm}[t] \caption{...}\label{alg:x}
+%     \begin{algorithmic}[1] \Require ... \State ... \end{algorithmic}
+%   \end{algorithm}
+\RequirePackage{algorithm}
+\RequirePackage{algpseudocodex}
+\floatname{algorithm}{\ifaaron@zh 演算法\else Algorithm\fi}
+\ifaaron@zh\crefname{algorithm}{演算法}{演算法}\else\crefname{algorithm}{Algorithm}{Algorithms}\fi
+\algrenewcommand{\algorithmicrequire}{\textsf{\textbf{Input:}}}
+\algrenewcommand{\algorithmicensure}{\textsf{\textbf{Output:}}}
+
+% ---------- notation table ----------
+%   \begin{notation}
+%     \notn{$\vb{z}_t$}{latent state at time $t$}
+%   \end{notation}
+\newenvironment{notation}
+  {\par\noindent\tabularx{\linewidth}{@{}>{\raggedright\arraybackslash}p{0.24\linewidth}Y@{}}
+   \toprule
+   {\sffamily\small\color{mute}Symbol} & {\sffamily\small\color{mute}Meaning}\\\midrule}
+  {\bottomrule\endtabularx\par}
+\newcommand{\notn}[2]{#1 & #2\\}
+
+% ---------- title block (same layout as the title slide) ----------
+\newcommand{\aaron@titleblock}{%
+  \begingroup\sffamily\noindent
+  \ifx\aaron@kicker\@empty\else{\small\bfseries\color{accent}\aaron@kicker}\par\vspace{0.35em}\fi
+  {\LARGE\bfseries\@title\par}\vspace{0.45em}
+  {\color{mute}%
+   \ifx\@author\@empty\else
+     \@author\ifx\aaron@id\@empty\else\aaronsep\aaron@id\fi
+     \ifx\@date\@empty\else\aaronsep\fi
+   \fi
+   \@date\par}\vspace{0.6em}
+  \aaronrule\par\vspace{1em}%
+  \endgroup}
+\renewcommand{\maketitle}{\aaron@titleblock\aaron@titlepagestyle}
+\newcommand{\aaron@titlepagestyle}{\thispagestyle{plain}}
+
+% ---------- page style (exam has its own header system) ----------
+\@ifclassloaded{exam}{}{%
+  \RequirePackage{fancyhdr,lastpage}
+  \fancypagestyle{aaron}{%
+    \fancyhf{}%
+    \fancyhead[L]{\sffamily\small\color{mute}\nouppercase{\aaron@headleft}}%
+    \fancyhead[R]{\sffamily\small\color{mute}\nouppercase{\aaron@headright}}%
+    \fancyfoot[R]{\sffamily\scriptsize\color{mute}\thepage\,/\,\pageref*{LastPage}}%
+    \renewcommand{\headrule}{{\color{rule}\hrule height\headrulewidth}}%
+    \renewcommand{\headrulewidth}{\ifx\@title\@empty\ifx\aaron@course\@empty 0pt\else 0.4pt\fi\else 0.4pt\fi}%
+    \renewcommand{\footrulewidth}{0pt}%
+    \ifaaron@marginlayout\fancyhfoffset[R]{\dimexpr\marginparwidth+\marginparsep\relax}\fi}
+  \fancypagestyle{plain}{%
+    \fancyhf{}%
+    \fancyfoot[R]{\sffamily\scriptsize\color{mute}\thepage\,/\,\pageref*{LastPage}}%
+    \renewcommand{\headrulewidth}{0pt}}
+  \pagestyle{aaron}}
+\newcommand{\aaron@headleft}{\aaron@course}
+% Contents entries in body color; links elsewhere stay accent.
+\AtBeginDocument{%
+  \let\aaron@tableofcontents\tableofcontents
+  \renewcommand{\tableofcontents}{{\hypersetup{linkcolor=ink}\aaron@tableofcontents}}}
+\newcommand{\aaron@headright}{\@author}
+
+
+\endinput

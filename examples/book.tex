@@ -1,0 +1,40 @@
+% !TEX program = xelatex
+\documentclass[lang=zh]{aaron-book}
+\aaronsetup{kicker={國立臺灣大學\aaronsep 碩士論文}}
+\title{自我預測表徵的分佈式評論家}
+\author{Aaron Lin}
+
+\begin{document}
+\frontmatter
+\maketitle
+\tableofcontents
+
+\mainmatter
+\chapter{緒論}\label{ch:intro}
+\chaptertoc
+\section{動機}
+模型為本的表徵方法在 2026 年大量出現，例如 MR.Q 與 LeWM。
+\begin{definition}[Collapse]\label{def:collapse}
+若 $\Var[f(\vb{o})] = 0$，稱編碼器 $f$ collapse。
+\end{definition}
+\section{本文貢獻}
+見\cref{ch:method}與\cref{def:collapse}。
+
+\chapter{方法}\label{ch:method}
+\chaptertoc
+\section{問題設定}
+\begin{equation}\label{eq:loss}
+  \mathcal{L} = \E\norm{\hat{\vb{z}}_{t+1} - \sg(\vb{z}_{t+1})}^2 .
+\end{equation}
+\begin{theorem}\label{thm:a}
+由\cref{eq:loss}可得結論。
+\end{theorem}
+\begin{proof} 顯然。 \end{proof}
+\section{實驗}
+\subsection{環境}
+DMC 與 Atari。
+
+\appendix
+\chapter{證明細節}
+補充\cref{thm:a}的證明。
+\end{document}

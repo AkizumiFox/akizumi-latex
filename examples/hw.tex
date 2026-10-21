@@ -1,0 +1,34 @@
+% !TEX program = xelatex
+\documentclass[lang=zh]{aaron-hw}
+\aaronsetup{course=常微分方程, number=3, due=2026/10/28, id=B12345678}
+\author{Aaron Lin}
+
+\begin{document}
+\maketitle
+
+\begin{problem}[一階線性方程]
+解初值問題 $y' + 2y = e^{-x}$，$y(0) = 1$。
+\begin{solution}
+積分因子為 $\mu(x) = e^{2x}$，所以 $(e^{2x}y)' = e^{x}$，積分得
+\[
+  y(x) = e^{-x} + C e^{-2x}.
+\]
+由 $y(0)=1$ 得 $C = 0$，故 $y = e^{-x}$。
+\end{solution}
+\end{problem}
+
+\begin{problem}
+Let $\vb{A} \in \R^{n\times n}$ be symmetric. Show that
+\begin{parts}
+  \item $\vb{x}\T \vb{A} \vb{x} \le \lambda_{\max} \norm{\vb{x}}^2$ for all $\vb{x}$;
+  \item $\argmax_{\norm{\vb{x}} = 1} \vb{x}\T \vb{A} \vb{x}$ is an eigenvector.
+\end{parts}
+\begin{solution}
+Write $\vb{A} = \vb{Q}\vb{\Lambda}\vb{Q}\T$ and set $\vb{y} = \vb{Q}\T\vb{x}$. Then
+$\vb{x}\T\vb{A}\vb{x} = \sum_i \lambda_i y_i^2 \le \lambda_{\max}\norm{\vb{y}}^2 = \lambda_{\max}\norm{\vb{x}}^2$.
+\begin{proof}
+Equality forces $y_i = 0$ whenever $\lambda_i < \lambda_{\max}$.
+\end{proof}
+\end{solution}
+\end{problem}
+\end{document}

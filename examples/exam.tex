@@ -1,0 +1,24 @@
+% !TEX program = xelatex
+\documentclass[lang=zh, solutions=true]{aaron-exam}
+\aaronsetup{course=常微分方程}
+\title{期中考}
+\author{授課教師：Aaron Lin}
+
+\begin{document}
+\maketitle
+\begin{center}\gradetable[h][questions]\end{center}
+
+\begin{questions}
+\question[10] 解 $y'' + y = 0$，$y(0) = 0$，$y'(0) = 1$。
+\begin{solution}
+特徵方程 $r^2 + 1 = 0$，得 $y = \sin x$。
+\end{solution}
+
+\question 考慮 $\vb{x}' = \vb{A}\vb{x}$。
+\begin{parts}
+  \part[5] 求 $\vb{A} = \begin{pmatrix} 0 & 1 \\ -1 & 0 \end{pmatrix}$ 的特徵值。
+  \begin{solution} $\lambda = \pm i$。\end{solution}
+  \part[10] 判斷原點的穩定性。
+\end{parts}
+\end{questions}
+\end{document}

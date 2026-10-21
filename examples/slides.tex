@@ -1,0 +1,59 @@
+% !TEX program = xelatex
+\documentclass[aspectratio=169,11pt]{beamer}
+\usetheme[progress]{Aaron}
+\title{The JEPA Flood: What These Papers Are Doing,\\and Where the Holes Are}
+\author{Aaron Lin}
+\date{ELSA Lab discussion \quad October 2026}
+
+\begin{document}
+\begin{frame}[plain,noframenumbering]\titlepage\end{frame}
+
+\begin{frame}{Plan for today}
+  \begin{enumerate}
+    \item Compress 40+ papers into \textbf{three lineages}
+    \item Which cells of the design space are \textbf{full}
+  \end{enumerate}
+  \vspace{1em}
+  \muted{\small ``Empty'' means not found in a limited search.}
+\end{frame}
+
+\section{Three lineages}
+\begin{frame}{Shared skeleton: predict latents, not pixels}
+  \[
+    \mathbf{z}_t = f_\theta(\mathbf{o}_t), \qquad
+    \hat{\mathbf{z}}_{t+1} = g_\phi(\mathbf{z}_t, \mathbf{a}_t), \qquad
+    \E\norm{\vb{z}}^2
+  \]
+  \begin{itemize}
+    \item Problem: $f_\theta \equiv \text{const}$ $\Rightarrow$ \textbf{collapse}
+      \begin{itemize}\item SSL: linear probes 中文也可以\end{itemize}
+    \item \alert{Stop-grad is still needed}
+  \end{itemize}
+  \q{In your experience, what does removing stop-grad look like?}
+\end{frame}
+
+\begin{frame}{Table}
+\small
+\begin{tabularx}{\linewidth}{@{}l Y@{}}
+\toprule
+Mechanism & One line \\
+\midrule
+Stop-grad / EMA target & Avoids collapse through dynamics \\
+\textbf{SIGReg} & Pushes latents toward $\mathcal{N}(\mathbf{0},\mathbf{I})$ \\
+\bottomrule
+\end{tabularx}
+\end{frame}
+\begin{frame}[fragile]{Code}
+\begin{codeblock}[lang=Python, title=sigreg.py]
+def sigreg(z, num_dirs=64):
+    u = torch.randn(z.shape[1], num_dirs)
+    return epps_pulley(z @ u).mean()
+\end{codeblock}
+\end{frame}
+\standoutframe{Questions?}
+\appendix
+\dividerframe{Appendix}
+\begin{frame}{Backup}
+  Not counted in the total.
+\end{frame}
+\end{document}

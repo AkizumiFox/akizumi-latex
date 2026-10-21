@@ -1,0 +1,20 @@
+#!/bin/sh
+# Stand-in for TeX Live's biber on macOS. The universal biber unpacks itself
+# with `lipo -extract_family`, which current Command Line Tools no longer
+# support ("extracting arm64 binary with lipo failed"). This extracts the
+# slice for this machine with `lipo -thin` and runs it, re-extracting when
+# TeX Live updates biber so it keeps matching biblatex.
+# install.sh links it into ~/bin only when the TeX Live biber fails to start;
+# remove ~/bin/biber once TeX Live ships a fixed one.
+set -e
+src=$(readlink -f /Library/TeX/texbin/biber 2>/dev/null || true)
+[ -x "$src" ] || src="$(kpsewhich -var-value SELFAUTOLOC)/biber"
+arch=$(uname -m)
+cache="$HOME/Library/Caches/texlive-biber/biber-$arch"
+if [ ! -x "$cache" ] || [ "$src" -nt "$cache" ]; then
+  mkdir -p "$(dirname "$cache")"
+  /usr/bin/lipo "$src" -thin "$arch" -output "$cache.tmp"
+  chmod +x "$cache.tmp"
+  mv "$cache.tmp" "$cache"
+fi
+exec "$cache" "$@"

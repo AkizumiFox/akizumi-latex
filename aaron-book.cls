@@ -6,7 +6,7 @@
 %   \mainmatter \chapter{Introduction} \chaptertoc ...
 %   \appendix \chapter{Proofs} ...  \backmatter \printbibliography
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{aaron-book}[2026/10/21 v0.3 Aaron Lin book]
+\ProvidesClass{aaron-book}[2026/10/21 v0.4 Aaron Lin book]
 
 \ExplSyntaxOn
 \tl_new:N \l__aaron_size_tl

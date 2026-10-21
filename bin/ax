@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """ax -- start and build LaTeX projects on the aaron-latex templates.
 
-  ax new KIND DIR [options]  start a project: hw, note, exam, slides, book, paper
+  ax new [KIND] [DIR] [opts] start a project: hw, note, exam, slides, book, paper
+                             (asks for anything left out)
   ax build [FILE]            compile once; the PDF is replaced only on success
   ax watch [FILE]            recompile on every save and keep the viewer open
   ax both [FILE]             problem sheet and answer key (hw, exam)
@@ -49,6 +50,9 @@ LATEXMKRC = """\
 $pdf_mode = {pdf_mode};
 $out_dir = 'build';
 $aux_dir = 'build';
+# SyncTeX lets Skim jump between the PDF and the source (Cmd-Shift-click).
+push @extra_xelatex_options, '-synctex=1';
+push @extra_pdflatex_options, '-synctex=1';
 
 # Template version pinned in .ax.json (empty when frozen or not found).
 my $ax_path = `ax texinputs 2>/dev/null`;
@@ -144,18 +148,54 @@ def main_file(arg):
 
 # ---------- ax new ----------
 
+KIND_HELP = {
+    "hw": "homework: problems, solutions, ax both",
+    "note": "lecture notes / write-up",
+    "exam": "exam or quiz on the exam class",
+    "slides": "beamer slides",
+    "book": "thesis or long notes with chapters",
+    "paper": "paper body for a venue template (pdfLaTeX, aaron-math only)",
+}
+
+
+def ask(prompt):
+    try:
+        return input(prompt).strip()
+    except EOFError:
+        return ""
+
+
 def cmd_new(a):
     user = load_json(USER_CONFIG)
+    interactive = sys.stdin.isatty()
+    if a.kind is None:
+        if not interactive:
+            die("ax new needs a KIND: " + ", ".join(KINDS))
+        names = list(KINDS)
+        for i, k in enumerate(names, 1):
+            print(f"  {i}. {k:<7} {KIND_HELP[k]}")
+        choice = ask("Kind [1-6]: ")
+        if choice.isdigit() and 1 <= int(choice) <= len(names):
+            a.kind = names[int(choice) - 1]
+        elif choice in KINDS:
+            a.kind = choice
+        else:
+            die(f"unknown kind {choice!r}")
+    if a.kind not in KINDS:
+        die(f"unknown kind {a.kind!r}; choose from " + ", ".join(KINDS))
+    if a.dir is None:
+        if not interactive:
+            die("ax new needs a DIR")
+        a.dir = ask("Directory: ") or die("no directory given")
     target = Path(a.dir)
     if target.exists() and any(target.iterdir()) and not a.force:
         die(f"{target} exists and is not empty (use --force)")
 
-    interactive = sys.stdin.isatty()
     title = a.title
     if title is None and a.kind != "hw" and interactive:
-        title = input("Title: ").strip() or None
+        title = ask("Title: ") or None
     if a.kind == "hw" and a.course is None and interactive:
-        a.course = input("Course (optional): ").strip() or None
+        a.course = ask("Course (optional): ") or None
     author = a.author or user.get("author") or git("config", "user.name").stdout.strip()
     student_id = a.id or user.get("id")
     lang = a.lang or user.get("lang", "en")
@@ -240,6 +280,11 @@ def cmd_new(a):
     (target / PROJECT_CONFIG).write_text(json.dumps(
         {"kind": a.kind, "main": "main.tex", "template": pin}, indent=2) + "\n")
     template_dir(pin)  # fetch the pinned version now, while the repo is at hand
+    if a.git:
+        run = lambda *c: subprocess.run(["git", "-C", str(target), *c], capture_output=True)
+        run("init", "-q")
+        run("add", "-A")
+        run("commit", "-q", "-m", f"Start {a.kind} project")
 
     print(f"created {target}/ ({a.kind}, templates {pin})")
     print(f"  cd {target} && ax watch")
@@ -339,19 +384,30 @@ def safe_build(main, jobname=None, pretex=None, quiet=False):
         return True
 
     print(f"failed  {main}" + (f" ({job})" if jobname else ""), file=sys.stderr)
-    err = first_error(log)
-    if err:
-        location, message, context = err
-        print(f"  {location}: {message}" if location else f"  {message}", file=sys.stderr)
-        for c in context:
-            print(f"    {c}", file=sys.stderr)
-    else:
+    if not print_error(log):
         tail = [l for l in output.splitlines() if re.search(r"error|failed", l, re.I)]
         for l in tail[-5:]:
             print(f"  {l.strip()}", file=sys.stderr)
     if Path(f"{job}.pdf").exists():
         print(f"  kept the previous {job}.pdf", file=sys.stderr)
     return False
+
+
+def print_error(log):
+    err = first_error(log)
+    if not err:
+        return False
+    location, message, context = err
+    print(f"  {location}: {message}" if location else f"  {message}", file=sys.stderr)
+    for c in context:
+        print(f"    {c}", file=sys.stderr)
+    return True
+
+
+def cmd_explain(a):
+    """Called by latexmk after a failed run in ax watch."""
+    if not print_error(Path("build") / f"{a.job}.log"):
+        print("  no LaTeX error in the log; see the latexmk output above", file=sys.stderr)
 
 
 def cmd_build(a):
@@ -362,7 +418,8 @@ def cmd_watch(a):
     main = main_file(a.file)
     print("watching; Ctrl-C to stop")
     cmd = ["latexmk", "-pvc", "-interaction=nonstopmode", "-file-line-error",
-           "-e", "$success_cmd = 'cp -f %D %R.pdf';", str(main)]
+           "-e", "$success_cmd = 'cp -f %D %R.pdf';",
+           "-e", "$failure_cmd = 'ax explain %R';", str(main)]
     try:
         sys.exit(subprocess.call(cmd))
     except KeyboardInterrupt:
@@ -516,8 +573,8 @@ def main():
     sub = p.add_subparsers(dest="command", required=True)
 
     n = sub.add_parser("new", help="start a project")
-    n.add_argument("kind", choices=KINDS)
-    n.add_argument("dir")
+    n.add_argument("kind", nargs="?", help=", ".join(KINDS))
+    n.add_argument("dir", nargs="?")
     n.add_argument("--title")
     n.add_argument("--author")
     n.add_argument("--course", help="course name (book: line above the title)")
@@ -531,6 +588,7 @@ def main():
     n.add_argument("--bib", action="store_true", help="add refs.bib and a bibliography")
     n.add_argument("--progress", action="store_true", help="slides: progress bar")
     n.add_argument("--pin", help="template version (default: newest tag)")
+    n.add_argument("--git", action="store_true", help="git init and first commit")
     n.add_argument("--force", action="store_true")
     n.set_defaults(func=cmd_new)
 
@@ -546,6 +604,10 @@ def main():
                              ("pack", cmd_pack, "zip for Overleaf"),
                              ("texinputs", cmd_texinputs, None)):  # used by latexmkrc
         (sub.add_parser(name, help=text) if text else sub.add_parser(name)).set_defaults(func=func)
+
+    e = sub.add_parser("explain")  # used by ax watch
+    e.add_argument("job")
+    e.set_defaults(func=cmd_explain)
 
     a = p.parse_args()
     a.func(a)

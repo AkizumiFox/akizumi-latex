@@ -4,7 +4,7 @@
 %   \title{Midterm} \author{Instructor: Aaron Lin}
 %   \begin{questions} \question[10] ... \begin{solution}...\end{solution} \end{questions}
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{aaron-exam}[2026/10/21 v0.3 Aaron Lin exam]
+\ProvidesClass{aaron-exam}[2026/10/21 v0.4 Aaron Lin exam]
 
 \newif\ifaaron@solutions
 \ExplSyntaxOn
@@ -51,7 +51,7 @@
 \pagestyle{headandfoot}
 \firstpageheader{}{}{}
 \runningheader{\sffamily\small\color{mute}\aaron@course}{}{\sffamily\small\color{mute}\@title}
-\footer{}{}{\sffamily\scriptsize\color{mute}\thepage\,/\,\numpages}
+\footer{}{\sffamily\scriptsize\color{mute}\thepage\,/\,\numpages}{}
 
 % ---------- questions and points ----------
 \ifaaron@zh

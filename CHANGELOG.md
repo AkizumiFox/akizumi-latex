@@ -1,9 +1,14 @@
 # Changelog
 
-## Unreleased
+## v0.4 — 2026-10-21
 
+- Title block: larger title (`\huge`), no rule underneath.
+- Page numbers centred at the foot of the page (notes, homework, book, exam).
 - `ax` command: `new` (hw, note, exam, slides, book, paper), `build` (PDF replaced only on success, first error with file:line, stale-state retry, timeout), `watch`, `both`, `doctor`, `freeze`, `upgrade`, `pack`. Projects pin a template version in `.ax.json`; `ax texinputs` serves it to latexmk.
+- `ax new` with no arguments asks for the kind (numbered menu), directory and title; `--git` starts a repository.
+- Generated projects turn on SyncTeX; `ax watch` prints the first error (via `ax explain`) when a run fails.
 - `make test-ax`.
+- Fix: `examples/latexmkrc` searched the parent folder recursively, so `skeletons/hw.tex` shadowed `examples/hw.tex`.
 
 ## v0.3 — 2026-10-21
 

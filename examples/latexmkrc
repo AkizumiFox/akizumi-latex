@@ -1,3 +1,4 @@
 $pdf_mode = 5;      # xelatex
 $out_dir = 'build';
-ensure_path('TEXINPUTS', '..//');   # use the templates in the parent folder without installing
+ensure_path('TEXINPUTS', '..');     # templates at the repo root, not installed copies; not
+                                     # recursive, or skeletons/hw.tex would shadow ./hw.tex

@@ -2,7 +2,7 @@
 %   \documentclass[lang=zh]{aaron-note}
 %   \aaronsetup{course=ODE, kicker={ODE · Lecture 3}}
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{aaron-note}[2026/10/21 v0.4 Aaron Lin notes]
+\ProvidesClass{aaron-note}[2026/10/21 v0.5 Aaron Lin notes]
 
 \ExplSyntaxOn
 \tl_new:N \l__aaron_size_tl

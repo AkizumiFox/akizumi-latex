@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5 — 2026-10-23
+
+- No grey rules left in documents: the running header and book chapter titles lose theirs (the title block already had).
+- Slide title page matches the document title: kicker above, bold title, muted "author · date" line. `ax new slides --course` fills the kicker.
+- `ax new` writes `.vscode/settings.json` (Cursor / VS Code: latexmk recipe, double-click reverse sync); latexmkrc calls `ax` and biber by absolute path.
+- `ax --help` in Chinese with the command list and examples; plain `ax` prints it.
+
 ## v0.4 — 2026-10-21
 
 - Title block: larger title (`\huge`), no rule underneath.

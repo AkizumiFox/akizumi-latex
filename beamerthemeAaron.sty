@@ -3,7 +3,7 @@
 %   \documentclass[aspectratio=169,11pt]{beamer}
 %   \usetheme[lang=zh]{Aaron}
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{beamerthemeAaron}[2026/10/21 v0.4 Aaron Lin beamer theme]
+\ProvidesPackage{beamerthemeAaron}[2026/10/21 v0.5 Aaron Lin beamer theme]
 
 \ExplSyntaxOn
 \bool_new:N \l__aaron_progress_bool
@@ -52,14 +52,16 @@
     \dimexpr\paperwidth*\insertframenumber/\inserttotalframenumber\relax
     \else\paperwidth\fi}{1.2pt}}}
 
-% \titlepage inside \begin{frame}[plain,noframenumbering]
+% \titlepage inside \begin{frame}[plain,noframenumbering]. Same layout as the
+% document title: kicker (\aaronsetup{kicker=...}), title, "author · date".
+% \LARGE rather than the documents' \huge: the slide page is far smaller.
 \setbeamertemplate{title page}{%
   \vfill
-  {\LARGE\bfseries\inserttitle}\par
+  \ifx\aaron@kicker\@empty\else{\small\bfseries\color{accent}\aaron@kicker}\par\vspace{0.5em}\fi
+  {\LARGE\bfseries\inserttitle\par}
   \ifx\insertsubtitle\@empty\else\vspace{0.4em}{\large\color{mute}\insertsubtitle}\par\fi
-  \vspace{1em}
-  {\large\insertauthor}\par\vspace{0.3em}
-  \muted{\insertdate}
+  \vspace{0.8em}
+  {\color{mute}\insertauthor\ifx\beamer@date\@empty\else\aaronsep\insertdate\fi\par}
   \vfill}
 
 \setbeamertemplate{section page}{%

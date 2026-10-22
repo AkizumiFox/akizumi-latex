@@ -266,14 +266,14 @@ def cmd_new(a):
             setup.append(f"due={a.due}")
         if student_id:
             setup.append(f"id={student_id}")
-    if setup and a.kind not in ("slides", "paper"):
+    if a.kind == "slides":
+        setup = [f"kicker={{{a.course}}}"] if a.course else []
+    if setup and a.kind != "paper":
         lines.append("\\aaronsetup{" + ", ".join(setup) + "}")
     if title:
         lines.append(f"\\title{{{title}}}")
     if author:
         lines.append(f"\\author{{{author}}}")
-    if a.kind == "slides" and a.course:
-        lines.append(f"\\date{{{a.course}\\quad\\today}}")
 
     body = (SKELETONS / f"{a.kind}.tex").read_text()
     bibend = ""
@@ -586,49 +586,86 @@ def cmd_doctor(a):
 
 # ---------- command line ----------
 
-def main():
-    p = argparse.ArgumentParser(prog="ax", description=__doc__.split("\n\n")[0])
-    p.add_argument("--version", action="version",
-                   version=f"ax (templates {', '.join(template_tags()[:1]) or 'untagged'})")
-    sub = p.add_subparsers(dest="command", required=True)
+HELP_COMMANDS = """\
+指令（new、doctor 以外都在專案資料夾裡執行）：
+  new       建立新專案（ax new --help 看選項）
+  watch     存檔就重編
+  build     編譯一次；失敗時指出錯在哪一行，保留上一份 PDF
+  both      作業／考卷：題目卷和解答各一份
+  doctor    檢查工具、字型、模板版本
+  upgrade   改用最新的模板版本
+  freeze    把模板檔複製進專案，從此不依賴模板 repo
+  pack      打包成 zip 上傳 Overleaf
 
-    n = sub.add_parser("new", help="start a project")
-    n.add_argument("kind", nargs="?", help=", ".join(KINDS))
-    n.add_argument("dir", nargs="?")
-    n.add_argument("--title")
-    n.add_argument("--author")
-    n.add_argument("--course", help="course name (book: line above the title)")
-    n.add_argument("--number", help="homework number")
-    n.add_argument("--due", help="homework due date")
-    n.add_argument("--id", help="student ID")
-    n.add_argument("--lang", choices=["en", "zh"])
-    n.add_argument("--text", choices=["serif", "sans"])
-    n.add_argument("--paper", choices=["a4", "letter", "pad"])
-    n.add_argument("--layout", choices=["normal", "margin"])
-    n.add_argument("--bib", action="store_true", help="add refs.bib and a bibliography")
-    n.add_argument("--progress", action="store_true", help="slides: progress bar")
-    n.add_argument("--pin", help="template version (default: newest tag)")
-    n.add_argument("--git", action="store_true", help="git init and first commit")
-    n.add_argument("--force", action="store_true")
+"""
+
+HELP_EXAMPLES = """\
+範例：
+  ax new                                  用選單選種類、資料夾、標題
+  ax new hw ode-hw3 --course 常微分方程 --number 3
+  ax new note rl4 --title "Self-Predictive Representations" --bib
+  ax new slides talk --title "The JEPA Flood" --course "ELSA Lab" --progress
+  cd ode-hw3 && ax watch                  存檔就重編
+
+說明文件：README.md、docs/reference.md（在模板 repo 裡）
+"""
+
+
+def main():
+    p = argparse.ArgumentParser(
+        prog="ax", usage="ax [-h] [--version] 指令 ...", description="建立與編譯 aaron-latex 專案。",
+        epilog=HELP_COMMANDS + HELP_EXAMPLES,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--version", action="version",
+                   version=f"ax（模板 {', '.join(template_tags()[:1]) or '未打版本'}）")
+    # The command list is written out in HELP_COMMANDS; argparse's own list
+    # would also show the internal ones (texinputs, explain).
+    sub = p.add_subparsers(dest="command", required=True, metavar="指令",
+                           help=argparse.SUPPRESS)
+
+    n = sub.add_parser("new", help="建立新專案",
+                       description="建立新專案。沒給的種類、資料夾、標題會互動式詢問。",
+                       epilog=HELP_EXAMPLES, formatter_class=argparse.RawDescriptionHelpFormatter)
+    n.add_argument("kind", nargs="?", metavar="種類", help=" / ".join(KINDS))
+    n.add_argument("dir", nargs="?", metavar="資料夾")
+    n.add_argument("--title", help="標題（作業不用，會寫成「作業 N」）")
+    n.add_argument("--author", help="作者，預設取自 ~/.config/ax/config.json")
+    n.add_argument("--course", help="課名；書和簡報放在標題上方")
+    n.add_argument("--number", help="作業編號")
+    n.add_argument("--due", help="作業繳交期限")
+    n.add_argument("--id", help="學號，預設取自 config.json")
+    n.add_argument("--lang", choices=["en", "zh"], help="主語言，預設取自 config.json")
+    n.add_argument("--text", choices=["serif", "sans"], help="內文字型（預設 serif）")
+    n.add_argument("--paper", choices=["a4", "letter", "pad"], help="紙張；pad 是平板閱讀版面")
+    n.add_argument("--layout", choices=["normal", "margin"], help="margin：右側寬邊欄放 sidenote")
+    n.add_argument("--bib", action="store_true", help="加上 refs.bib 和參考文獻")
+    n.add_argument("--progress", action="store_true", help="簡報底部加進度條")
+    n.add_argument("--pin", help="模板版本，預設最新的 tag")
+    n.add_argument("--git", action="store_true", help="建立 git repo 並做第一個 commit")
+    n.add_argument("--force", action="store_true", help="資料夾已存在且不是空的也照樣建立")
     n.set_defaults(func=cmd_new)
 
-    for name, func, text in (("build", cmd_build, "compile once"),
-                             ("watch", cmd_watch, "recompile on save"),
-                             ("both", cmd_both, "problem sheet and answer key")):
-        c = sub.add_parser(name, help=text)
-        c.add_argument("file", nargs="?")
+    for name, func, text in (("build", cmd_build, "編譯一次；失敗時保留上一份 PDF"),
+                             ("watch", cmd_watch, "存檔就重編"),
+                             ("both", cmd_both, "作業／考卷：題目卷和解答各一份")):
+        c = sub.add_parser(name, help=text, description=text)
+        c.add_argument("file", nargs="?", metavar="檔案", help="預設是 main.tex")
         c.set_defaults(func=func)
-    for name, func, text in (("doctor", cmd_doctor, "check the toolchain"),
-                             ("freeze", cmd_freeze, "copy pinned templates into the project"),
-                             ("upgrade", cmd_upgrade, "move to the newest templates"),
-                             ("pack", cmd_pack, "zip for Overleaf"),
-                             ("texinputs", cmd_texinputs, None)):  # used by latexmkrc
-        (sub.add_parser(name, help=text) if text else sub.add_parser(name)).set_defaults(func=func)
+    for name, func, text in (("doctor", cmd_doctor, "檢查工具、字型、模板版本"),
+                             ("upgrade", cmd_upgrade, "改用最新的模板版本"),
+                             ("freeze", cmd_freeze, "把模板檔複製進專案，從此不依賴模板 repo"),
+                             ("pack", cmd_pack, "打包成 zip 上傳 Overleaf")):
+        sub.add_parser(name, help=text, description=text).set_defaults(func=func)
 
-    e = sub.add_parser("explain")  # used by ax watch
+    # internal: latexmkrc asks for the pinned template path; ax watch explains failures
+    sub.add_parser("texinputs").set_defaults(func=cmd_texinputs)
+    e = sub.add_parser("explain")
     e.add_argument("job")
     e.set_defaults(func=cmd_explain)
 
+    if len(sys.argv) == 1:
+        p.print_help()
+        sys.exit(0)
     a = p.parse_args()
     a.func(a)
 

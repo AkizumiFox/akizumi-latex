@@ -3,7 +3,7 @@
 %   \aaronsetup{course=ODE, number=3, due=2026/10/28, id=B12345678}
 %   \begin{problem}[optional title] ... \begin{solution} ... \end{solution} \end{problem}
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{aaron-hw}[2026/10/21 v0.4 Aaron Lin homework]
+\ProvidesClass{aaron-hw}[2026/10/21 v0.5 Aaron Lin homework]
 
 \newif\ifaaron@solutions \aaron@solutionstrue
 \ExplSyntaxOn

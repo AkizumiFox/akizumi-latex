@@ -12,7 +12,7 @@
 %           paper  = a4 | letter | pad    (pad: 3:4 page for reading on a tablet)
 %           layout = normal | margin      (margin: wide right margin for sidenotes)
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{aaron-core}[2026/10/21 v0.4 Aaron Lin shared style]
+\ProvidesPackage{aaron-core}[2026/10/21 v0.5 Aaron Lin shared style]
 
 \RequirePackage{iftex}
 \RequireXeTeX
@@ -481,8 +481,7 @@
     \fancyhead[L]{\sffamily\small\color{mute}\nouppercase{\aaron@headleft}}%
     \fancyhead[R]{\sffamily\small\color{mute}\nouppercase{\aaron@headright}}%
     \fancyfoot[C]{\sffamily\scriptsize\color{mute}\thepage\,/\,\pageref*{LastPage}}%
-    \renewcommand{\headrule}{{\color{rule}\hrule height\headrulewidth}}%
-    \renewcommand{\headrulewidth}{\ifx\@title\@empty\ifx\aaron@course\@empty 0pt\else 0.4pt\fi\else 0.4pt\fi}%
+    \renewcommand{\headrulewidth}{0pt}%
     \renewcommand{\footrulewidth}{0pt}%
     \ifaaron@marginlayout\fancyhfoffset[R]{\dimexpr\marginparwidth+\marginparsep\relax}\fi}
   \fancypagestyle{plain}{%

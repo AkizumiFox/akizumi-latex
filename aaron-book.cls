@@ -6,7 +6,7 @@
 %   \mainmatter \chapter{Introduction} \chaptertoc ...
 %   \appendix \chapter{Proofs} ...  \backmatter \printbibliography
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{aaron-book}[2026/10/21 v0.4 Aaron Lin book]
+\ProvidesClass{aaron-book}[2026/10/21 v0.5 Aaron Lin book]
 
 \ExplSyntaxOn
 \tl_new:N \l__aaron_size_tl
@@ -32,7 +32,7 @@
 \RequirePackage{aaron-core}
 \aaron@setgeometry{margin=2.7cm, headsep=0.8cm, headheight=15pt}
 
-% ---------- chapters: muted "Chapter 3" over a large title and a hairline ----------
+% ---------- chapters: muted "Chapter 3" over a large title ----------
 \newif\ifaaron@inappendix
 \g@addto@macro\appendix{\global\aaron@inappendixtrue}
 \newcommand{\aaron@chapterlabel}{%
@@ -40,9 +40,9 @@
     \ifaaron@inappendix 附錄~\thechapter\else 第~\thechapter~章\fi
   \else \@chapapp~\thechapter\fi}
 \titleformat{\chapter}[display]{\sffamily\bfseries}
-  {\color{mute}\large\aaron@chapterlabel}{0.5em}{\Huge}[\vspace{0.6em}\aaronrule]
+  {\color{mute}\large\aaron@chapterlabel}{0.5em}{\Huge}
 \titleformat{name=\chapter,numberless}[display]{\sffamily\bfseries}
-  {}{0pt}{\Huge}[\vspace{0.6em}\aaronrule]
+  {}{0pt}{\Huge}
 \titlespacing*{\chapter}{0pt}{1.5cm}{1.4cm}
 \ifaaron@zh\crefformat{chapter}{#2第~#1~章#3}\fi
 

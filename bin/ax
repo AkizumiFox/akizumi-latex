@@ -1079,6 +1079,23 @@ def cmd_selftest(a):
                 print(out)
         else:
             result(False, "專案 both（作業專案沒有建立成功）")
+        # references: biber runs and the citation resolves
+        d = tmp / "t-bib"
+        r = subprocess.run(ax + ["new", "note", str(d), "--title", "Test", "--bib", "--no-preamble",
+                                 "--pin", "latest"], stdin=subprocess.DEVNULL, capture_output=True,
+                           encoding="utf-8", errors="replace")
+        good = False
+        if r.returncode == 0:
+            (d / "refs.bib").write_text("@article{key, author={A. Author}, title={T}, "
+                                        "journal={J}, year={2026}}\n")
+            main_tex = d / "main.tex"
+            main_tex.write_text(main_tex.read_text().replace(
+                "\\section{Introduction}", "\\section{Introduction}\nSee~\\cite{key}."))
+            code, out, _ = run_with_spinner(ax + ["build"], "專案 參考文獻", cwd=d)
+            good = code == 0 and not any("cite" in w for w in warnings_summary(d / "build" / "main.log"))
+            if not good:
+                print(out)
+        result(good, "專案 參考文獻（biber）")
         shutil.rmtree(tmp, ignore_errors=True)
     print()
     if failed:

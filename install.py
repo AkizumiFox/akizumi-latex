@@ -131,7 +131,8 @@ def install_tools():
         old.unlink()
         print(f"removed {old}")
     if MACOS:
-        texbiber = Path("/Library/TeX/texbin/biber")
+        # TeX Live's own biber (MacTeX or a plain TeX Live), not one already on PATH
+        texbiber = kpse_var("SELFAUTOLOC") / "biber"
         if texbiber.exists() and subprocess.run([str(texbiber), "--version"],
                                                 capture_output=True).returncode:
             link_file(bindir / "biber", HERE / "bin" / "biber")

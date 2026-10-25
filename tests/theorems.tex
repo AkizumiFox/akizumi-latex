@@ -1,0 +1,57 @@
+% !TEX program = xelatex
+% theorems: thmcounter, thmwithin, asides, aliases, extra kinds, [number=],
+% \akizumiNewTheorem, \akizumiSetTheorem, thmname overrides
+\documentclass[lang=zh, thmnames=native, thmcounter=grouped, thmwithin=section,
+  aliases=short, asides=unnumbered, thmname={corollary=系理}]{akizumi-note}
+\akizumiNewTheorem{tool}{Tool}{工具}{道具}{도구}[counter=own, prefix=T, within=none]
+\akizumiNewTheorem[style=remark]{tip}{Tip}{提示}{}{}
+\akizumiSetTheorem{assumption}{counter=own, prefix=A, within=none}
+\akizumisetup{thmname={remark=備註}}
+% a document's own definition replaces an extra kind
+\newtheorem{conjecture}{Old-style conjecture}
+\ExplSyntaxOn
+\cs_new_protected:Npn \expect #1#2
+  {
+    \tl_set:Ne \l_tmpa_tl {#1}
+    \tl_if_eq:NnF \l_tmpa_tl {#2}
+      { \PackageError { test } { got~`\l_tmpa_tl'~instead~of~`#2' } { } }
+  }
+\ExplSyntaxOff
+\usepackage{refcount}
+\newcommand{\checkref}[2]{\expect{\getrefnumber{#1}}{#2}}
+\begin{document}
+\section{Counters}
+\begin{theorem}\label{t1} A. \end{theorem}
+\begin{lemma}\label{l1} B. \end{lemma}
+\begin{definition}\label{d1} C. \end{definition}
+\begin{axiom}\label{a1} D. \end{axiom}
+\begin{cor}\label{c1} E. \end{cor}
+\begin{theorem}[number=7.3, note=Cram\'er--Wold]\label{m1} Manual. \end{theorem}
+\begin{thm}[Named]\label{t2} F. \end{thm}
+\begin{tool}\label{tool1} G. \end{tool}
+\begin{assumption}\label{as1} H. \end{assumption}
+\begin{example} Unnumbered aside. \end{example}
+\begin{tip} Unnumbered too. \end{tip}
+\begin{property} P. \end{property}
+\begin{conclusion} Q. \end{conclusion}
+\begin{notationthm} $x_t$ is the state. \end{notationthm}
+\begin{problem} Find $x$. \end{problem}
+\begin{remarks} Several. \end{remarks}
+\begin{remark} Renamed. \end{remark}
+\begin{conjecture}\label{cj} Old. \end{conjecture}
+\begin{notation}\notn{$x$}{a symbol}\end{notation}
+
+\cref{t1}, \cref{l1}, \cref{d1}, \cref{a1}, \cref{c1}, \cref{m1}, \cref{t2}, \cref{tool1}, \cref{as1}.
+
+\section{Second}
+\begin{theorem}\label{t3} Reset per section. \end{theorem}
+\begin{tool}\label{tool2} Not reset. \end{tool}
+
+\expect{\thetheorem}{2.1}\expect{\thetool}{T2}\expect{\theassumption}{A1}
+\makeatletter
+\@ifundefined{r@t1}{}{%
+  \checkref{t1}{1.1}\checkref{l1}{1.2}\checkref{d1}{1.1}\checkref{a1}{1.2}%
+  \checkref{c1}{1.3}\checkref{m1}{7.3}\checkref{t2}{1.4}\checkref{tool1}{T1}%
+  \checkref{as1}{A1}\checkref{cj}{1}\checkref{t3}{2.1}\checkref{tool2}{T2}}
+\makeatother
+\end{document}

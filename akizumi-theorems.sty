@@ -1,0 +1,561 @@
+% akizumi-theorems.sty -- theorem options, extra kinds and a public API on top
+% of the theorem-like environments in akizumi-core. Loaded by akizumi-core
+% (documents only); its options are the class options:
+%   thmcounter = shared | grouped | split   (default shared: one counter for all;
+%                grouped: theorem-, definition- and remark-like kinds count apart;
+%                split: every kind its own counter)
+%   thmwithin  = chapter | section | none   (default: the class's choice)
+%   asides     = numbered | unnumbered      (remark-like kinds: example, remark, remarks)
+%   aliases    = none | short               (thm lem prop cor defn conj exam rem prob)
+%   thmname    = {<kind>=<name>, ...}       (e.g. corollary=系理; also
+%                \akizumisetup{thmname={...}} or \akizumisetup{thmname/<kind>=...})
+% Extra kinds: axiom conjecture property remarks conclusion notationthm, and
+% problem outside akizumi-hw. A document's own \newtheorem of one of these
+% names (or of an alias) replaces ours.
+%   \begin{theorem}[number=3.2]  or  [number=3.2, note=Cram\'er--Wold]
+%   \akizumiNewTheorem{tool}{Tool}{工具}{道具}{도구}[prefix=T, counter=own]
+%   \akizumiSetTheorem{assumption}{counter=own, prefix=A}
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-theorems}[2026/10/25 v0.8 Aaron Lin theorem options]
+
+\ExplSyntaxOn
+\tl_new:N \l__akizumi_thm_mode_tl
+\tl_new:N \g__akizumi_thm_within_tl          % empty: not within anything
+\bool_new:N \l__akizumi_thm_within_forced_bool
+\bool_new:N \l__akizumi_thm_unnumbered_bool
+\bool_new:N \l__akizumi_thm_aliases_bool
+\prop_new:N \l__akizumi_thm_optnames_prop    % thmname/... given as options
+\seq_new:N \g__akizumi_thm_seq               % every kind, in definition order
+\seq_new:N \g__akizumi_thm_provisional_seq   % kinds a document's \newtheorem replaces
+\prop_new:N \g__akizumi_thm_key_prop         % kind -> string-table key
+\prop_new:N \g__akizumi_thm_family_prop      % kind -> theorem | definition | remark
+\prop_new:N \g__akizumi_thm_plural_prop      % kind -> English plural
+\prop_new:N \g__akizumi_thm_counter_prop     % kind -> own | <kind>   (unset: by mode)
+\prop_new:N \g__akizumi_thm_prefix_prop      % kind -> text before the number
+\prop_new:N \g__akizumi_thm_withinkey_prop   % kind -> chapter | section | none
+\prop_new:N \g__akizumi_thm_resetby_prop     % kind -> counter that resets it now
+\int_new:N \g__akizumi_thm_manual_int
+\tl_new:N \l__akizumi_thm_owner_tl
+\tl_new:N \l__akizumi_thm_next_tl
+\tl_new:N \l__akizumi_thm_prefix_tl
+\tl_new:N \l__akizumi_thm_within_tl
+\tl_new:N \l__akizumi_thm_old_tl
+\tl_const:Nn \c__akizumi_thm_own_tl { own }
+
+\cs_new_protected:Npn \__akizumi_thm_optname:nn #1#2
+  { \prop_put:Nnn \l__akizumi_thm_optnames_prop {#1} {#2} }
+\keys_define:nn { akizumi/theorems }
+  {
+    thmcounter .choices:nn = { shared, grouped, split }
+      { \tl_set_eq:NN \l__akizumi_thm_mode_tl \l_keys_choice_tl },
+    thmcounter .initial:n = shared,
+    thmwithin  .choices:nn = { chapter, section, none }
+      {
+        \bool_set_true:N \l__akizumi_thm_within_forced_bool
+        \str_if_eq:VnTF \l_keys_choice_tl { none }
+          { \tl_gclear:N \g__akizumi_thm_within_tl }
+          { \tl_gset_eq:NN \g__akizumi_thm_within_tl \l_keys_choice_tl }
+      },
+    asides     .choices:nn = { numbered, unnumbered }
+      { \bool_set:Nn \l__akizumi_thm_unnumbered_bool { \int_compare_p:n { \l_keys_choice_int = 2 } } },
+    aliases    .choices:nn = { none, short }
+      { \bool_set:Nn \l__akizumi_thm_aliases_bool { \int_compare_p:n { \l_keys_choice_int = 2 } } },
+    thmname    .code:n = \keyval_parse:nnn { \use_none:n } { \__akizumi_thm_optname:nn } {#1},
+  }
+\clist_const:Nn \c__akizumi_thm_namekeys_clist
+  {
+    theorem, lemma, proposition, corollary, claim, definition, assumption, example,
+    remark, proof, solution, axiom, conjecture, property, remarks, conclusion,
+    problem, notationthm
+  }
+\ProcessKeyOptions [ akizumi/theorems ]
+% The classes hand options they do not know to article / book / exam by key
+% name alone, which would leave "Unused global option(s): [thmcounter]".
+\clist_map_inline:nn { thmcounter, thmwithin, asides, aliases, thmname }
+  {
+    \@expandtwoargs \@removeelement { \tl_to_str:n {#1} } \@unusedoptionlist \@unusedoptionlist
+    \cs_gset_eq:NN \@unusedoptionlist \@unusedoptionlist
+  }
+
+% ---------- numbering ----------
+% Each kind has a private count register \akizumi@thmc@<kind>; \c@<kind> is
+% let to the register of the kind it counts with (its own when it counts
+% alone), the way akizumi-core shares theorem's counter.
+% \l__akizumi_thm_next_tl := the kind #1 counts with, one step
+\cs_new_protected:Npn \__akizumi_thm_target:n #1
+  {
+    \prop_get:NnNF \g__akizumi_thm_counter_prop {#1} \l__akizumi_thm_next_tl
+      {
+        \str_case:VnF \l__akizumi_thm_mode_tl
+          {
+            { shared } { \tl_set:Nn \l__akizumi_thm_next_tl { theorem } }
+            { grouped }
+              {
+                \prop_get:NnN \g__akizumi_thm_family_prop {#1} \l__akizumi_thm_next_tl
+                \str_if_eq:VnT \l__akizumi_thm_next_tl { remark }
+                  { \tl_set:Nn \l__akizumi_thm_next_tl { example } }
+              }
+          }
+          { \tl_set:Nn \l__akizumi_thm_next_tl {#1} }
+      }
+    \tl_if_eq:NNT \l__akizumi_thm_next_tl \c__akizumi_thm_own_tl
+      { \tl_set:Nn \l__akizumi_thm_next_tl {#1} }
+    \seq_if_in:NVF \g__akizumi_thm_seq \l__akizumi_thm_next_tl
+      { \tl_set:Nn \l__akizumi_thm_next_tl {#1} }
+  }
+\cs_generate_variant:Nn \__akizumi_thm_target:n { V }
+% \l__akizumi_thm_owner_tl := the kind whose counter #1 uses in the end
+\cs_new_protected:Npn \__akizumi_thm_owner:n #1
+  {
+    \tl_set:Nn \l__akizumi_thm_owner_tl {#1}
+    \int_zero:N \l__akizumi_thm_depth_int
+    \__akizumi_thm_owner_loop:
+  }
+\int_new:N \l__akizumi_thm_depth_int
+\cs_new_protected:Npn \__akizumi_thm_owner_loop:
+  {
+    \__akizumi_thm_target:V \l__akizumi_thm_owner_tl
+    \tl_if_eq:NNF \l__akizumi_thm_next_tl \l__akizumi_thm_owner_tl
+      {
+        \int_incr:N \l__akizumi_thm_depth_int
+        \int_compare:nNnT \l__akizumi_thm_depth_int < { 20 }  % counter=a, a: counter=b, ...
+          {
+            \tl_set_eq:NN \l__akizumi_thm_owner_tl \l__akizumi_thm_next_tl
+            \__akizumi_thm_owner_loop:
+          }
+      }
+  }
+% reset counter #1 with counter #2 (empty: with none), dropping the old one
+\cs_new_protected:Npn \__akizumi_thm_reset:nn #1#2
+  {
+    \prop_get:NnNF \g__akizumi_thm_resetby_prop {#1} \l__akizumi_thm_old_tl
+      { \tl_clear:N \l__akizumi_thm_old_tl }
+    \tl_if_eq:NnF \l__akizumi_thm_old_tl {#2}
+      {
+        \tl_if_empty:NF \l__akizumi_thm_old_tl
+          { \exp_args:NnV \@removefromreset {#1} \l__akizumi_thm_old_tl }
+        \tl_if_empty:nF {#2} { \@addtoreset {#1} {#2} }
+        \prop_gput:Nnn \g__akizumi_thm_resetby_prop {#1} {#2}
+      }
+  }
+\cs_generate_variant:Nn \__akizumi_thm_reset:nn { nV }
+\cs_new_protected:Npn \__akizumi_thm_apply:n #1
+  {
+    \__akizumi_thm_owner:n {#1}
+    \prop_get:NnNF \g__akizumi_thm_prefix_prop {#1} \l__akizumi_thm_prefix_tl
+      { \tl_clear:N \l__akizumi_thm_prefix_tl }
+    \tl_if_eq:NnTF \l__akizumi_thm_owner_tl {#1}
+      {
+        \cs_gset_eq:cc { c@#1 } { akizumi@thmc@#1 }
+        % within: the kind's own choice, else the document's
+        \prop_get:NnNTF \g__akizumi_thm_withinkey_prop {#1} \l__akizumi_thm_within_tl
+          { \str_if_eq:VnT \l__akizumi_thm_within_tl { none } { \tl_clear:N \l__akizumi_thm_within_tl } }
+          { \tl_set_eq:NN \l__akizumi_thm_within_tl \g__akizumi_thm_within_tl }
+        \__akizumi_thm_reset:nV {#1} \l__akizumi_thm_within_tl
+        \tl_if_empty:NTF \l__akizumi_thm_within_tl
+          {
+            \cs_gset:cpx { the#1 } { \exp_not:V \l__akizumi_thm_prefix_tl \exp_not:N \arabic {#1} }
+            \cs_gset:cpx { theH#1 } { \exp_not:N \arabic {#1} }
+          }
+          {
+            \cs_gset:cpx { the#1 }
+              {
+                \exp_not:V \l__akizumi_thm_prefix_tl \exp_not:c { the \l__akizumi_thm_within_tl }
+                . \exp_not:N \arabic {#1}
+              }
+            \cs_gset:cpx { theH#1 }
+              { \exp_not:c { theH \l__akizumi_thm_within_tl } . \exp_not:N \arabic {#1} }
+          }
+      }
+      {
+        \cs_gset_eq:cc { c@#1 } { akizumi@thmc@ \l__akizumi_thm_owner_tl }
+        \__akizumi_thm_reset:nn {#1} { }
+        \cs_gset:cpx { the#1 }
+          { \exp_not:V \l__akizumi_thm_prefix_tl \exp_not:c { the \l__akizumi_thm_owner_tl } }
+        \cs_gset:cpx { theH#1 } { \exp_not:c { theH \l__akizumi_thm_owner_tl } }
+      }
+  }
+\cs_new_protected:Npn \__akizumi_thm_apply_all:
+  {
+    \tl_if_empty:NF \g__akizumi_thm_within_tl
+      {
+        \cs_if_exist:cF { c@ \g__akizumi_thm_within_tl }
+          {
+            \PackageWarningNoLine { akizumi-theorems }
+              { thmwithin=\g__akizumi_thm_within_tl\space needs~a~class~with~\g__akizumi_thm_within_tl s;~ignored }
+            \tl_gclear:N \g__akizumi_thm_within_tl
+          }
+      }
+    \seq_map_function:NN \g__akizumi_thm_seq \__akizumi_thm_apply:n
+  }
+% The classes call this (note: section, book: chapter); thmwithin= wins.
+\cs_gset_protected:Npn \akizumi@thmwithin #1
+  {
+    \bool_if:NF \l__akizumi_thm_within_forced_bool { \tl_gset:Nn \g__akizumi_thm_within_tl {#1} }
+    \__akizumi_thm_apply_all:
+  }
+
+% ---------- [number=...] ----------
+% A manual number shows instead of the next one, \label and \cref pick it up,
+% and the counter is left where it was.
+\tl_new:N \l__akizumi_thm_number_tl
+\tl_new:N \l__akizumi_thm_note_tl
+\keys_define:nn { akizumi/thmopt }
+  {
+    number .tl_set:N = \l__akizumi_thm_number_tl,
+    note   .tl_set:N = \l__akizumi_thm_note_tl,
+  }
+\NewDocumentCommand \akizumi@thmbegin { m o }
+  {
+    \IfNoValueTF {#2}
+      { \use:c { akizumi@thmorig@#1 } }
+      {
+        \regex_match:nnTF { \A \s* number \s* = } {#2}
+          { \__akizumi_thm_manual:nn {#1} {#2} }
+          { \use:c { akizumi@thmorig@#1 } [ {#2} ] }
+      }
+  }
+\cs_new_protected:Npn \__akizumi_thm_manual:nn #1#2
+  {
+    \tl_clear:N \l__akizumi_thm_note_tl
+    \keys_set:nn { akizumi/thmopt } {#2}
+    \int_gincr:N \g__akizumi_thm_manual_int
+    \cs_set:cpx { the#1 } { \exp_not:V \l__akizumi_thm_number_tl }
+    \cs_set:cpx { theH#1 } { manual. \int_use:N \g__akizumi_thm_manual_int }
+    \addtocounter {#1} { -1 }  % the theorem's \refstepcounter undoes this
+    \tl_if_empty:NTF \l__akizumi_thm_note_tl
+      { \use:c { akizumi@thmnum@#1 } }
+      { \use:e { \exp_not:c { akizumi@thmnum@#1 } [ { \exp_not:V \l__akizumi_thm_note_tl } ] } }
+  }
+
+% ---------- registering a kind ----------
+% \__akizumi_thm_register:nnnn {kind} {string key} {family} {English plural}
+\cs_new_protected:Npn \__akizumi_thm_register:nnnn #1#2#3#4
+  {
+    \seq_gput_right:Nn \g__akizumi_thm_seq {#1}
+    \prop_gput:Nnn \g__akizumi_thm_key_prop {#1} {#2}
+    \prop_gput:Nnn \g__akizumi_thm_family_prop {#1} {#3}
+    \prop_gput:Nnn \g__akizumi_thm_plural_prop {#1} {#4}
+    \cs_if_exist:cF { akizumi@thmc@#1 } { \exp_args:Nc \newcount { akizumi@thmc@#1 } }
+    \cs_gset_eq:cc { akizumi@thmnum@#1 } {#1}
+    \cs_gset_eq:cc { akizumi@thmorig@#1 } {#1}
+    \cs_gset_protected:cpn {#1} { \akizumi@thmbegin {#1} }
+    % asides=unnumbered: the numbered form begins and ends like the starred one
+    \bool_if:NT \l__akizumi_thm_unnumbered_bool
+      {
+        \str_if_eq:nnT {#3} { remark }
+          {
+            \cs_gset_eq:cc { akizumi@thmorig@#1 } { #1* }
+            \cs_gset_eq:cc { end#1 } { end#1* }
+          }
+      }
+  }
+% CJK names have no plural form.
+\cs_new_protected:Npn \__akizumi_thm_crefname:nnn #1#2#3
+  {
+    \bool_lazy_and:nnTF { \legacy_if_p:n { akizumi@nativethm } } { \legacy_if_p:n { akizumi@cjk } }
+      { \crefname {#1} { \akizumi@str {#2} } { \akizumi@str {#2} } }
+      { \crefname {#1} { \akizumi@str {#2} } {#3} }
+  }
+\cs_new:Npn \__akizumi_thm_bar:n #1
+  {
+    \str_case:en {#1}
+      {
+        { theorem }    { {1.6pt} {accent} }
+        { definition } { {1.6pt} {accentsoft} }
+        { remark }     { {1pt} {asidebar} }
+      }
+  }
+% a new amsthm kind with env*, bar and cref name
+% \__akizumi_thm_define:nnnnnn {kind} {key} {family} {plural} {bar width} {bar color}
+\cs_new_protected:Npn \__akizumi_thm_define:nnnnnn #1#2#3#4#5#6
+  {
+    \str_if_eq:nnTF {#3} { remark }
+      { \theoremstyle { akizumi-aside } }
+      { \theoremstyle { akizumi-claim } }
+    \newtheorem {#1} { \protect \akizumi@str {#2} }
+    \newtheorem* {#1*} { \protect \akizumi@str {#2} }
+    \cs_gset_eq:cc { akizumi@thmc@#1 } { c@#1 }
+    \akizumi@barenv {#1} {#5} {#6}
+    \__akizumi_thm_crefname:nnn {#1} {#2} {#4}
+    \__akizumi_thm_register:nnnn {#1} {#2} {#3} {#4}
+  }
+\cs_generate_variant:Nn \__akizumi_thm_define:nnnnnn { nnVV }
+
+% the kinds akizumi-core defined
+% Their names were expanded when defined (thmtools reassembles \newtheorem
+% with \protected@edef); make them look the name up at use, so thmname=
+% can rename them.
+\tl_new:N \l__akizumi_thm_name_tl
+% \thmt@original@<env> is \@thm{<style>}{<counter>}{<name>}
+\cs_new_protected:Npn \__akizumi_thm_lazyname:n #1
+  {
+    \tl_set:Ne \l__akizumi_thm_name_tl { \akizumi@str {#1} }
+    \clist_map_inline:nn { #1, #1* }
+      {
+        \cs_if_exist:cT { thmt@original@##1 }
+          {
+            \exp_last_unbraced:Nv \__akizumi_thm_lazyname:Nnnnnn { thmt@original@##1 } {##1} {#1}
+            \addtotheorempreheadhook [##1] { \def \thmt@thmname { \protect \akizumi@str {#1} } }
+          }
+      }
+  }
+\cs_new_protected:Npn \__akizumi_thm_lazyname:Nnnnnn #1#2#3#4#5#6
+  {
+    \token_if_eq_meaning:NNT #1 \@thm
+      {
+        \tl_if_eq:nVT {#4} \l__akizumi_thm_name_tl
+          { \cs_gset_nopar:cpn { thmt@original@#5 } { #1 {#2} {#3} { \protect \akizumi@str {#6} } } }
+      }
+  }
+\prg_generate_conditional_variant:Nnn \tl_if_eq:nn { nV } { T }
+\cs_new_protected:Npn \__akizumi_thm_core:nnn #1#2#3
+  {
+    \__akizumi_thm_lazyname:n {#1}
+    \__akizumi_thm_register:nnnn {#1} {#1} {#2} {#3}
+  }
+\cs_gset_eq:NN \akizumi@thmc@theorem \c@theorem
+\clist_map_inline:nn
+  {
+    {theorem}{theorem}{Theorems}, {lemma}{theorem}{Lemmas},
+    {proposition}{theorem}{Propositions}, {corollary}{theorem}{Corollaries},
+    {claim}{theorem}{Claims}, {definition}{definition}{Definitions},
+    {assumption}{definition}{Assumptions}, {example}{remark}{Examples},
+    {remark}{remark}{Remarks}
+  }
+  { \__akizumi_thm_core:nnn #1 }
+
+% ---------- extra kinds ----------
+\akizumi@tn {axiom}       {Axiom}       {公理}  {公理}  {공리}
+\akizumi@tn {conjecture}  {Conjecture}  {猜想}  {予想}  {추측}
+\akizumi@tn {property}    {Property}    {性質}  {性質}  {성질}
+\akizumi@tn {remarks}     {Remarks}     {註}    {注意}  {참고}
+\akizumi@tn {conclusion}  {Conclusion}  {結論}  {結論}  {결론}
+\akizumi@tn {problem}     {Problem}     {問題}  {問題}  {문제}
+\akizumi@tn {notationthm} {Notation}    {記號}  {記法}  {표기법}
+\cs_new_protected:Npn \__akizumi_thm_kind:nnn #1#2#3
+  {
+    \use:e { \exp_not:N \__akizumi_thm_define:nnnnnn {#1} {#1} {#2} {#3} \__akizumi_thm_bar:n {#2} }
+    \seq_gput_right:Nn \g__akizumi_thm_provisional_seq {#1}
+  }
+\__akizumi_thm_kind:nnn { conjecture }  { theorem }    { Conjectures }
+\__akizumi_thm_kind:nnn { property }    { theorem }    { Properties }
+\__akizumi_thm_kind:nnn { conclusion }  { theorem }    { Conclusions }
+\__akizumi_thm_kind:nnn { axiom }       { definition } { Axioms }
+\__akizumi_thm_kind:nnn { notationthm } { definition } { Notations }
+\__akizumi_thm_kind:nnn { remarks }     { remark }     { Remarks }
+% akizumi-hw numbers its own problem headings
+\bool_lazy_or:nnF { \cs_if_exist_p:N \problem } { \cs_if_exist_p:c { ver@akizumi-hw.cls } }
+  { \__akizumi_thm_kind:nnn { problem } { definition } { Problems } }
+
+% ---------- aliases=short: same name, bar and counter as the full kind ----------
+\cs_new_protected:Npn \__akizumi_thm_alias:nn #1#2
+  {
+    \bool_lazy_or:nnTF { \cs_if_exist_p:c {#1} } { ! \prop_if_in_p:Nn \g__akizumi_thm_family_prop {#2} }
+      { \PackageWarningNoLine { akizumi-theorems } { #1~is~taken~or~#2~is~missing;~no~alias } }
+      {
+        \use:e
+          {
+            \exp_not:N \__akizumi_thm_define:nnnnnn {#1} {#2}
+              { \prop_item:Nn \g__akizumi_thm_family_prop {#2} }
+              { \prop_item:Nn \g__akizumi_thm_plural_prop {#2} }
+              \__akizumi_thm_bar:n { \prop_item:Nn \g__akizumi_thm_family_prop {#2} }
+          }
+        \prop_gput:Nnn \g__akizumi_thm_counter_prop {#1} {#2}
+        \seq_gput_right:Nn \g__akizumi_thm_provisional_seq {#1}
+      }
+  }
+\bool_if:NT \l__akizumi_thm_aliases_bool
+  {
+    \clist_map_inline:nn
+      {
+        {thm}{theorem}, {lem}{lemma}, {prop}{proposition}, {cor}{corollary},
+        {defn}{definition}, {conj}{conjecture}, {exam}{example}, {rem}{remark}
+      }
+      { \__akizumi_thm_alias:nn #1 }
+    \seq_if_in:NnT \g__akizumi_thm_seq { problem } { \__akizumi_thm_alias:nn { prob } { problem } }
+  }
+
+% ---------- names: thmname/corollary=系理 ----------
+% #1 is a kind or a string key (proof, solution); a renamed kind's cref name
+% drops its English plural.
+\cs_new_protected:Npn \__akizumi_thm_setname:nn #1#2
+  {
+    \prop_get:NnNF \g__akizumi_thm_key_prop {#1} \l__akizumi_thm_old_tl
+      { \tl_set:Nn \l__akizumi_thm_old_tl {#1} }
+    \cs_gset:cpn { akizumi@s@ \l__akizumi_thm_old_tl } {#2}
+    \prop_map_inline:Nn \g__akizumi_thm_key_prop
+      {
+        \tl_if_eq:NnT \l__akizumi_thm_old_tl {##2}
+          { \crefname {##1} { \akizumi@str {##2} } { \akizumi@str {##2} } }
+      }
+  }
+\cs_new_protected:Npn \__akizumi_thm_metaname:n #1
+  {
+    \keys_define:nn { akizumi/meta }
+      { thmname/#1 .code:n = \__akizumi_thm_setname:nn {#1} {##1} }
+  }
+\keys_define:nn { akizumi/meta }
+  { thmname .code:n = \keyval_parse:nnn { \use_none:n } { \__akizumi_thm_setname:nn } {#1} }
+\clist_map_function:NN \c__akizumi_thm_namekeys_clist \__akizumi_thm_metaname:n
+\bool_if:NT \l__akizumi_thm_aliases_bool
+  { \clist_map_function:nN { thm, lem, prop, cor, defn, conj, exam, rem, prob } \__akizumi_thm_metaname:n }
+
+% ---------- \akizumiNewTheorem, \akizumiSetTheorem ----------
+\tl_new:N \l__akizumi_thm_kfamily_tl
+\tl_new:N \l__akizumi_thm_kbar_tl
+\tl_new:N \l__akizumi_thm_kbarcolor_tl
+\tl_new:N \l__akizumi_thm_kplural_tl
+\tl_new:N \l__akizumi_thm_kcounter_tl
+\tl_new:N \l__akizumi_thm_kprefix_tl
+\tl_new:N \l__akizumi_thm_kwithin_tl
+\bool_new:N \l__akizumi_thm_kprefix_bool
+\keys_define:nn { akizumi/newthm }
+  {
+    style    .choices:nn = { theorem, definition, remark }
+      { \tl_set_eq:NN \l__akizumi_thm_kfamily_tl \l_keys_choice_tl },
+    bar      .tl_set:N = \l__akizumi_thm_kbar_tl,
+    barcolor .tl_set:N = \l__akizumi_thm_kbarcolor_tl,
+    plural   .tl_set:N = \l__akizumi_thm_kplural_tl,
+    counter  .tl_set:N = \l__akizumi_thm_kcounter_tl,
+    prefix   .code:n = \tl_set:Nn \l__akizumi_thm_kprefix_tl {#1} \bool_set_true:N \l__akizumi_thm_kprefix_bool,
+    within   .choices:nn = { chapter, section, none }
+      { \tl_set_eq:NN \l__akizumi_thm_kwithin_tl \l_keys_choice_tl },
+  }
+\cs_new_protected:Npn \__akizumi_thm_kclear:
+  {
+    \tl_set:Nn \l__akizumi_thm_kfamily_tl { theorem }
+    \clist_map_inline:nn { kbar, kbarcolor, kplural, kcounter, kprefix, kwithin }
+      { \tl_clear:c { l__akizumi_thm_##1_tl } }
+    \bool_set_false:N \l__akizumi_thm_kprefix_bool
+  }
+\cs_new_protected:Npn \__akizumi_thm_kcommit:n #1
+  {
+    \tl_if_empty:NF \l__akizumi_thm_kcounter_tl
+      {
+        \bool_lazy_or:nnTF
+          { \tl_if_eq_p:NN \l__akizumi_thm_kcounter_tl \c__akizumi_thm_own_tl }
+          { \prop_if_in_p:NV \g__akizumi_thm_family_prop \l__akizumi_thm_kcounter_tl }
+          { \prop_gput:NnV \g__akizumi_thm_counter_prop {#1} \l__akizumi_thm_kcounter_tl }
+          {
+            \PackageError { akizumi-theorems }
+              { counter=\l__akizumi_thm_kcounter_tl\space is~not~a~theorem~kind }
+              { Use~own~or~the~name~of~a~theorem~kind. }
+          }
+      }
+    \bool_if:NT \l__akizumi_thm_kprefix_bool
+      { \prop_gput:NnV \g__akizumi_thm_prefix_prop {#1} \l__akizumi_thm_kprefix_tl }
+    \tl_if_empty:NF \l__akizumi_thm_kwithin_tl
+      { \prop_gput:NnV \g__akizumi_thm_withinkey_prop {#1} \l__akizumi_thm_kwithin_tl }
+  }
+\cs_new_protected:Npn \__akizumi_thm_rebar:nnn #1#2#3
+  {
+    \RemoveFromHook { env/#1/before } [ tcolorbox ]
+    \RemoveFromHook { env/#1/after } [ tcolorbox ]
+    \tcolorboxenvironment {#1} { akizumi/bar = {#2} {#3} }
+  }
+\cs_generate_variant:Nn \__akizumi_thm_rebar:nnn { nVV }
+% \akizumiNewTheorem[opts]{env}{English}{中文}{日本語}{한국어}[opts]; an empty
+% name falls back to the English one.
+\NewDocumentCommand \akizumiNewTheorem { O{} m m m m m O{} }
+  {
+    \cs_if_exist:cTF {#2}
+      { \PackageError { akizumi-theorems } { Environment~#2~is~already~defined } { Pick~another~name. } }
+      {
+        \__akizumi_thm_kclear:
+        \keys_set:nn { akizumi/newthm } { #1, #7 }
+        \use:e
+          {
+            \exp_not:N \akizumi@tn { thm@#2 } { \exp_not:n {#3} }
+              { \tl_if_blank:nTF {#4} { \exp_not:n {#3} } { \exp_not:n {#4} } }
+              { \tl_if_blank:nTF {#5} { \exp_not:n {#3} } { \exp_not:n {#5} } }
+              { \tl_if_blank:nTF {#6} { \exp_not:n {#3} } { \exp_not:n {#6} } }
+          }
+        \tl_if_empty:NT \l__akizumi_thm_kplural_tl { \tl_set:Nn \l__akizumi_thm_kplural_tl { #3s } }
+        \use:e
+          {
+            \exp_not:N \__akizumi_thm_define:nnnnnn {#2} { thm@#2 } { \l__akizumi_thm_kfamily_tl }
+              { \exp_not:V \l__akizumi_thm_kplural_tl }
+              \__akizumi_thm_bar:n { \l__akizumi_thm_kfamily_tl }
+          }
+        % bar= / barcolor= replace the family's bar
+        \bool_lazy_or:nnT
+          { ! \tl_if_empty_p:N \l__akizumi_thm_kbar_tl }
+          { ! \tl_if_empty_p:N \l__akizumi_thm_kbarcolor_tl }
+          {
+            \tl_if_empty:NT \l__akizumi_thm_kbar_tl
+              { \tl_set:Ne \l__akizumi_thm_kbar_tl { \exp_last_unbraced:Nf \use_i:nn { \__akizumi_thm_bar:n { \l__akizumi_thm_kfamily_tl } } } }
+            \tl_if_empty:NT \l__akizumi_thm_kbarcolor_tl
+              { \tl_set:Ne \l__akizumi_thm_kbarcolor_tl { \exp_last_unbraced:Nf \use_ii:nn { \__akizumi_thm_bar:n { \l__akizumi_thm_kfamily_tl } } } }
+            \__akizumi_thm_rebar:nVV {#2} \l__akizumi_thm_kbar_tl \l__akizumi_thm_kbarcolor_tl
+            \__akizumi_thm_rebar:nVV {#2*} \l__akizumi_thm_kbar_tl \l__akizumi_thm_kbarcolor_tl
+          }
+        \__akizumi_thm_kcommit:n {#2}
+        \__akizumi_thm_apply:n {#2}
+        \__akizumi_thm_metaname:n {#2}
+      }
+  }
+% \akizumiSetTheorem{kind}{counter=own|<kind>, prefix=A, within=chapter|section|none}
+\NewDocumentCommand \akizumiSetTheorem { m m }
+  {
+    \seq_if_in:NnTF \g__akizumi_thm_seq {#1}
+      {
+        \__akizumi_thm_kclear:
+        \keys_set:nn { akizumi/newthm } {#2}
+        \__akizumi_thm_kcommit:n {#1}
+        \__akizumi_thm_apply_all:
+      }
+      { \PackageError { akizumi-theorems } { #1~is~not~a~theorem~kind } { } }
+  }
+
+% ---------- a document's own \newtheorem replaces an extra kind ----------
+% so \newtheorem{conjecture}[theorem]{Conjecture} keeps working as before.
+\cs_new_protected:Npn \__akizumi_thm_unhook:n #1
+  {
+    \RemoveFromHook { env/#1/before } [ tcolorbox ]
+    \RemoveFromHook { env/#1/before } [ akizumi-theorems ]
+    \RemoveFromHook { env/#1/after } [ tcolorbox ]
+    \cs_undefine:c {#1}
+    \cs_undefine:c { end#1 }
+  }
+\cs_new_protected:Npn \__akizumi_thm_drop:n #1
+  {
+    \tl_set:Nn \l__akizumi_thm_old_tl {#1}
+    \tl_remove_all:Nn \l__akizumi_thm_old_tl { * }
+    \seq_if_in:NVT \g__akizumi_thm_provisional_seq \l__akizumi_thm_old_tl
+      {
+        \__akizumi_thm_unhook:n {#1}
+        \tl_if_eq:NnT \l__akizumi_thm_old_tl {#1}
+          {
+            \__akizumi_thm_reset:nn {#1} { }
+            \seq_gremove_all:Nn \g__akizumi_thm_seq {#1}
+            \prop_gremove:Nn \g__akizumi_thm_family_prop {#1}
+            \prop_gremove:Nn \g__akizumi_thm_key_prop {#1}
+            \clist_map_inline:nn { c@#1, the#1, theH#1 } { \cs_undefine:c {##1} }
+          }
+      }
+  }
+\cs_gset_eq:NN \akizumi@orignewtheorem \newtheorem
+\cs_gset_protected:Npn \newtheorem
+  { \@ifstar { \__akizumi_thm_newstar:n } { \__akizumi_thm_new:n } }
+\cs_new_protected:Npn \__akizumi_thm_new:n #1
+  { \__akizumi_thm_drop:n {#1} \akizumi@orignewtheorem {#1} }
+\cs_new_protected:Npn \__akizumi_thm_newstar:n #1
+  { \__akizumi_thm_drop:n {#1} \akizumi@orignewtheorem * {#1} }
+% thmtools: \declaretheorem[opts]{name, name, ...}[opts]
+\cs_gset_eq:NN \akizumi@origdeclaretheorem \declaretheorem
+\cs_gset_protected:Npn \declaretheorem
+  { \@ifnextchar [ { \__akizumi_thm_declare:w } { \__akizumi_thm_declare:w [] } }
+\cs_new_protected:Npn \__akizumi_thm_declare:w [#1] #2
+  {
+    \clist_map_function:nN {#2} \__akizumi_thm_drop:n
+    \tl_if_empty:nTF {#1}
+      { \akizumi@origdeclaretheorem {#2} }
+      { \akizumi@origdeclaretheorem [#1] {#2} }
+  }
+
+\prop_map_inline:Nn \l__akizumi_thm_optnames_prop { \__akizumi_thm_setname:nn {#1} {#2} }
+\__akizumi_thm_apply_all:
+\ExplSyntaxOff
+
+\endinput

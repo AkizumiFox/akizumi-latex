@@ -1203,6 +1203,7 @@ def safe_build(main, jobname=None, pretex=None, label=None):
 
 def cmd_explain(a):
     """Called by latexmk after a failed run in ax watch."""
+    a.job = a.job.replace('"', "")  # latexmk on Windows quotes %R
     record_watch_result(False, a.job)
     fail(T(f"編譯失敗（{time.strftime('%H:%M:%S')}），PDF 保留上一份",
            f"Build failed ({time.strftime('%H:%M:%S')}); the PDF stays as it was"))
@@ -1213,6 +1214,8 @@ def cmd_explain(a):
 
 def cmd_copypdf(a):
     """Called by latexmk after a successful run in ax watch."""
+    # latexmk on Windows quotes the parts of %Z%R.pdf ("build/"main.pdf")
+    a.src, a.dest = a.src.replace('"', ""), a.dest.replace('"', "")
     record_watch_result(True, Path(a.dest).stem)
     if copy_pdf(a.src, a.dest):
         ok(T(f"已更新 {a.dest}（{time.strftime('%H:%M:%S')}）",
@@ -1264,7 +1267,10 @@ def latexmk_flags(cfg=None, main=None):
     minted = bool(MINTED_RE.search(text))
     if not (cfg.get("shell_escape") is True or minted):
         return []
-    if minted and not (shutil.which("latexminted") or shutil.which("pygmentize")):
+    if minted and WINDOWS:
+        warn(T("Windows 上暫時不支援 minted；程式碼改用 listings",
+               "minted is not supported on Windows yet; code falls back to listings"))
+    elif minted and not (shutil.which("latexminted") or shutil.which("pygmentize")):
         warn(T("minted 需要 Pygments（latexminted 或 pygmentize），找不到；程式碼改用 listings",
                "minted needs Pygments (latexminted or pygmentize), which is not found; code falls back to listings"))
     return ["-shell-escape"]

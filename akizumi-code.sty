@@ -87,6 +87,16 @@
       }
   }
 \cs_generate_variant:Nn \msg_warning:nnn { nnV }
+% Windows: minted 3 rejects latexminted even when it runs (seen on TeX Live
+% 2026 in CI), so stay with listings there for now.
+\sys_if_platform_windows:T
+  {
+    \bool_if:NT \g__akizumi_code_minted_bool
+      {
+        \msg_warning:nnn { akizumi } { minted-missing } { a~system~other~than~Windows }
+        \bool_gset_false:N \g__akizumi_code_minted_bool
+      }
+  }
 \bool_if:NT \g__akizumi_code_minted_bool { \__akizumi_code_probe_minted: }
 \bool_if:NT \g__akizumi_code_minted_bool
   {

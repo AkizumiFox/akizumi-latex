@@ -127,4 +127,5 @@ PDF 和原始碼互相跳轉：在原始碼按 `Cmd+Option+J`（`Ctrl+Alt+J`）�
 
 - [參考手冊](docs/reference.md)：寫定理、程式碼、參考文獻、簡報、書的方法，所有文件選項，外觀規則，疑難排解，以及怎麼維護和發佈新版本
 - [`examples/`](examples/)：每種文件的完整範例
+- [速查表](examples/cheatsheet.pdf)：常用功能的原始碼和結果並排
 - [`CHANGELOG.md`](CHANGELOG.md)：版本紀錄

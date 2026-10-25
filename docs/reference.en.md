@@ -2,7 +2,7 @@
 
 中文版：[reference.md](reference.md)
 
-The [README](../README.en.md) gets you started; this page lists every feature and option, for when you need them. Complete examples are in [`examples/`](../examples/).
+The [README](../README.en.md) gets you started; this page lists every feature and option, for when you need them. Complete examples are in [`examples/`](../examples/); a quick reference with source next to output is [`examples/cheatsheet.pdf`](../examples/cheatsheet.pdf) (in Chinese).
 
 ## ax new options and project contents
 

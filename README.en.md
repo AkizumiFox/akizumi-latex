@@ -127,4 +127,5 @@ A document written for another template: `ax migrate main.tex` writes an akizumi
 
 - [Reference manual](docs/reference.en.md): theorems, code, references, slides, books, every document option, the design rules, troubleshooting, and how to maintain and release the templates
 - [`examples/`](examples/): a complete example of each kind
+- [Cheat sheet](examples/cheatsheet.pdf): common features with source next to output (in Chinese)
 - [`CHANGELOG.md`](CHANGELOG.md): version history

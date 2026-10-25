@@ -2,7 +2,7 @@
 
 English: [reference.en.md](reference.en.md)
 
-[README](../README.md) 是入門；這裡是完整的功能與選項，需要時再查。完整的範例在 [`examples/`](../examples/)。
+[README](../README.md) 是入門；這裡是完整的功能與選項，需要時再查。完整的範例在 [`examples/`](../examples/)；一頁頁對照原始碼和結果的速查表是 [`examples/cheatsheet.pdf`](../examples/cheatsheet.pdf)。
 
 ## ax new 的選項與專案內容
 

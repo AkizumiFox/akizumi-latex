@@ -347,7 +347,7 @@ $ python main.py
 \code|a{b|                        % 跟 \verb 一樣換分隔符
 \code[cpp]{std::vector<int> v;}   % 指定語言就上色
 \section{The \code{a\_b} function}
-\begin{theorem}[\code{sort} 是穩定的] ...
+\begin{theorem}[\code{sort} 是穩定的] ... \end{theorem}
 ```
 
 `\code` 可以放在別的指令的參數裡（章節標題、定理名稱、註腳、簡報的一般 frame）。這時 TeX 已經先讀過內容，所以 `%`、`#` 要寫成 `\%`、`\#`，`_` `&` `$` `{` `}` 也可以寫成 `\_` 等，印出來都是字元本身。頁首、目錄、PDF 書籤也正常。
@@ -377,6 +377,7 @@ $ python main.py
 
 `\documentclass[index=true]{akizumi-book}`（講義、作業、考卷也可以）打開書末索引和附頁碼的符號列表。沒開的時候 `\index` 什麼都不做，所以可以先標著。
 
+<!-- snippet: options=index=true -->
 ```latex
 \index{分割}  \index{分割!網目}  \index{Riemann sum}  \index{sum@$\Sigma$-notation}
 \index{網目|see{分割}}
@@ -468,9 +469,11 @@ TikZ 預設只載入 `arrows.meta`、`positioning`、`calc`、`shapes.geometric`
 ```latex
 \documentclass[tikz=full, plots]{akizumi-note}
 ...
+\begin{tikzpicture}
 \begin{axis}[axis lines=middle, grid=major]
   \addplot+[domain=0:4] {x/(1+x)};   % 第一條自動是 accent 色
 \end{axis}
+\end{tikzpicture}
 ```
 
 常見的圖都有現成的樣式，不需要每份文件自己定義：
@@ -483,6 +486,7 @@ TikZ 預設只載入 `arrows.meta`、`positioning`、`calc`、`shapes.geometric`
 | 賽局樹 | `akizumi/game/decision`、`/chance`、`/terminal`、`/branch`、`/action`、`/payoff`、`/infoset` | 決策點（實心）、自然（空心）、終點（小灰點）、分支箭頭、行動標籤、報酬、資訊集（灰色虛線） |
 | 物理 | `\pic {akizumi/current in};`、`\pic {akizumi/current out};`、`akizumi/wire` | 流入、流出紙面的電流符號，蓋在導線上；`\pic[accent] at (A) {akizumi/current in};` 可以換顏色 |
 
+<!-- snippet: options=tikz=full -->
 ```latex
 \begin{tikzpicture}[akizumi/automaton]
   \node[state, initial] (q0) {$q_0$};
@@ -501,6 +505,7 @@ TikZ 預設只載入 `arrows.meta`、`positioning`、`calc`、`shapes.geometric`
 
 課堂報告、心得、計畫書常用的版面：
 
+<!-- snippet: ci-skip=macos -->
 ```latex
 \documentclass[lang=zh, par=indent, secnum=zh, 13pt, kai, text=times]{akizumi-note}
 \title{2013 年臺灣毒澱粉事件}
@@ -570,6 +575,7 @@ $A\cup B=[-2,3]$。
 
 ### 作業與考卷專用
 
+<!-- snippet: class=akizumi-hw -->
 ```latex
 \begin{problem}[標題]          % 作業：第 N 題
   \begin{parts} \item ... \item ... \end{parts}   % (a) (b)
@@ -579,16 +585,18 @@ $A\cup B=[-2,3]$。
 
 分組題號與手動題號：
 
+<!-- snippet: class=akizumi-hw -->
 ```latex
 \problemset{B}                          % 之後是 B1、B2…；\problemset{C} 從 C1 重新開始
-\begin{problem}[label=B2$'$]            % 直接指定題號，不佔用計數
-\begin{problem}[label=C3, title=緊緻性]  % 題號加標題
+\begin{problem}[label=B2$'$] ... \end{problem}             % 直接指定題號，不佔用計數
+\begin{problem}[label=C3, title=緊緻性] ... \end{problem}   % 題號加標題
 ```
 
 方括號裡只有 `label=`、`title=` 這兩個鍵時當成選項，其他內容一律當標題，所以 `[$f(x)=x^2$]` 照舊是標題。`\label`、`\cref` 都會顯示 B1、B2′ 這種題號。
 
 一題一個檔：
 
+<!-- snippet: class=akizumi-hw -->
 ```latex
 \inputproblem{problems/p1}              % 等於 \begin{problem}\input{problems/p1}\end{problem}
 \inputproblem[柯西數列]{problems/B1}     % 方括號和 problem 的一樣：標題或 label=、title=
@@ -598,6 +606,7 @@ $A\cup B=[-2,3]$。
 
 小題：
 
+<!-- snippet: class=akizumi-hw -->
 ```latex
 \begin{parts}[label=(\roman*)]          % 方括號接 enumitem 的參數；預設 (a) (b)
   \item ...
@@ -621,9 +630,10 @@ $A\cup B=[-2,3]$。
 
 ### 簡報專用
 
+<!-- snippet: beamer -->
 ```latex
 \begin{frame}[plain,noframenumbering]\titlepage\end{frame}
-\q{這是討論問題嗎？}                % 藍色 Q: 開頭的提問
+\begin{frame}{討論}\q{這是討論問題嗎？}\end{frame}   % 藍色 Q: 開頭的提問
 \standoutframe{Questions?}          % 整頁藍底一句話
 \appendix                           % 之後的投影片另外編號，不算進總頁數
 \dividerframe{Appendix}
@@ -633,6 +643,7 @@ $A\cup B=[-2,3]$。
 
 ### 書專用
 
+<!-- snippet: class=akizumi-book options=bib=refs.bib -->
 ```latex
 \frontmatter \maketitle \tableofcontents
 \mainmatter
@@ -681,6 +692,7 @@ $A\cup B=[-2,3]$。
 
 長篇講義或書常常每章一個資料夾，圖、程式碼、小節檔都放在裡面。`\chapterdir` 讓那一章的檔名不必每次寫完整路徑：
 
+<!-- snippet: class=akizumi-book -->
 ```latex
 \chapterdir{basic-op}
 \include{basic-op/chapter}     % \include 要寫完整路徑（.aux 依路徑命名）
@@ -761,7 +773,7 @@ $A\cup B=[-2,3]$。
 | `ax config` | 設定資料夾、`config.json`、preamble、模板快取各在哪裡 |
 | `ax completion zsh\|bash\|powershell` | 印出 Tab 補全腳本；裝法見 `ax completion --help` |
 | `ax migrate 檔案.tex` | 把舊文件轉成 akizumi 的副本 `檔案-akizumi.tex`，原檔不動；列出跟 akizumi 撞名的巨集（見〈從舊文件搬過來〉） |
-| `ax selftest` | 重編所有範例、建立並編譯每種專案（改模板後用，見〈維護這套模板〉） |
+| `ax selftest` | 重編所有範例、建立並編譯每種專案、編譯手冊裡的片段（改模板後用，見〈維護這套模板〉） |
 | `ax docs 主題` | 在這份手冊裡找主題，把最相關的一節印在終端機（標題、內文、表格）。中英文都能查，也可以是選項或巨集：`ax docs 定理`、`ax docs theorem`、`ax docs thmcounter`、`ax docs '\cref'`；打錯字會自動更正，找不到時列出相近的標題。`--web` 在瀏覽器打開 GitHub 上的手冊並跳到那一節，`--en` 看英文版，`--cheatsheet` 打開速查表 PDF。只打 `ax docs` 用系統預設的程式打開這份檔案 |
 | `ax --version` | 目前最新的模板版本 |
 
@@ -946,6 +958,7 @@ ICLR 的 `math_commands.tex` 也定義了 `\E`、`\R`、`\Var` 等。放在 akiz
 
 放在序言最後（hyperref 之後；自己要用帶選項的 xcolor 或 cleveref 的話，也放在它們之後）。在 akizumi 的 class 裡一樣能用。
 
+<!-- snippet: packages=akizumi-paper -->
 ```latex
 \newcommenter{jun}{Jun}{teal}
 \jun{這個界夠緊嗎？}        % 註解：青綠色的「[Jun: 這個界夠緊嗎？]」
@@ -1033,7 +1046,21 @@ install.py            安裝（三個系統共用）
 ax selftest             # 重編 examples/ 的所有範例，再用 ax 建立並編譯每一種專案
 ax selftest examples    # 只重編範例（同 make check）
 ax selftest projects    # 只測 ax 專案（同 make test-ax）
+ax selftest docs        # 只編譯這份文件（中英文版）裡的 LaTeX 片段
 ```
+
+`ax selftest docs` 把兩份參考手冊裡每個 ```` ```latex ```` 區塊都編譯一次，失敗時印出 `檔案:行號`。有 `\documentclass` 的區塊照原樣編譯；其他的是片段，放進預設的 `akizumi-note`（語言跟著文件），`\usepackage`、`\akizumisetup`、`\newcommand` 這類導言區指令自動移到 `\begin{document}` 之前。片段用到的檔案（程式碼、題目檔、`refs.bib`）會自動產生替身，圖片找不到時畫一個框。區塊前一行可以加 HTML 註解（看文件時不會顯示）調整做法：
+
+| 註解 | 作用 |
+|---|---|
+| `<!-- snippet: skip -->` | 不編譯：示意用、不完整的片段（少用） |
+| `<!-- snippet: class=akizumi-hw options=lang=zh,solutions -->` | 換文件類型或選項 |
+| `<!-- snippet: beamer -->` | 放進 Akizumi 簡報的一頁（片段本身有 frame 就不再包） |
+| `<!-- snippet: preamble -->` | 整段都是導言區，內文留空 |
+| `<!-- snippet: packages=akizumi-paper -->` | 先載入這些套件 |
+| `<!-- snippet: ci-skip=macos,windows -->` | CI 的這些系統上不編譯（例如要下載楷體） |
+
+可以一次寫好幾個，用空格隔開。改了手冊裡的範例就跑一次 `ax selftest docs`。
 
 Linux 與 Windows 的測試在 GitHub Actions 上跑：推送版本 tag 時自動執行，也可以手動 `gh workflow run test`，結果在 repo 的 Actions 頁面。
 

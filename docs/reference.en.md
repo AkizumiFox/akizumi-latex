@@ -54,7 +54,7 @@ The commands below work in every document kind (slides too, unless noted).
 
 ```latex
 \begin{definition}[Collapse]\label{def:collapse}
-若 $\Var[f(\vb{o})] = 0$，稱編碼器 $f$ collapse。
+An encoder $f$ collapses if $\Var[f(\vb{o})] = 0$.
 \end{definition}
 
 \begin{theorem}[Cram\'er--Wold]\label{thm:cw}
@@ -224,7 +224,7 @@ Names that already exist are never overwritten.
 Always use `\cref`; it adds the name for you:
 
 ```latex
-見\cref{thm:cw}、\cref{def:collapse}、\cref{eq:loss}。
+See \cref{thm:cw}, \cref{def:collapse} and \cref{eq:loss}.
 ```
 
 English documents get "Theorem 1.2", "Definition 1.1", "Equation (1.1)". When the main language is Chinese, Japanese or Korean, sections, figures, tables, equations and problems follow it:
@@ -347,7 +347,7 @@ The two arguments of `\iosample` are ordinary text with `\\` between lines; `\\`
 \code|a{b|                        % other delimiters, as with \verb
 \code[cpp]{std::vector<int> v;}   % a language highlights it
 \section{The \code{a\_b} function}
-\begin{theorem}[\code{sort} is stable] ...
+\begin{theorem}[\code{sort} is stable] ... \end{theorem}
 ```
 
 `\code` works inside other commands' arguments (section titles, theorem names, footnotes, ordinary slide frames). There TeX has read the text already, so write `%` and `#` as `\%` and `\#`; `\_`, `\&`, `\$`, `\{`, `\}` also print the bare character. Running headers, the contents and PDF bookmarks work too.
@@ -377,6 +377,7 @@ Language names in `lang=` and `\code[…]` ignore case, and either engine's name
 
 `\documentclass[index=true]{akizumi-book}` (also notes, homework, exams) turns on a subject index and a list of notation with page numbers. Without it `\index` does nothing, so entries can be marked in advance.
 
+<!-- snippet: options=index=true -->
 ```latex
 \index{partition}  \index{partition!mesh}  \index{sum@$\Sigma$-notation}
 \index{mesh|see{partition}}
@@ -468,9 +469,11 @@ TikZ loads only `arrows.meta`, `positioning`, `calc` and `shapes.geometric` by d
 ```latex
 \documentclass[tikz=full, plots]{akizumi-note}
 ...
+\begin{tikzpicture}
 \begin{axis}[axis lines=middle, grid=major]
   \addplot+[domain=0:4] {x/(1+x)};   % the first line is accent
 \end{axis}
+\end{tikzpicture}
 ```
 
 Common figures have ready-made styles, so documents need not define their own:
@@ -483,6 +486,7 @@ Common figures have ready-made styles, so documents need not define their own:
 | Game trees | `akizumi/game/decision`, `/chance`, `/terminal`, `/branch`, `/action`, `/payoff`, `/infoset` | Decision node (filled), chance node (hollow), terminal (small grey dot), branch arrow, action label, payoff, information set (grey dashes) |
 | Physics | `\pic {akizumi/current in};`, `\pic {akizumi/current out};`, `akizumi/wire` | Current into / out of the page, drawn over the wire; `\pic[accent] at (A) {akizumi/current in};` recolors it |
 
+<!-- snippet: options=tikz=full -->
 ```latex
 \begin{tikzpicture}[akizumi/automaton]
   \node[state, initial] (q0) {$q_0$};
@@ -501,6 +505,7 @@ Chinese, Japanese and Korean can share one document: characters the main languag
 
 The layout of class reports, reflections and proposals:
 
+<!-- snippet: ci-skip=macos -->
 ```latex
 \documentclass[lang=zh, par=indent, secnum=zh, 13pt, kai, text=times]{akizumi-note}
 \title{2013 年臺灣毒澱粉事件}
@@ -570,6 +575,7 @@ Homework and exams keep their own `solution` and `parts`, and `solutions=true|fa
 
 ### Homework and exams
 
+<!-- snippet: class=akizumi-hw -->
 ```latex
 \begin{problem}[Title]         % homework: Problem N
   \begin{parts} \item ... \item ... \end{parts}   % (a) (b)
@@ -579,16 +585,18 @@ Homework and exams keep their own `solution` and `parts`, and `solutions=true|fa
 
 Grouped and hand-set numbers:
 
+<!-- snippet: class=akizumi-hw -->
 ```latex
 \problemset{B}                          % B1, B2, ... from here; \problemset{C} starts again at C1
-\begin{problem}[label=B2$'$]            % this number as given; does not advance the count
-\begin{problem}[label=C3, title=Compactness]
+\begin{problem}[label=B2$'$] ... \end{problem}             % this number as given; does not advance the count
+\begin{problem}[label=C3, title=Compactness] ... \end{problem}
 ```
 
 The brackets are read as options only when they hold nothing but the keys `label=` and `title=`; anything else is the title, so `[$f(x)=x^2$]` is still a title. `\label` and `\cref` show numbers such as B1 and B2′.
 
 One file per problem:
 
+<!-- snippet: class=akizumi-hw -->
 ```latex
 \inputproblem{problems/p1}              % same as \begin{problem}\input{problems/p1}\end{problem}
 \inputproblem[Cauchy sequences]{problems/B1}   % brackets as for problem: a title, or label=, title=
@@ -598,6 +606,7 @@ A problem file holds the statement and its `solution`; `ax both` works as usual.
 
 Parts:
 
+<!-- snippet: class=akizumi-hw -->
 ```latex
 \begin{parts}[label=(\roman*)]          % enumitem keys in brackets; (a) (b) by default
   \item ...
@@ -621,9 +630,10 @@ Solutions: homework shows them by default, `\documentclass[solutions=false]{akiz
 
 ### Slides
 
+<!-- snippet: beamer -->
 ```latex
 \begin{frame}[plain,noframenumbering]\titlepage\end{frame}
-\q{Is this a discussion question?}  % prompt starting with a blue Q:
+\begin{frame}{Discussion}\q{Is this a discussion question?}\end{frame}   % prompt starting with a blue Q:
 \standoutframe{Questions?}          % one line on a full blue page
 \appendix                           % later slides numbered separately, not in the total
 \dividerframe{Appendix}
@@ -633,6 +643,7 @@ Each `\section` gets a "Part N" slide in front of it automatically.
 
 ### Books
 
+<!-- snippet: class=akizumi-book options=bib=refs.bib -->
 ```latex
 \frontmatter \maketitle \tableofcontents
 \mainmatter
@@ -680,6 +691,7 @@ Book layout options (in `\documentclass[...]`):
 
 Long notes and books often keep each chapter in its own folder with its figures, code and section files. `\chapterdir` saves writing the folder in every file name:
 
+<!-- snippet: class=akizumi-book -->
 ```latex
 \chapterdir{basic-op}
 \include{basic-op/chapter}     % give \include the full path (.aux files are named after it)
@@ -762,7 +774,7 @@ Except `new`, `doctor`, `config`, `completion`, `migrate` and `docs`, commands r
 | `ax config` | Where the config folder, `config.json`, preambles and template cache are |
 | `ax completion zsh\|bash\|powershell` | Prints a tab-completion script; see `ax completion --help` for setup |
 | `ax migrate FILE.tex` | Rewrite an old document for akizumi as a copy, `FILE-akizumi.tex`, leaving the original alone; list macros that clash with akizumi's (see [Moving old documents over](#moving-old-documents-over)) |
-| `ax selftest` | Rebuilds every example and creates and builds every kind of project (after changing the templates; see [Maintaining the templates](#maintaining-the-templates)) |
+| `ax selftest` | Rebuilds every example, creates and builds every kind of project and builds the manual's snippets (after changing the templates; see [Maintaining the templates](#maintaining-the-templates)) |
 | `ax docs TOPIC` | Finds the topic in this manual and prints the best-matching section in the terminal (heading, text, tables). Chinese or English words, option names and macros all work: `ax docs theorem`, `ax docs 定理`, `ax docs thmcounter`, `ax docs '\cref'`; typos are corrected, and when nothing matches it lists similar headings. `--web` opens the manual on GitHub at that section, `--en` picks the English manual from a Chinese interface, `--cheatsheet` opens the cheat sheet PDF. Plain `ax docs` opens this file with the system's default program |
 | `ax --version` | Newest template version |
 
@@ -947,6 +959,7 @@ ICLR's `math_commands.tex` also defines `\E`, `\R`, `\Var`, ...; load it after a
 
 Load it last in the preamble (after hyperref, and after xcolor or cleveref if you load them with options of your own). It works in the akizumi classes too.
 
+<!-- snippet: packages=akizumi-paper -->
 ```latex
 \newcommenter{jun}{Jun}{teal}
 \jun{is this bound tight?}   % comment: "[Jun: is this bound tight?]" in teal
@@ -1034,7 +1047,21 @@ After changing the templates:
 ax selftest             # rebuild every example in examples/, then create and build every kind of project
 ax selftest examples    # examples only (same as make check)
 ax selftest projects    # ax projects only (same as make test-ax)
+ax selftest docs        # only the LaTeX snippets in this manual (both languages)
 ```
+
+`ax selftest docs` builds every ```` ```latex ```` block of both reference manuals and reports failures as `file:line`. A block with `\documentclass` is built as it is; any other block is a fragment and goes into a default `akizumi-note` in the manual's language, with preamble commands such as `\usepackage`, `\akizumisetup` and `\newcommand` moved before `\begin{document}`. Files a snippet reads (code, problem files, `refs.bib`) are stubbed, and a missing figure is drawn as a box. An HTML comment on the line before a block (invisible when the manual is read) changes this:
+
+| Comment | Effect |
+|---|---|
+| `<!-- snippet: skip -->` | Not built: illustrative or partial (use sparingly) |
+| `<!-- snippet: class=akizumi-hw options=lang=zh,solutions -->` | Another class or options |
+| `<!-- snippet: beamer -->` | A frame of an Akizumi deck (no extra frame when the block has its own) |
+| `<!-- snippet: preamble -->` | The whole block is preamble; the body is empty |
+| `<!-- snippet: packages=akizumi-paper -->` | Load these packages first |
+| `<!-- snippet: ci-skip=macos,windows -->` | Not built on these systems in CI (e.g. fonts that must be downloaded) |
+
+Several can go in one comment, separated by spaces. Run `ax selftest docs` after changing an example in the manual.
 
 The Linux, Windows and macOS tests run on GitHub Actions: automatically when a version tag is pushed, or by hand with `gh workflow run test`. Results are on the repo's Actions page.
 

@@ -63,7 +63,7 @@ The integrating factor is $e^{2x}$, so $y = e^{-x}$.
 | `exam` | exams (points, grade table) |
 | `slides` | slides |
 | `book` | theses, long notes |
-| `paper` | the body of a paper submitted with a venue's template (borrows only the math macros) |
+| `paper` | a paper on a venue's template (`--venue neurips\|icml\|iclr\|aaai`; borrows only the math macros and writing helpers) |
 
 Common options: `--title`, `--course`, `--lang zh|ja|ko`, `--thmnames native` (定理 / 証明 / 정리 instead of Theorem / Proof), `--bib` (references). All options: [reference manual](docs/reference.en.md).
 
@@ -78,6 +78,7 @@ In a project folder (or any folder inside it):
 | `ax build` | compile once; on failure, shows the line, a plain-language hint, and keeps the previous PDF |
 | `ax open` | open the PDF (`--solutions` for the answer key) |
 | `ax both` | homework and exams: problems and answer key in one go |
+| `ax count` | count English words plus CJK characters; `--limit 3000` warns above it |
 | `ax pack` | zip for Overleaf (set the compiler to XeLaTeX) |
 | `ax doctor` | run this first when something is wrong |
 
@@ -119,6 +120,8 @@ The contents are copied at creation, so editing your preamble later leaves old p
 ## Updating
 
 Each project remembers the template version it was created with. When the templates change, old homework still compiles exactly as before; run `ax upgrade` in a project to take the new look.
+
+A document written for another template: `ax migrate main.tex` writes an akizumi copy and leaves the original alone.
 
 ## More
 

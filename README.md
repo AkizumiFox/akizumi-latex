@@ -63,7 +63,7 @@ cursor ode-hw3
 | `exam` | 考卷（配分、評分表） |
 | `slides` | 簡報 |
 | `book` | 論文、長篇講義 |
-| `paper` | 投稿論文的內文（用會議模板，只借數學巨集） |
+| `paper` | 投稿論文（`--venue neurips\|icml\|iclr\|aaai` 用會議模板，只借數學巨集和寫作小工具） |
 
 常用選項：`--title`、`--course`、`--lang zh|ja|ko`、`--thmnames native`（定理、證明取代 Theorem、Proof）、`--bib`（參考文獻）。全部選項見[參考手冊](docs/reference.md#ax-new-的選項與專案內容)。
 
@@ -78,6 +78,7 @@ cursor ode-hw3
 | `ax build` | 編譯一次；失敗時指出錯在哪一行、附上白話提示，並保留上一份 PDF |
 | `ax open` | 打開 PDF（`--solutions` 打開解答） |
 | `ax both` | 作業、考卷：同時產生題目卷和解答 |
+| `ax count` | 數字數（英文字數加中日韓字數）；`--limit 3000` 超過就提醒 |
 | `ax pack` | 打包上傳 Overleaf（編譯器選 XeLaTeX） |
 | `ax doctor` | 出問題時先跑這個 |
 
@@ -119,6 +120,8 @@ PDF 和原始碼互相跳轉：在原始碼按 `Cmd+Option+J`（`Ctrl+Alt+J`）�
 ## 舊文件不會壞
 
 每個專案記住建立時的模板版本。模板之後改版，舊作業仍然照原樣編譯；想換新外觀時在專案裡跑 `ax upgrade`。
+
+用別的模板寫的舊文件：`ax migrate main.tex` 轉出一份 akizumi 版的副本，原檔不動。
 
 ## 更多
 

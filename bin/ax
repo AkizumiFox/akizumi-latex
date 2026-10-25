@@ -395,10 +395,31 @@ def suggest(word, choices):
 
 # ---------- ax new ----------
 
+def stdin_is_terminal():
+    """Whether someone can answer questions. On Windows isatty() is also true
+    for NUL, so ask the console directly."""
+    if not sys.stdin.isatty():
+        return False
+    if WINDOWS:
+        try:
+            import ctypes
+            import msvcrt
+            mode = ctypes.c_ulong()
+            handle = msvcrt.get_osfhandle(sys.stdin.fileno())
+            return bool(ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)))
+        except (AttributeError, OSError, ValueError):
+            return False
+    return True
+
+
 def ask(prompt):
+    """Read an answer; end of input counts as leaving it blank."""
     try:
         return input(prompt).strip()
-    except (EOFError, KeyboardInterrupt):
+    except EOFError:
+        print()
+        return ""
+    except KeyboardInterrupt:
         print()
         sys.exit(130)
 
@@ -439,7 +460,7 @@ def user_preamble(kind):
 
 def cmd_new(a):
     user = load_json(USER_CONFIG)
-    interactive = sys.stdin.isatty()
+    interactive = stdin_is_terminal()
     if a.kind is None:
         if not interactive:
             die("ax new 需要種類", "例如 ax new note 資料夾名稱；種類：" + "、".join(KINDS))

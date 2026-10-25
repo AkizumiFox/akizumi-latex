@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- CI also runs on macOS; `ax selftest` builds a project with a citation, so biber is tested on every system.
+- `install.py` finds TeX Live's biber through kpsewhich (MacTeX or plain TeX Live).
+
 ## v0.7 — 2026-10-25
 
 - Runs on macOS, Linux and Windows. `install.py` replaces `install.sh` (junction plus user PATH on Windows; `~/.local/bin` on Linux). `bin/ax.cmd` starts ax on Windows.

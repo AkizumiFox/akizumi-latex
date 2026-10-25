@@ -387,7 +387,7 @@ Linux 與 Windows 的測試在 GitHub Actions 上跑：推送版本 tag 時自�
 ## 疑難排解
 
 **`ax doctor` 說 biber 有問題，或參考文獻全是問號（macOS）**
-TeX Live 2026 的 biber 啟動時呼叫 `lipo -extract_family`，新版 Command Line Tools 已經移除這個參數，錯誤訊息是 `extracting arm64 binary with lipo failed`。`install.py` 偵測到時會把 `bin/biber` 連到 `~/bin/biber`：它用 `lipo -thin` 取出本機架構的版本執行，TeX Live 更新 biber 時會自動重新取出。等 TeX Live 修好後刪掉 `~/bin/biber` 即可。Linux、Windows 沒有這個問題。
+TeX Live 2026 的 biber 啟動時呼叫 `lipo -extract_family`，新版 Command Line Tools 已經移除這個參數，錯誤訊息是 `extracting arm64 binary with lipo failed`。`install.py` 偵測到時會把 `bin/biber` 連到 `~/bin/biber`：它用 `lipo -thin` 取出本機架構的版本執行，TeX Live 更新 biber 時會自動重新取出。biber 2.22 起已經修好（2026-10 在 GitHub Actions 的 macOS 上確認過）：執行 `sudo tlmgr update --self && sudo tlmgr update biber`，確認 `/Library/TeX/texbin/biber --version` 正常後刪掉 `~/bin/biber` 即可，之後重跑 `install.py` 也不會再連回來。Linux、Windows 沒有這個問題。
 
 **改了模板，專案的 PDF 沒變**
 專案固定在舊版本（見〈版本固定〉）。跑 `ax upgrade`；或者模板的修改還沒打 tag。
@@ -399,6 +399,8 @@ TeX Live 2026 的 biber 啟動時呼叫 `lipo -extract_family`，新版 Command 
 |---|---|
 | 無襯線（標題、標籤、簡報） | 蘋方（macOS）→ Noto Sans CJK TC → 微軟正黑體（Windows）→ Fandol |
 | 襯線（內文） | 宋體（macOS）→ Noto Serif CJK TC → 細明體（Windows，粗體借用正黑體）→ Fandol |
+
+新版 macOS 的蘋方是用到時才下載的字型，全新的電腦上可能還沒有；在「字體簿」裡下載「PingFang TC」即可，沒下載時會自動改用後面的字型。
 
 Fandol 一定有（TeX Live 內建），但主要是簡體字型，用到它時 log 會警告，部分繁體字可能缺字。想在各系統看起來一致，就在每台電腦裝 [Noto CJK](https://github.com/notofonts/noto-cjk)（Linux：`fonts-noto-cjk`）。
 

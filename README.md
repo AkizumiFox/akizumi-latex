@@ -74,7 +74,7 @@ cursor ode-hw3
 | 指令 | 作用 |
 |---|---|
 | `ax` | 這個專案的狀態：種類、模板版本、PDF 什麼時候更新的 |
-| `ax watch` | 存檔就重編（不用 Cursor 時） |
+| `ax watch` | 存檔就重編（不用 Cursor 時）；`--bg` 在背景跑，`--status`、`--stop` 看狀態、停止 |
 | `ax build` | 編譯一次；失敗時指出錯在哪一行、附上白話提示，並保留上一份 PDF |
 | `ax open` | 打開 PDF（`--solutions` 打開解答） |
 | `ax both` | 作業、考卷：同時產生題目卷和解答 |

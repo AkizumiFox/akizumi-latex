@@ -343,6 +343,10 @@ def copy_pdf(src, dest):
     fd, tmp = tempfile.mkstemp(dir=str(Path(dest).parent), prefix=".ax-", suffix=".pdf")
     os.close(fd)
     shutil.copyfile(src, tmp)
+    # mkstemp makes the file owner-only; give it the usual permissions
+    umask = os.umask(0)
+    os.umask(umask)
+    os.chmod(tmp, 0o666 & ~umask)
     try:
         os.replace(tmp, dest)
         return True
@@ -839,6 +843,7 @@ def safe_build(main, jobname=None, pretex=None, label=None):
 
 def cmd_explain(a):
     """Called by latexmk after a failed run in ax watch."""
+    record_watch_result(False, a.job)
     fail(T(f"編譯失敗（{time.strftime('%H:%M:%S')}），PDF 保留上一份",
            f"Build failed ({time.strftime('%H:%M:%S')}); the PDF stays as it was"))
     if not print_error(Path("build") / f"{a.job}.log"):
@@ -848,6 +853,7 @@ def cmd_explain(a):
 
 def cmd_copypdf(a):
     """Called by latexmk after a successful run in ax watch."""
+    record_watch_result(True, Path(a.dest).stem)
     if copy_pdf(a.src, a.dest):
         ok(T(f"已更新 {a.dest}（{time.strftime('%H:%M:%S')}）",
              f"Updated {a.dest} ({time.strftime('%H:%M:%S')})"))
@@ -857,20 +863,247 @@ def cmd_copypdf(a):
 
 
 def cmd_build(a):
-    sys.exit(0 if safe_build(main_file(a.file)) else 1)
+    main = main_file(a.file)
+    warn_if_watching()
+    sys.exit(0 if safe_build(main) else 1)
+
+
+# ---------- ax watch, in the foreground or the background ----------
+# A background watcher is latexmk -pvc started detached; build/watch.json
+# records it, build/watch.log collects its output, and build/watch-last.json
+# holds the result of its latest run (written by copypdf / explain below,
+# which latexmk calls after each run).
+
+WATCH_STATE = Path("build") / "watch.json"
+WATCH_LOG = Path("build") / "watch.log"
+WATCH_LAST = Path("build") / "watch-last.json"
+WINDOWS_STILL_ACTIVE = 259
+
+
+def record_watch_result(good, job):
+    if os.environ.get("AX_WATCH_BG"):
+        try:
+            WATCH_LAST.write_text(json.dumps({"ok": good, "job": job, "time": time.time()}))
+        except OSError:
+            pass
+
+
+def watch_cmd(main, background=False):
+    cmd = ["latexmk", "-pvc", "-silent", "-interaction=nonstopmode", "-file-line-error"]
+    pdf = "%D"  # the file latexmk would show
+    if background:
+        # no viewer to open, nobody to see it; %D is then empty, so name the
+        # PDF as out_dir + job name
+        cmd.append("-view=none")
+        pdf = "%Z%R.pdf"
+    return cmd + ["-e", f"$success_cmd = q({AX_CMD} copypdf {pdf} %R.pdf);",
+                  "-e", f"$failure_cmd = q({AX_CMD} explain %R);", str(main)]
+
+
+def pid_alive(pid):
+    if WINDOWS:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        got = kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        kernel32.CloseHandle(handle)
+        return bool(got) and code.value == WINDOWS_STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    # the pid may have been reused by an unrelated process since
+    r = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True)
+    return r.returncode != 0 or "latexmk" in r.stdout
+
+
+def watcher():
+    """The background watcher for this folder as a dict, or None. A record
+    whose process has gone is removed."""
+    try:
+        state = json.loads(WATCH_STATE.read_text())
+        pid = int(state["pid"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if pid_alive(pid):
+        return state
+    try:
+        WATCH_STATE.unlink()
+    except OSError:
+        pass
+    return None
+
+
+def warn_if_watching():
+    if watcher():
+        warn(T("背景有 ax watch 在跑，兩邊會搶 build/；需要時先 ax watch --stop",
+               "A background ax watch is running and will compete for build/; "
+               "run ax watch --stop first if this misbehaves"))
+
+
+def clock(epoch):
+    return time.strftime("%H:%M:%S" if time.time() - epoch < 86400 else "%m/%d %H:%M",
+                         time.localtime(epoch))
+
+
+def watch_background(main):
+    running = watcher()
+    if running:
+        ok(T(f"背景已經在監看 {running.get('main')}（PID {running['pid']}，{clock(running['started'])} 開始）",
+             f"Already watching {running.get('main')} in the background "
+             f"(PID {running['pid']}, since {clock(running['started'])})"))
+        note(T("  ax watch --status 看狀態，ax watch --stop 停止",
+               "  ax watch --status for its state, ax watch --stop to stop it"))
+        return
+    Path("build").mkdir(exist_ok=True)
+    for f in (WATCH_LAST,):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+    env = dict(os.environ, AX_WATCH_BG="1", PYTHONIOENCODING="utf-8", NO_COLOR="1")
+    log = open(WATCH_LOG, "ab")
+    log.write(f"\n=== ax watch --bg {time.strftime('%Y-%m-%d %H:%M:%S')} {main}\n".encode())
+    log.flush()
+    kwargs = dict(stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, env=env)
+    if WINDOWS:
+        # A hidden console of its own (not DETACHED_PROCESS, or every xelatex
+        # run would flash a window), its own process group, and out of the
+        # terminal's job when that is allowed, so closing the terminal
+        # leaves it running.
+        flags = 0x08000000 | 0x00000200  # CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+        try:
+            proc = subprocess.Popen(watch_cmd(main, True), creationflags=flags | 0x01000000, **kwargs)
+        except OSError:  # the job forbids breaking away
+            proc = subprocess.Popen(watch_cmd(main, True), creationflags=flags, **kwargs)
+    else:
+        proc = subprocess.Popen(watch_cmd(main, True), start_new_session=True, **kwargs)
+    log.close()
+    WATCH_STATE.write_text(json.dumps({"pid": proc.pid, "started": time.time(), "main": str(main)}))
+    ok(T(f"背景開始監看 {cmd_text(str(main))}（PID {proc.pid}）：存檔就重編，成功才更新 PDF",
+         f"Watching {cmd_text(str(main))} in the background (PID {proc.pid}): rebuilds on save, "
+         "updates the PDF only on success"))
+    note(T(f"  ax watch --status 看結果 {MARK['dot']} ax watch --log 看輸出 {MARK['dot']} ax watch --stop 停止",
+           f"  ax watch --status for results {MARK['dot']} ax watch --log for output "
+           f"{MARK['dot']} ax watch --stop to stop"))
+
+
+def watch_status():
+    running = watcher()
+    if not running:
+        note(T("沒有背景監看；ax watch --bg 開始", "No background watcher; start one with ax watch --bg"))
+        return 1
+    ok(T(f"背景監看中：{running.get('main')}（PID {running['pid']}，{clock(running['started'])} 開始）",
+         f"Watching {running.get('main')} in the background "
+         f"(PID {running['pid']}, since {clock(running['started'])})"))
+    try:
+        last = json.loads(WATCH_LAST.read_text())
+    except (OSError, ValueError):
+        last = None
+    if not last:
+        note(T("  還沒有編譯結果：第一次編譯中，或 PDF 已是最新、等你存檔",
+               "  No build yet: the first one is running, or the PDF is up to date and it waits for a save"))
+    elif last.get("ok"):
+        ok(T(f"上次編譯成功（{clock(last['time'])}）", f"Last build succeeded ({clock(last['time'])})"))
+    else:
+        fail(T(f"上次編譯失敗（{clock(last['time'])}），PDF 保留上一份",
+               f"Last build failed ({clock(last['time'])}); the PDF stays as it was"))
+        if not print_error(Path("build") / f"{last.get('job', 'main')}.log"):
+            note(T("  log 裡沒有 LaTeX 錯誤；ax watch --log 看 latexmk 的輸出",
+                   "  No LaTeX error in the log; see latexmk's output with ax watch --log"), err=True)
+    return 0
+
+
+def watch_stop():
+    running = watcher()
+    if not running:
+        note(T("沒有背景監看在跑", "No background watcher is running"))
+        return 0
+    pid = int(running["pid"])
+    if WINDOWS:
+        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+    else:
+        import signal
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(pid, sig)  # latexmk and the xelatex it runs
+            except ProcessLookupError:
+                break
+            except OSError:
+                try:
+                    os.kill(pid, sig)
+                except OSError:
+                    break
+            for _ in range(50):
+                if not pid_alive(pid):
+                    break
+                time.sleep(0.1)
+            if not pid_alive(pid):
+                break
+    if pid_alive(pid):
+        die(T(f"停不掉 PID {pid}", f"Could not stop PID {pid}"),
+            T("用工作管理員或 kill 手動結束它", "End it by hand (Task Manager or kill)"))
+    for f in (WATCH_STATE, WATCH_LAST):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+    ok(T(f"已停止背景監看（PID {pid}）", f"Stopped the background watcher (PID {pid})"))
+    return 0
+
+
+def watch_follow():
+    """tail -f build/watch.log until Ctrl-C, or until the watcher stops."""
+    if not WATCH_LOG.exists():
+        note(T("還沒有 build/watch.log；ax watch --bg 開始", "No build/watch.log yet; start with ax watch --bg"))
+        return 1
+    with open(WATCH_LOG, "rb") as f:
+        lines = f.read().decode("utf-8", "replace").splitlines()
+        sys.stdout.write("\n".join(lines[-30:]) + "\n")
+        sys.stdout.flush()
+        if not watcher():
+            note(T("（背景監看沒有在跑）", "(no background watcher is running)"))
+            return 0
+        note(T("（Ctrl-C 結束；監看本身繼續跑）", "(Ctrl-C to quit; the watcher keeps running)"))
+        idle = 0
+        while True:
+            chunk = f.read()
+            if chunk:
+                sys.stdout.write(chunk.decode("utf-8", "replace"))
+                sys.stdout.flush()
+                idle = 0
+                continue
+            time.sleep(0.5)
+            idle += 1
+            if idle % 10 == 0 and not watcher():
+                note(T("（背景監看已停止）", "(the background watcher stopped)"))
+                return 0
 
 
 def cmd_watch(a):
+    if a.status or a.stop or a.log:
+        if not a.file:
+            find_project(quiet=True)
+        sys.exit(watch_status() if a.status else watch_stop() if a.stop else watch_follow())
     main = main_file(a.file)
     need_tool("latexmk", T("請先安裝 TeX Live，再執行 ax doctor", "Install TeX Live, then run ax doctor"))
+    if a.bg:
+        watch_background(main)
+        return
+    if watcher():
+        die(T("背景已經有 ax watch 在跑", "A background ax watch is already running"),
+            T("ax watch --log 看它的輸出，或 ax watch --stop 停掉再在前景監看",
+              "ax watch --log shows its output; ax watch --stop stops it so you can watch here"))
     print(T(f"監看 {cmd_text(str(main))}：存檔就重編，成功才更新 PDF。按 Ctrl-C 停止。",
             f"Watching {cmd_text(str(main))}: rebuilds on save, updates the PDF only on "
             "success. Ctrl-C stops."))
-    cmd = ["latexmk", "-pvc", "-silent", "-interaction=nonstopmode", "-file-line-error",
-           "-e", f"$success_cmd = q({AX_CMD} copypdf %D %R.pdf);",
-           "-e", f"$failure_cmd = q({AX_CMD} explain %R);", str(main)]
     try:
-        sys.exit(subprocess.call(cmd))
+        sys.exit(subprocess.call(watch_cmd(main)))
     except KeyboardInterrupt:
         print()
         note(T("已停止監看", "Stopped watching"))
@@ -882,6 +1115,7 @@ def cmd_both(a):
     if kind and kind not in ("hw", "exam"):
         die(T(f"ax both 只用在作業和考卷；這個專案是{KIND_NAME.get(kind, kind)}",
               f"ax both is for homework and exams; this project is {KIND_NAME.get(kind, kind)}"))
+    warn_if_watching()
     ok1 = safe_build(main, pretex=r"\def\akizumisolutions{false}",
                      label=T("編譯題目卷", "Building the problems"))
     ok2 = safe_build(main, jobname=f"{main.stem}-solutions",
@@ -1160,7 +1394,8 @@ _ax() {{
   if (( CURRENT == 2 )); then _describe 'command' cmds
   elif [[ $words[2] == new && CURRENT == 3 ]]; then compadd -- {kinds}
   elif [[ $words[2] == new ]]; then compadd -- {opts}
-  elif [[ $words[2] == (build|watch|both|open) ]]; then _files -g '*.tex'
+  elif [[ $words[2] == watch ]]; then compadd -- --bg --status --stop --log; _files -g '*.tex'
+  elif [[ $words[2] == (build|both|open) ]]; then _files -g '*.tex'
   elif [[ $words[2] == completion ]]; then compadd -- zsh bash powershell
   elif [[ $words[2] == selftest ]]; then compadd -- all examples projects
   fi
@@ -1173,6 +1408,7 @@ compdef _ax ax""")
   elif [ "${{COMP_WORDS[1]}}" = new ] && [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=($(compgen -W "{kinds}" -- "$cur"))
   elif [ "${{COMP_WORDS[1]}}" = new ]; then COMPREPLY=($(compgen -W "{opts}" -- "$cur"))
   elif [ "${{COMP_WORDS[1]}}" = completion ]; then COMPREPLY=($(compgen -W "zsh bash powershell" -- "$cur"))
+  elif [ "${{COMP_WORDS[1]}}" = watch ] && [[ "$cur" == -* ]]; then COMPREPLY=($(compgen -W "--bg --status --stop --log" -- "$cur"))
   fi
 }}
 complete -o default -F _ax ax""")
@@ -1186,6 +1422,7 @@ complete -o default -F _ax ax""")
   elseif ($words[1] -eq 'new' -and $n -eq 3) {{ $list = @({ps(kinds)}) }}
   elseif ($words[1] -eq 'new') {{ $list = @({ps(opts)}) }}
   elseif ($words[1] -eq 'completion') {{ $list = @('zsh', 'bash', 'powershell') }}
+  elseif ($words[1] -eq 'watch') {{ $list = @('--bg', '--status', '--stop', '--log') }}
   else {{ return }}
   $list | Where-Object {{ $_ -like "$wordToComplete*" }} | ForEach-Object {{
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
@@ -1194,6 +1431,38 @@ complete -o default -F _ax ax""")
 
 
 # ---------- ax selftest ----------
+
+def selftest_watch(ax, d, result):
+    """ax watch --bg builds after an edit, --status answers, --stop ends it."""
+    label = T("專案 watch --bg", "project watch --bg")
+    run = lambda *args: subprocess.run(ax + ["watch", *args], cwd=d, stdin=subprocess.DEVNULL,
+                                       capture_output=True, encoding="utf-8", errors="replace")
+    main_tex, pdf, last = d / "main.tex", d / "main.pdf", d / WATCH_LAST
+    main_tex.write_text(main_tex.read_text() + "\n% watched\n")  # out of date: -pvc builds at once
+    before = pdf.stat().st_mtime if pdf.exists() else 0
+    r = run("--bg")
+    if r.returncode:
+        result(False, label)
+        print(r.stdout + r.stderr)
+        return
+    state = json.loads((d / WATCH_STATE).read_text())
+    built = False
+    for _ in range(120):
+        if last.exists() and pdf.exists() and pdf.stat().st_mtime != before:
+            built = json.loads(last.read_text()).get("ok", False)
+            break
+        time.sleep(0.5)
+    status = run("--status").returncode
+    stop = run("--stop").returncode
+    time.sleep(0.5)
+    gone = not pid_alive(int(state["pid"]))
+    if not built:
+        warn(T("watch --bg 60 秒內沒有完成編譯；build/watch.log：",
+               "watch --bg did not finish a build within 60 s; build/watch.log:"))
+        log = d / WATCH_LOG
+        print(log.read_text(errors="replace")[-2000:] if log.exists() else "")
+    result(status == 0 and stop == 0 and gone, label)
+
 
 def cmd_selftest(a):
     """Rebuild the examples and build one fresh project of each kind."""
@@ -1236,6 +1505,7 @@ def cmd_selftest(a):
             result(code == 0 and (tmp / "t-hw" / "main-solutions.pdf").exists(), T("專案 both", "project both"))
             if code:
                 print(out)
+            selftest_watch(ax, tmp / "t-hw", result)
         else:
             result(False, T("專案 both（作業專案沒有建立成功）", "project both (the homework project was not created)"))
         # references: biber runs and the citation resolves
@@ -1323,6 +1593,10 @@ def show_status():
     else:
         state = T("還沒編譯過", "not built yet")
     print(T(f"  PDF   {state}", f"  PDF       {state}"))
+    running = watcher()
+    if running:
+        print(T(f"  監看  背景執行中（PID {running['pid']}；ax watch --status、--stop）",
+                f"  watch     running in the background (PID {running['pid']}; ax watch --status, --stop)"))
     print(T("\n常用：", "\nUseful:"))
     for c, text in ((("ax watch", T("存檔就重編", "rebuild on save")),
                      ("ax build", T("編譯一次", "build once")),
@@ -1473,6 +1747,18 @@ def main():
         c.add_argument("file", nargs="?", metavar=T("檔案", "file"),
                        help=T("預設是專案的 main.tex", "default: the project's main.tex"))
         c.set_defaults(func=func)
+        if name == "watch":
+            g = c.add_mutually_exclusive_group()
+            g.add_argument("--bg", action="store_true",
+                           help=T("在背景監看，馬上把終端機還給你（輸出寫到 build/watch.log）",
+                                  "watch in the background and return at once (output in build/watch.log)"))
+            g.add_argument("--status", action="store_true",
+                           help=T("背景監看有沒有在跑、上次編譯成功還是失敗",
+                                  "whether a background watcher runs, and how its last build went"))
+            g.add_argument("--stop", action="store_true", help=T("停止背景監看", "stop the background watcher"))
+            g.add_argument("--log", action="store_true",
+                           help=T("即時看背景監看的輸出（Ctrl-C 結束）",
+                                  "follow the background watcher's output (Ctrl-C to quit)"))
     o = sub.add_parser("open", help=HELP_LINES["open"], description=HELP_LINES["open"])
     o.add_argument("file", nargs="?", metavar=T("檔案", "file"),
                    help=T("預設是專案的 main.pdf", "default: the project's main.pdf"))

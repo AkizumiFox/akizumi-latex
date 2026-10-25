@@ -74,7 +74,7 @@ In a project folder (or any folder inside it):
 | Command | Does |
 |---|---|
 | `ax` | this project's status: kind, template version, when the PDF was updated |
-| `ax watch` | recompile on every save (when not using Cursor) |
+| `ax watch` | recompile on every save (when not using Cursor); `--bg` runs it in the background, `--status` and `--stop` check on it and stop it |
 | `ax build` | compile once; on failure, shows the line, a plain-language hint, and keeps the previous PDF |
 | `ax open` | open the PDF (`--solutions` for the answer key) |
 | `ax both` | homework and exams: problems and answer key in one go |

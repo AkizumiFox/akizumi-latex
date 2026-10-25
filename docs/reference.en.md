@@ -268,6 +268,8 @@ Except `new`, `doctor`, `config` and `completion`, commands run inside a project
 | `ax new` | Creates a project (see [ax new options](#ax-new-options-and-project-contents)) |
 | `ax build` | Compiles once and shows how long it took. Replaces `main.pdf` only on success; on failure prints the file, line number and source line of the first error with a plain-language hint, and keeps the old PDF |
 | `ax watch` | Recompiles on every save and reports each success or failure; opens Skim if you have it |
+| `ax watch --bg` | Watches in the background and gives the terminal back at once; output goes to `build/watch.log`, and it keeps running after the terminal closes. One per project |
+| `ax watch --status` / `--log` / `--stop` | Whether a background watcher runs and how its last build went (with the first error on failure) / follow its output / stop it. While one runs, `ax build` and `ax both` warn that they share `build/` |
 | `ax open` | Opens the PDF in the system's default viewer; `--solutions` opens the answer key |
 | `ax both` | Homework / exams: `main.pdf` (questions) and `main-solutions.pdf` (answers) |
 | `ax doctor` | Checks tools, fonts, template installation and versions, then lists what's wrong and how to fix it |

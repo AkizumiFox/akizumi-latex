@@ -266,6 +266,8 @@ TikZ 圖可以用跟簡報一致的樣式：
 | `ax new` | 建立專案（見〈ax new 的選項〉） |
 | `ax build` | 編譯一次，顯示花了幾秒。只有成功才更新 `main.pdf`；失敗時印出第一個錯誤的檔案、行號和那一行，附上白話提示，保留舊 PDF |
 | `ax watch` | 存檔就重編，每次成功或失敗都會說；有 Skim 就用 Skim 開 |
+| `ax watch --bg` | 在背景監看，終端機馬上還給你；輸出寫到 `build/watch.log`，關掉終端機也繼續跑。同一個專案只會有一個 |
+| `ax watch --status` / `--log` / `--stop` | 背景監看有沒有在跑、上次編譯成功或失敗（失敗時附第一個錯誤）／即時看輸出／停止。背景監看在跑時 `ax build`、`ax both` 會提醒兩邊會搶 `build/` |
 | `ax open` | 用系統預設的閱讀器打開 PDF；`--solutions` 打開解答 |
 | `ax both` | 作業／考卷：`main.pdf`（題目）和 `main-solutions.pdf`（解答） |
 | `ax doctor` | 檢查工具、字型、模板安裝和版本，最後列出有問題的項目和修法 |

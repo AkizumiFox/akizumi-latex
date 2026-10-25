@@ -1483,6 +1483,20 @@ def cmd_selftest(a):
             result(code == 0, T(f"範例 {name:<7}（{elapsed(secs)}）", f"example {name:<7} ({elapsed(secs)})"))
             if code:
                 print_error(ex / "build" / f"{name}.log")
+    if a.part in ("all", "tests"):
+        # tests/*.tex: one small document per feature, built against the working
+        # tree; "% !TEX program = pdflatex|lualatex" on line 1 picks the engine
+        td = REPO / "tests"
+        shutil.rmtree(td / "build", ignore_errors=True)
+        for tex in sorted(td.glob("*.tex")):
+            first = tex.read_text(errors="replace").split("\n", 1)[0]
+            engine = "-pdf" if "pdflatex" in first else "-lualatex" if "lualatex" in first else "-xelatex"
+            code, _, secs = run_with_spinner(
+                ["latexmk", "-r", "latexmkrc", engine, "-halt-on-error", "-interaction=nonstopmode",
+                 tex.name], T(f"測試 {tex.stem}", f"test {tex.stem}"), cwd=td)
+            result(code == 0, T(f"測試 {tex.stem}（{elapsed(secs)}）", f"test {tex.stem} ({elapsed(secs)})"))
+            if code:
+                print_error(td / "build" / f"{tex.stem}.log")
     if a.part in ("all", "projects"):
         tmp = Path(tempfile.mkdtemp(prefix="ax-selftest-"))
         ax = [sys.executable, str(AX)]
@@ -1781,7 +1795,7 @@ def main():
     c.add_argument("shell", choices=["zsh", "bash", "powershell"])
     c.set_defaults(func=cmd_completion)
     t = sub.add_parser("selftest", help=HELP_LINES["selftest"], description=HELP_LINES["selftest"])
-    t.add_argument("part", nargs="?", choices=["all", "examples", "projects"], default="all")
+    t.add_argument("part", nargs="?", choices=["all", "examples", "tests", "projects"], default="all")
     t.set_defaults(func=cmd_selftest)
 
     # internal: latexmkrc asks for the pinned template path; ax watch explains

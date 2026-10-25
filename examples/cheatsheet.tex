@@ -1,0 +1,388 @@
+% !TEX program = xelatex
+% A quick reference built with the templates themselves: source on the left,
+% what it prints on the right. Every snippet is compiled right here.
+\documentclass[lang=zh, thmnames=native, letters=bold, tikz=full, twocolumn]{akizumi-note}
+\geometry{landscape, margin=1.1cm, top=1.55cm, bottom=1.25cm, headsep=0.45cm}
+\setlength{\columnsep}{0.75cm}
+\raggedbottom
+\akizumisetup{course=akizumi-latex 速查表, headright={左：原始碼\quad 右：結果}}
+\title{akizumi-latex 速查表}
+
+% ---------- look of the sheet ----------
+\titleformat{\section}[block]{\sffamily\normalsize\bfseries\color{accent}}{\thesection}{0.6em}{}
+  [\nobreak\vspace{-0.6ex}{\color{rule}\nobreak\titlerule[0.6pt]}\nobreak]
+\titlespacing*{\section}{0pt}{0.9em}{0.45em}
+\setlist{itemsep=0pt, topsep=0.2em}
+\renewcommand{\arraystretch}{1.04}
+\AtBeginDocument{\setlength{\headwidth}{\textwidth}}  % full width after landscape
+\newcommand{\csfont}{\ttfamily\fontsize{7.6}{9.4}\selectfont}
+
+% Source in the code font: control sequences in accent, comments muted.
+\lstdefinestyle{cs}{style=akizumi, language={}, numbers=none,
+  basicstyle=\csfont,
+  alsoletter={\\}, morekeywords={\\begin}, keywordsprefix=\\, keywordstyle=\color{accent},
+  morecomment=[l]\%, commentstyle=\color{mute}, breakindent=1em}
+\tcbset{cs/base/.style={enhanced, breakable=false, colframe=rule, boxrule=0.5pt, arc=1.5pt,
+    left=5pt, right=5pt, top=4pt, bottom=4pt,
+    before skip=0.45em, after skip=0.45em,
+    listing options={style=cs}, listing file={\jobname-cs.tex}}}
+% \begin{cs}[ratio] ... \end{cs}: source left, result right
+\DeclareTCBListing{cs}{ !O{0.52} }{cs/base, listing side text, colback=white,
+  lefthand ratio=#1, sidebyside gap=10pt, segmentation hidden,
+  sidebyside align=top seam, fontlower=\small\raggedright,
+  underlay={\begin{tcbclipinterior}\fill[wash] (interior.south west) rectangle
+    ([xshift=-5pt]segmentation.north);\end{tcbclipinterior}}}
+% \begin{cssrc}{note} ... \end{cssrc}: source only (other document kinds)
+\DeclareTCBListing{cssrc}{ m }{cs/base, listing only, colback=wash,
+  overlay={\node[anchor=north east, inner sep=3pt, font=\sffamily\scriptsize,
+    text=mute] at (frame.north east) {#1};}}
+
+% \mrow{source}: the source in code font, then what it prints
+\ExplSyntaxOn
+\tl_new:N \l__cs_tl
+\NewDocumentCommand \mrow { v }
+  {
+    {\csfont #1} &
+    \tl_set_rescan:Nnn \l__cs_tl { } {#1} $\l__cs_tl$
+  }
+\ExplSyntaxOff
+\newcommand{\opt}[1]{{\csfont #1}}
+
+\begin{document}
+\twocolumn[{%
+  \sffamily
+  {\LARGE\bfseries akizumi-latex 速查表}\hfill
+  {\small\color{mute}每段左邊是原始碼，右邊是印出來的樣子；完整說明見 \texttt{docs/reference.md}}\par
+  \vspace{0.4em}{\color{rule}\rule{\linewidth}{0.6pt}}\par\vspace{0.6em}}]
+
+\footnotesize
+\section{文件種類}\nobreak
+\begin{tabularx}{\linewidth}{@{}l l Y@{}}
+\toprule
+\opt{ax new} & \opt{\textbackslash documentclass} & 用途 \\
+\midrule
+\opt{hw}     & \opt{akizumi-hw}   & 作業：\opt{problem}、\opt{parts}、\opt{solution} \\
+\opt{note}   & \opt{akizumi-note} & 講義、筆記、報告（這份就是） \\
+\opt{exam}   & \opt{akizumi-exam} & 考卷：exam 的 \opt{\textbackslash question[10]}、\opt{\textbackslash gradetable} \\
+\opt{slides} & \opt{beamer} + \opt{\textbackslash usetheme\{Akizumi\}} & 簡報 \\
+\opt{book}   & \opt{akizumi-book} & 論文、長篇講義：章、部、封面 \\
+\opt{paper}  & 會議模板 + \opt{akizumi-math} & 投稿論文（pdfLaTeX） \\
+\bottomrule
+\end{tabularx}
+
+
+\section{常用的 class 選項}\nobreak
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{4.6em} >{\raggedright\arraybackslash}p{12.5em} Y@{}}
+\toprule
+選項 & 值（第一個是預設） & 作用 \\
+\midrule
+\opt{lang}       & \opt{en zh ja ko} & 主語言：日期、圖表名稱、字型 \\
+\opt{thmnames}   & \opt{english native} & Theorem／定理、Proof／證明 \\
+\opt{text}       & \opt{serif sans times palatino} & 內文字型；標題一律 Lato \\
+\opt{paper}      & \opt{a4 letter pad} & \opt{pad}：3:4 平板版面 \\
+\opt{layout}     & \opt{normal margin} & \opt{margin}：寬邊欄放 \opt{\textbackslash sidenote} \\
+\opt{byline}     & \opt{false true} & 標題下印「作者 · 學號 · 日期」 \\
+\opt{par}        & \opt{skip indent} & \opt{indent}：首行縮排 2 字 \\
+\opt{secnum}     & \opt{arabic zh} & \opt{zh}：一、（一）1. \\
+\opt{thmcounter} & \opt{shared grouped split} & 定理類共用編號、分三類、各自編號 \\
+\opt{thmwithin}  & \opt{section chapter none} & 編號前加節號（書：章號） \\
+\opt{solutions}  & \opt{inline chapter end hide} & 習題解答放哪裡；作業、考卷是 \opt{true false} \\
+\opt{index}      & \opt{false true} & 索引、符號列表 \\
+\opt{code}       & \opt{listings minted} & 程式碼上色引擎 \\
+\opt{letters}    & \opt{bold cal bb greek all} & 字母捷徑 \opt{\textbackslash va}、\opt{\textbackslash sA}… \\
+\opt{tikz} \opt{plots} & \opt{basic full}、\opt{plots} & 更多 TikZ 函式庫、pgfplots \\
+\opt{bib}        & \opt{refs.bib} & 參考文獻（biber） \\
+\opt{13pt} \opt{kai} & \opt{fontsize=}、\opt{kai} & 字級、楷書內文 \\
+\bottomrule
+\end{tabularx}
+
+\begin{cssrc}{note}
+\documentclass[lang=zh, thmnames=native, layout=margin]{akizumi-note}
+\akizumisetup{course=常微分方程, kicker={ODE · 第 3 講}}
+\title{一階線性方程}  \author{Aaron Lin}
+\begin{document}
+\maketitle
+\end{cssrc}
+
+\section{定理、證明、交叉引用}
+\begin{cs}
+\begin{definition}[Collapse]\label{def:c}
+若 $\Var[f(\vb{o})] = 0$，稱 $f$ collapse。
+\end{definition}
+\begin{theorem}\label{thm:a}
+$\abs{x} \le 1 \implies x^2 \le 1$。
+\end{theorem}
+\begin{proof}
+兩邊平方。
+\end{proof}
+見\cref{thm:a}、\cref{def:c}。
+\end{cs}
+
+\begin{cs}
+\begin{restatable}[Cram\'er--Wold]
+  {theorem}{cw}\label{thm:cw}
+$\vb{z} \sim \Normal{\vb{0}}{\vb{I}}$ 若且唯若
+每個 $\vb{u}\T\vb{z}$ 都是常態。
+\end{restatable}
+% 附錄：同一個編號、同一段文字
+\cw*
+\begin{proofof}{thm:cw}
+看特徵函數。
+\end{proofof}
+\end{cs}
+
+\begin{cs}
+\begin{lemma}[number=3.2] 抄書的編號。
+\end{lemma}
+\begin{remark*} 不編號的版本加星號。
+\end{remark*}
+\begin{axiom} 另有 axiom、conjecture、
+property、conclusion、claim。
+\end{axiom}
+\end{cs}
+
+\section{提示框}
+\begin{cs}
+\begin{keyidea}
+級數收斂，就是尾巴越來越小。
+\end{keyidea}
+\begin{tip}[根值判別法]
+看 $\sqrt[n]{a_n}$ 的極限。
+\end{tip}
+\begin{warning}
+$a_n \to 0$ 不保證收斂。
+\end{warning}
+\end{cs}
+
+\begin{cs}
+\begin{proofidea}
+先比較，再用 Cauchy 準則。
+\end{proofidea}
+\begin{note} 也有 pitfall、chapterguide。
+\end{note}
+\begin{setup}
+設 $(a_n)$ 為實數數列。
+\end{setup}
+\begin{remark}[\optional 選讀]
+\code{\optional} 也能放在章節標題前。
+\end{remark}
+\end{cs}
+
+\section{習題與解答（講義、書）}
+\begin{cs}
+\begin{exercise}[聯集]\label{ex:u}
+求 $[-2,1) \cup (0,3]$。
+\end{exercise}
+\begin{solution}
+$[-2,3]$。
+\end{solution}
+\begin{example-problem}[title=Two Sum,
+  source=LeetCode 1]
+找兩個數，和為 target。
+\begin{parts}
+\item 暴力法 \item 雜湊表
+\end{parts}
+\end{example-problem}
+\end{cs}
+
+\begin{cs}
+\begin{exercises}[title]
+\item 證明 $\sqrt{2}$ 是無理數。
+\item 計算：
+  \begin{enumerate}
+  \item $\sum_{k=1}^n k$
+  \item $\sum_{k=1}^n k^2$
+  \end{enumerate}
+  \begin{solution}
+  (a) $\frac{n(n+1)}{2}$
+  \end{solution}
+\end{exercises}
+\end{cs}
+
+\begin{cssrc}{hw}
+\documentclass[lang=zh]{akizumi-hw}     % solutions=false 隱藏解答
+\akizumisetup{course=常微分方程, number=3, due={10 月 30 日}}
+\begin{document}
+\maketitle
+\problemset{B}                            % 之後的題號是 B1、B2…
+\begin{problem}[一階線性方程]
+  \begin{parts}  \item 求通解。  \item 解 $y(0)=1$。  \end{parts}
+  \begin{solution}  積分因子為 $e^{2x}$。  \end{solution}
+\end{problem}
+\begin{problem}[label=B2$'$, title=緊緻性]  ...  \end{problem}
+\inputproblem[柯西數列]{problems/B3}       % 一題一個檔
+\end{cssrc}
+
+\section{數學}\nobreak
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}l l l l@{}}
+\toprule
+\mrow{\vb{x}\T\vb{A}\vb{x}} & \mrow{\va + \vb{\mu}} \\
+\mrow{\norm{x}_2,\ \abs{x}} & \mrow{\inner{x, y}} \\
+\mrow{\norm*{\frac{x}{2}}} & \mrow{\norm[\big]{x}} \\
+\mrow{\set{x \given x > 0}} & \mrow{\floor{x},\ \ceil{x}} \\
+\mrow{\E[X],\ \Var[X]} & \mrow{\Prob{A \given B}} \\
+\mrow{\R,\ \N,\ \Z,\ \Q,\ \C} & \mrow{\mathbb{1},\ \mathscr{F}} \\
+\mrow{\argmin_{\theta} L} & \mrow{\int f \dd x} \\
+\mrow{\Normal{\mu}{\sigma^2}} & \mrow{X \indep Y,\ X_i \iid F} \\
+\mrow{\tr,\ \rank,\ \spn,\ \im} & \mrow{\cvec[p]{a, b}} \\
+\bottomrule
+\end{tabular*}
+\par\smallskip
+{\footnotesize\color{mute}\opt{\textbackslash va}…\opt{\textbackslash vZ} 要 \opt{letters=bold}；\opt{delims=auto} 讓括號不加星號就自動變大。}
+
+\section{程式碼}
+\begin{cs}[0.47]
+\begin{codeblock}[lang=Python, title=f.py]
+def f(z, k=64):
+    u = randn(z.shape[1], k)
+    return (z @ u).mean()
+\end{codeblock}
+行內：\code{loss.backward()}、
+\code[cpp]{std::vector<int> v;}
+\end{cs}
+
+\begin{cs}[0.47]
+\begin{codeblock}[numbered, label=lst:fit,
+  lang=python, numbers=false]
+model.fit(x, y)
+\end{codeblock}
+見\cref{lst:fit}。
+\begin{terminal}[title=zsh]
+$ python main.py
+3
+\end{terminal}
+\iosample{1 2 \\ 3 4}{3 \\ 7}
+\end{cs}
+
+\begin{cssrc}{note}
+\inputcode[lang=cpp, lines=10-24]{main.cpp}   % 讀檔，只印第 10–24 行
+\inputcode[output, title=輸出]{run.txt}        % 程式輸出：白底、無行號
+\listofcodes                                   % 所有編號過的程式碼
+\end{cssrc}
+
+\section{演算法、符號表}
+\begin{cs}
+\begin{algorithm}[H]
+\caption{SIGReg 訓練}\label{alg:s}
+\begin{algorithmic}[1]
+\Require 批次 $\{\vb{o}_i\}$，權重 $\lambda$
+\State $\vb{Z} \gets f_\theta(\vb{o})$
+\State $\theta \gets \theta - \eta
+  \nabla_\theta \mathcal{L}$
+\end{algorithmic}
+\end{algorithm}
+\end{cs}
+
+\begin{cs}
+\begin{notation}
+\notn{$\vb{z}_t$}{時間 $t$ 的潛在狀態}
+\notn{$\sg(\cdot)$}{stop-gradient}
+\end{notation}
+\end{cs}
+
+\section{TikZ}
+\begin{cs}
+\begin{tikzpicture}
+\node[akizumi/box] (a) {encoder};
+\node[akizumi/box, right=1cm of a]
+  (b) {$\vb{z}$};
+\draw[akizumi/arrow] (a) --
+  node[above, akizumi/note] {sg} (b);
+\end{tikzpicture}
+\end{cs}
+
+\begin{cs}
+\begin{tikzpicture}[x=0.9cm]
+\foreach \v [count=\i from 0] in
+    {3, 1, 4, 1}
+  \node[akizumi/cell] at (\i, 0) {\v};
+\node[akizumi/hlcell] at (2, 0) {4};
+\node[akizumi/index] at (2, -0.7) {i};
+\end{tikzpicture}
+\end{cs}
+
+\begin{cs}
+\begin{tikzpicture}[akizumi/automaton]
+\node[state, initial] (q0) {$q_0$};
+\node[state, accepting, right=of q0]
+  (q1) {$q_1$};
+\path[->] (q0) edge["$a$"] (q1)
+  (q1) edge[loop above] node {$b$} ();
+\end{tikzpicture}
+\end{cs}
+
+{\footnotesize\color{mute}流程圖 \opt{akizumi/start} \opt{process} \opt{decision} \opt{io} \opt{group}；賽局樹 \opt{akizumi/game/...}；電流 \opt{\textbackslash pic\{akizumi/current in\}}。}
+
+\section{其他小工具}
+\begin{cs}
+\todo{補推導}
+
+\muted{灰色的次要文字}
+
+課名\akizumisep 第 3 講
+
+顏色：\textcolor{accent}{accent}、
+\textcolor{warn}{warn}、\textcolor{mute}{mute}
+\end{cs}
+
+\begin{cssrc}{note}
+\sidenote{邊欄註記}          % layout=margin 才在邊欄，否則是註腳
+\blindfootnote{本講義改編自…}  % 沒有編號的註腳
+\index{分割!網目}  \nota{$\norm{x}$}{歐氏範數}   % index=true
+\printnotation  \printindex
+\end{cssrc}
+
+\section{簡報、考卷、書（只列原始碼）}
+\begin{cssrc}{slides}
+\documentclass[aspectratio=169]{beamer}
+\usetheme[progress]{Akizumi}           % 底部進度條；也接受 lang=zh、tikz=full
+\begin{document}
+\begin{frame}[plain,noframenumbering]\titlepage\end{frame}
+\section{動機}                         % 每節前自動插入「Part N」
+\begin{frame}[fragile]{程式碼要 fragile}
+  \q{這是討論問題嗎？}                 % 藍色的 Q:
+\end{frame}
+\standoutframe{Questions?}             % 整頁藍底一句話
+\appendix  \dividerframe{Appendix}     % 之後的頁不算進總頁數
+\end{cssrc}
+
+\begin{cssrc}{exam}
+\documentclass[lang=zh]{akizumi-exam}     % solutions=true 印出解答
+\begin{center}\gradetable[h][questions]\end{center}   % 評分表
+\begin{questions}
+\question[10] 解 $y'' + y = 0$。
+  \begin{solution} $y = \sin x$。 \end{solution}
+\question \begin{parts} \part[5] ...  \part[10] ... \end{parts}
+\end{questions}
+\end{cssrc}
+
+\begin{cssrc}{book}
+\documentclass[lang=zh, openright, chaptername={第 * 講}]{akizumi-book}
+\frontmatter  \maketitle  \preface ...  \tableofcontents
+\mainmatter
+\part[sub=Foundations]{基礎}
+\chapter[sub=Basic Operations, short=運算]{基本運算}
+\chaptertoc                               % 本章小目錄
+\backmatter  \printbibliography
+\end{cssrc}
+
+\section{ax 指令}\nobreak
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{13.5em} Y@{}}
+\toprule
+指令 & 作用 \\
+\midrule
+\opt{ax new hw hw3 --course 微積分} & 建立專案；不給參數會用選單問 \\
+\opt{ax} & 專案狀態：種類、模板版本、PDF 更新時間 \\
+\opt{ax build}\quad\opt{--chapter 3} & 編譯一次；失敗時指出哪一行 \\
+\opt{ax watch}\quad\opt{--bg --status --stop} & 存檔就重編，可以在背景跑 \\
+\opt{ax open}\quad\opt{--solutions} & 打開 PDF \\
+\opt{ax both} & 作業、考卷：題目卷和解答各一份 \\
+\opt{ax count}\quad\opt{--limit 3000} & 字數：英文字加中日韓字 \\
+\opt{ax pack}\quad\opt{ax freeze} & 打包上傳 Overleaf；把模板複製進專案 \\
+\opt{ax upgrade} & 換到最新的模板版本 \\
+\opt{ax migrate old.tex} & 舊文件轉成 akizumi 版的副本 \\
+\opt{ax doctor}\quad\opt{ax config} & 出問題先跑；設定檔在哪裡 \\
+\bottomrule
+\end{tabularx}
+\end{document}

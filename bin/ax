@@ -3633,13 +3633,15 @@ def cmd_selftest(a):
     if a.part in ("all", "examples"):
         ex = REPO / "examples"
         shutil.rmtree(ex / "build", ignore_errors=True)
-        for name in ("hw", "note", "exam", "slides", "book"):
+        for name in ("hw", "note", "exam", "slides", "book", "cheatsheet"):
             code, _, secs = run_with_spinner(
                 ["latexmk", "-r", "latexmkrc", "-halt-on-error", "-interaction=nonstopmode",
                  f"{name}.tex"], T(f"範例 {name}", f"example {name}"), cwd=ex)
-            result(code == 0, T(f"範例 {name:<7}（{elapsed(secs)}）", f"example {name:<7} ({elapsed(secs)})"))
+            result(code == 0, T(f"範例 {name:<10}（{elapsed(secs)}）", f"example {name:<10} ({elapsed(secs)})"))
             if code:
                 print_error(ex / "build" / f"{name}.log")
+            elif name == "cheatsheet":  # linked from the README, so kept next to its source
+                shutil.copyfile(ex / "build" / "cheatsheet.pdf", ex / "cheatsheet.pdf")
     if a.part in ("all", "tests"):
         # tests/*.tex: one small document per feature, built against the working
         # tree; "% !TEX program = pdflatex|lualatex" on line 1 picks the engine

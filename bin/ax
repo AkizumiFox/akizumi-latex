@@ -137,7 +137,7 @@ PUBLIC_COMMANDS = ["new", "build", "watch", "open", "both", "doctor", "upgrade",
                    "freeze", "pack", "config", "completion", "selftest"]
 NEW_OPTIONS = ["--title", "--author", "--course", "--number", "--due", "--id", "--lang", "--thmnames",
                "--text", "--paper", "--layout", "--bib", "--progress", "--pin", "--git",
-               "--no-preamble", "--force"]
+               "--no-preamble", "--force", "--problems"]
 
 LATEXMKRC = r"""# Written by ax. Builds into build/; `ax build` copies the PDF out only when
 # the run succeeds. No machine-specific paths: the same file works on macOS,
@@ -529,6 +529,50 @@ def user_preamble(kind):
     return "\n".join(parts), used
 
 
+# ---------- ax new hw --problems ----------
+
+def parse_problems(spec, kind):
+    """'5' -> [('', 5)]; 'B4,C2' -> [('B', 4), ('C', 2)]."""
+    if kind != "hw":
+        warn(T(f"--problems 只用於作業，{KIND_NAME[kind]}已略過",
+               f"--problems is for homework only; skipped for {KIND_NAME[kind]}"))
+        return []
+    groups = []
+    for item in spec.replace(" ", "").split(","):
+        m = re.fullmatch(r"([A-Za-z]*)(\d+)", item)
+        if not m or int(m.group(2)) < 1 or int(m.group(2)) > 99:
+            die(T(f"看不懂 --problems {spec}", f"Cannot read --problems {spec}"),
+                T("寫題數，例如 --problems 5；或分組，例如 --problems B4,C2",
+                  "Give a count, e.g. --problems 5, or groups, e.g. --problems B4,C2"))
+        if any(m.group(1) == g for g, _ in groups):
+            die(T(f"--problems 的 {m.group(1) or '題數'} 重複了", f"--problems repeats {m.group(1) or 'the count'}"))
+        groups.append((m.group(1), int(m.group(2))))
+    return groups
+
+
+def problem_files(problems):
+    """(prefix, file stem) for each problem, in order."""
+    return [(prefix, f"{prefix or 'p'}{i}") for prefix, n in problems for i in range(1, n + 1)]
+
+
+def problems_body(problems):
+    out, current = ["\\begin{document}", "\\maketitle", ""], ""
+    for prefix, stem in problem_files(problems):
+        if prefix != current:
+            out += ([""] if out[-1] else []) + [f"\\problemset{{{prefix}}}"]
+            current = prefix
+        out.append(f"\\inputproblem{{problems/{stem}}}")
+    return "\n".join(out + ["", "\\end{document}", ""])
+
+
+def write_problem_files(target, problems):
+    (target / "problems").mkdir(exist_ok=True)
+    for _, stem in problem_files(problems):
+        f = target / "problems" / f"{stem}.tex"
+        if not f.exists():
+            f.write_text("% Problem statement.\n\\begin{solution}\n% Solution.\n\\end{solution}\n")
+
+
 def cmd_new(a):
     user = load_json(USER_CONFIG)
     interactive = stdin_is_terminal()
@@ -582,6 +626,16 @@ def cmd_new(a):
     if a.bib and a.kind in ("hw", "exam"):
         warn(T(f"{KIND_NAME[a.kind]}不支援 --bib，已略過", f"--bib is not available for {KIND_NAME[a.kind]}; skipped"))
         a.bib = False
+
+    # --- ax new hw --problems: one file per problem ---
+    problems = parse_problems(a.problems, a.kind) if a.problems else []
+    if problems and pin != "latest":
+        pinned = template_dir(pin)
+        if pinned is not None and not (pinned / "akizumi-problems.sty").exists():
+            note(T(f"模板 {pin} 還沒有 \\inputproblem，改用 latest",
+                   f"Template {pin} has no \\inputproblem yet; using latest"))
+            pin = "latest"
+    # --- end --problems ---
 
     # class options
     opts = []
@@ -645,6 +699,8 @@ def cmd_new(a):
         lines += ["", extra]
 
     body = (SKELETONS / f"{a.kind}.tex").read_text()
+    if problems:
+        body = problems_body(problems)
     bibend = ""
     if a.bib:
         bibend = {
@@ -658,6 +714,8 @@ def cmd_new(a):
     (target / "figures").mkdir(exist_ok=True)
     (target / "figures" / ".gitkeep").touch()
     (target / "main.tex").write_text("\n".join(lines) + "\n\n" + body)
+    if problems:
+        write_problem_files(target, problems)
     write_build_files(target, a.kind)
     (target / ".gitignore").write_text(GITIGNORE)
     if a.bib:
@@ -676,9 +734,11 @@ def cmd_new(a):
          f"Created {cmd_text(str(target))} ({KIND_NAME[a.kind]}, template {pin})"))
     dot = MARK['dot']
     note(T(f"  main.tex 寫內容 {dot} figures/ 放圖"
+           + (f" {dot} problems/ 每題一個檔" if problems else "")
            + (f" {dot} refs.bib 放參考文獻" if a.bib else "")
            + (f" {dot} 已建立 git repo" if a.git else ""),
            f"  main.tex for your text {dot} figures/ for images"
+           + (f" {dot} problems/ one file per problem" if problems else "")
            + (f" {dot} refs.bib for references" if a.bib else "")
            + (f" {dot} git repo created" if a.git else "")))
     if used_preambles:
@@ -1588,6 +1648,18 @@ def cmd_selftest(a):
             if not good:
                 print(out)
         result(good, T("專案 參考文獻（biber）", "project references (biber)"))
+        # ax new hw --problems: problem files and \inputproblem
+        d = tmp / "t-problems"
+        r = subprocess.run(ax + ["new", "hw", str(d), "--problems", "2,B2", "--no-preamble",
+                                 "--pin", "latest"], stdin=subprocess.DEVNULL, capture_output=True,
+                           encoding="utf-8", errors="replace")
+        code, out = r.returncode, r.stdout + r.stderr
+        if code == 0:
+            code, out, _ = run_with_spinner(ax + ["build"], T("專案 分題檔案", "project problem files"), cwd=d)
+        result(code == 0 and (d / "problems" / "B2.tex").exists(),
+               T("專案 作業 --problems", "project hw --problems"))
+        if code:
+            print(out)
         # main languages, with all three scripts in one document. Missing
         # characters depend on the fonts installed, so they only warn.
         for lang in ("zh", "ja", "ko"):
@@ -1803,6 +1875,10 @@ def main():
                           "leave out preamble.tex / preamble-KIND.tex from the config folder"))
     n.add_argument("--force", action="store_true", help=T("資料夾已存在且不是空的也照樣建立",
                                                           "use the folder even if it exists and is not empty"))
+    n.add_argument("--problems", metavar="N|B4,C2",
+                   help=T("作業：建立 problems/p1.tex…pN.tex（或 B1…B4、C1…C2 分組）並用 \\inputproblem 載入",
+                          "homework: create problems/p1.tex ... pN.tex (or groups B1...B4, C1...C2) "
+                          "and load them with \\inputproblem"))
     n.set_defaults(func=cmd_new)
 
     for name, func in (("build", cmd_build), ("watch", cmd_watch), ("both", cmd_both)):

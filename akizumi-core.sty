@@ -703,6 +703,14 @@
   \let\akizumi@tableofcontents\tableofcontents
   \renewcommand{\tableofcontents}{{\hypersetup{linkcolor=ink}\akizumi@tableofcontents}}}
 \newcommand{\akizumi@headright}{\@author}
+% ---------- running header text: \akizumisetup{headleft=..., headright=...} ----------
+\ExplSyntaxOn
+\keys_define:nn { akizumi/meta }
+  {
+    headleft  .code:n = \cs_set:Npn \akizumi@headleft {#1},
+    headright .code:n = \cs_set:Npn \akizumi@headright {#1},
+  }
+\ExplSyntaxOff
 
 % theorem options, extra kinds, \akizumiNewTheorem (thmcounter=, thmwithin=, ...)
 \RequirePackage{akizumi-theorems}

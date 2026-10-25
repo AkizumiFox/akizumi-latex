@@ -1,0 +1,43 @@
+% !TEX program = xelatex
+% hw: grouped numbering, label=, \inputproblem, problembreak, parts options,
+% subparts, kind=, header=name-id, \akizumisetup{headleft=...}
+\documentclass[kind=assignment, header=name-id, problembreak]{akizumi-hw}
+\akizumisetup{course=Analysis, number=5, id=B12345678}
+\author{Aaron Lin}
+\newcommand{\expect}[2]{\edef\x{#1}\edef\y{#2}%
+  \ifx\x\y\else\PackageError{test}{expected `#2', got `#1'}{}\fi}
+
+\begin{document}
+\maketitle
+\makeatletter\expect{\@title}{Assignment\ 5}\makeatother
+
+\begin{problem}[Warm-up]\label{prob:one}
+Plain numbering still works.
+\end{problem}
+\expect{\theproblem}{1}
+
+\problemset{B}
+\inputproblem[Cauchy sequences]{hw/p1}
+\inputproblem[title=Completeness]{hw/p2}
+\expect{\theproblem}{B2}
+
+\begin{problem}[label=B2$'$, title={Bonus, with a comma}]\label{prob:bonus}
+A given label does not advance the count.
+\end{problem}
+\expect{\theproblem}{B2}
+
+\problemset{C}
+\begin{problem}[$f(x) = x^2$, a title with = and ,]
+\begin{parts}[label=\arabic*.]
+  \item first
+  \item second
+\end{parts}
+\end{problem}
+\expect{\theproblem}{C1}
+
+\akizumisetup{headleft=Real Analysis, headright=Lin \textperiodcentered{} B12345678}
+\begin{problem}
+See \cref{prob:one}, \cref{prob:cauchy} and \cref{prob:bonus}.
+\end{problem}
+
+\end{document}

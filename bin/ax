@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
@@ -318,11 +319,25 @@ def elapsed(seconds):
              f"{int(seconds // 60)} min {int(seconds % 60)} s")
 
 
-def run_with_spinner(cmd, label, cwd=None, timeout=TIMEOUT):
-    """Run cmd, showing 'label … 3.2 s' on a terminal while it works."""
+def kill_tree(proc):
+    """Kill proc and everything it started (latexmk and its xelatex): a
+    leftover child would keep the output pipe open and hang communicate()."""
+    if WINDOWS:
+        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            proc.kill()
+
+
+def run_with_spinner(cmd, label, cwd=None, timeout=TIMEOUT, fatal=True):
+    """Run cmd, showing 'label … 3.2 s' on a terminal while it works. On
+    timeout: stop with a message, or (fatal=False) return code 124."""
     start = time.time()
     proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
+                            stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace",
+                            start_new_session=not WINDOWS)
     spin = sys.stderr.isatty()
     frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if _unicode_ok(sys.stderr) else "|/-\\"
     i = 0
@@ -330,12 +345,17 @@ def run_with_spinner(cmd, label, cwd=None, timeout=TIMEOUT):
         try:
             out, _ = proc.communicate(timeout=0.12)
             break
+        except KeyboardInterrupt:  # its own session, so Ctrl-C did not reach it
+            kill_tree(proc)
+            raise
         except subprocess.TimeoutExpired:
             if time.time() - start > timeout:
-                proc.kill()
-                proc.communicate()
+                kill_tree(proc)
+                out, _ = proc.communicate()
                 if spin:
                     sys.stderr.write("\r\033[K")
+                if not fatal:
+                    return 124, out, time.time() - start
                 die(T(f"超過 {timeout // 60} 分鐘還沒結束，已停止",
                       f"Still running after {timeout // 60} minutes; stopped"),
                     T("通常是 LaTeX 在等輸入；看 build/ 裡的 .log 找原因",
@@ -3241,11 +3261,16 @@ def cmd_selftest(a):
         for tex in sorted(td.glob("*.tex")):
             first = tex.read_text(errors="replace").split("\n", 1)[0]
             engine = "-pdf" if "pdflatex" in first else "-lualatex" if "lualatex" in first else "-xelatex"
-            code, _, secs = run_with_spinner(
+            code, out, secs = run_with_spinner(
                 ["latexmk", "-r", "latexmkrc", engine, "-halt-on-error", "-interaction=nonstopmode",
-                 tex.name], T(f"測試 {tex.stem}", f"test {tex.stem}"), cwd=td)
-            result(code == 0, T(f"測試 {tex.stem}（{elapsed(secs)}）", f"test {tex.stem} ({elapsed(secs)})"))
-            if code:
+                 tex.name], T(f"測試 {tex.stem}", f"test {tex.stem}"), cwd=td, timeout=240, fatal=False)
+            result(code == 0, T(f"測試 {tex.stem}（{elapsed(secs)}）", f"test {tex.stem} ({elapsed(secs)})")
+                   + (T("：超時", ": timed out") if code == 124 else ""))
+            if code == 124:  # show where it stopped
+                log = td / "build" / f"{tex.stem}.log"
+                tail = log.read_text(errors="replace").splitlines()[-25:] if log.exists() else out.splitlines()[-25:]
+                print("\n".join("    " + line for line in tail))
+            elif code:
                 print_error(td / "build" / f"{tex.stem}.log")
     if a.part in ("all", "projects"):
         tmp = Path(tempfile.mkdtemp(prefix="ax-selftest-"))

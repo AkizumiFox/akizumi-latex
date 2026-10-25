@@ -18,7 +18,7 @@
 | `--progress` | 簡報底部的進度條 |
 | `--git` | 建立 git repo 並做第一個 commit |
 | `--no-preamble` | 這次不加入你的 `preamble.tex`、`preamble-種類.tex`（見 README〈自訂 preamble〉） |
-| `--pin v0.7` | 指定模板版本；預設是最新的 tag。`--pin latest` 表示永遠用安裝的最新檔案（改模板時測試用） |
+| `--pin v0.8` | 指定模板版本；預設是最新的 tag。`--pin latest` 表示永遠用安裝的最新檔案（改模板時測試用） |
 | `--force` | 資料夾已存在且不是空的也照樣建立 |
 
 `config.json` 的 `defaults` 可以替每種文件設預設選項，命令列給的優先。例如 `"hw": {"byline": true}` 讓新作業把作者和日期印在標題下方。

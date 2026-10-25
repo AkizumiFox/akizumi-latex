@@ -4,7 +4,7 @@
 %   \title{Midterm} \author{Instructor: Aaron Lin}
 %   \begin{questions} \question[10] ... \begin{solution}...\end{solution} \end{questions}
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{akizumi-exam}[2026/10/21 v0.7 Aaron Lin exam]
+\ProvidesClass{akizumi-exam}[2026/10/25 v0.8 Aaron Lin exam]
 
 \newif\ifakizumi@solutions
 \ExplSyntaxOn

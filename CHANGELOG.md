@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.8 — 2026-10-25
 
 - Titles are centred. Author, ID and date no longer sit under the title; they go in the first page's header (course left, byline right). `byline=true` puts them back under the title; `config.json` `defaults` accepts `"byline": true`. The book cover always shows them.
 - CI also runs on macOS; `ax selftest` builds a project with a citation, so biber is tested on every system.
+- `ax new` lists `cursor .` before `ax watch`, which it shows as the alternative when not using Cursor.
 - `install.py` finds TeX Live's biber through kpsewhich (MacTeX or plain TeX Live).
 
 ## v0.7 — 2026-10-25

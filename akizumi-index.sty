@@ -1,0 +1,177 @@
+% akizumi-index.sty -- subject index and list of notation. Loaded by
+% akizumi-core for documents; does nothing unless index=true.
+%
+% Options (class options reach it as global options):
+%   index = false | true   (imakeidx: two columns, listed in the contents,
+%                           heading 索引 / 索引 / 색인 by lang)
+%   index-sort = stroke | zhuyin | pinyin | radical   (lang=zh, upmendex only;
+%                           default stroke, as for zh_Hant)
+%
+%   \index{term}  \index{term!subterm}  \index{sortkey@text}   ...  \printindex
+%   \nota{$\norm{x}$}{Euclidean norm of $x$}  ...  \printnotation
+%   \akizumiNewIndex{persons}{Index of Names}  \index[persons]{Gauss}  \printindex[persons]
+%
+% The indexer runs from latexmk (see the latexmkrc that ax writes): upmendex,
+% which sorts CJK, when installed, else makeindex. Each index foo.idx gets a
+% foo.ist next to it with the collation for the main language.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-index}[2026/10/25 v0.8 Aaron Lin index and notation]
+
+\ExplSyntaxOn
+\bool_new:N \l__akizumi_index_bool
+\tl_new:N \l__akizumi_index_sort_tl
+\keys_define:nn { akizumi/index }
+  {
+    index      .bool_set:N = \l__akizumi_index_bool,
+    index      .default:n  = true,
+    index-sort .choices:nn = { stroke, zhuyin, pinyin, radical }
+      { \tl_set_eq:NN \l__akizumi_index_sort_tl \l_keys_choice_tl },
+    index-sort .initial:n  = stroke,
+  }
+\ProcessKeyOptions [ akizumi/index ]
+% The class hands unknown options on to article / book, which list them as
+% unused, in other catcodes than the ones l3keys removes; they are ours.
+\exp_args:NNx \clist_remove_all:Nn \@unusedoptionlist { \tl_to_str:n { index } }
+\exp_args:NNx \clist_remove_all:Nn \@unusedoptionlist { \tl_to_str:n { index-sort } }
+
+\bool_if:NF \l__akizumi_index_bool
+  {
+    \AtBeginDocument
+      {
+        \providecommand { \nota } [2] { \PackageError { akizumi-index }
+          { \token_to_str:N \nota ~needs~the~class~option~index=true } { } }
+        \providecommand { \printnotation } { \PackageError { akizumi-index }
+          { \token_to_str:N \printnotation ~needs~the~class~option~index=true } { } }
+      }
+    \ExplSyntaxOff
+    \endinput
+  }
+\ExplSyntaxOff
+
+% heading words; \akizumi@s is the string table of akizumi-core
+%            key        en           zh      ja        ko
+\akizumi@s  {index}    {Index}      {索引}  {索引}    {색인}
+\akizumi@s  {notation} {Notation}   {符號表}{記号一覧}{기호표}
+\akizumi@s  {symbol}   {Symbol}     {符號}  {記号}    {기호}
+\akizumi@s  {meaning}  {Meaning}    {意義}  {意味}    {의미}
+\akizumi@s  {page}     {Page}       {頁碼}  {頁}      {쪽}
+
+% noautomatic: latexmk runs the indexer, and \printindex keeps the file open,
+% so a list of notation can come first.
+\RequirePackage[noautomatic]{imakeidx}
+\renewcommand{\indexname}{\akizumi@str{index}}
+% imakeidx comes after hyperref and replaces its \@wrindex; link the page
+% numbers again, as hyperref does for multind (entries with |encap keep theirs).
+\@ifpackageloaded{hyperref}{%
+  \AtBeginDocument{%
+    \let\akizumi@wrindex\@wrindex
+    \def\@wrindex#1#2{\akizumi@hyindex{#1}#2||\\}}%
+  \def\akizumi@hyindex#1#2|#3|#4\\{%
+    \ifx\\#3\\\akizumi@wrindex{#1}{#2|hyperpage}\else\akizumi@wrindex{#1}{#2|#3}\fi}}{}
+
+% Collation for upmendex, written as <index>.ist next to <index>.idx.
+\ExplSyntaxOn
+\iow_new:N \g__akizumi_ist_iow
+\tl_new:N \l__akizumi_icu_tl
+\int_case:nn { \akizumi@langnum }
+  {
+    { 1 } { \tl_set:Nx \l__akizumi_icu_tl { zh@collation=
+              \str_case:Vn \l__akizumi_index_sort_tl
+                { { stroke } { stroke } { zhuyin } { zhuyin }
+                  { pinyin } { pinyin } { radical } { unihan } } } }
+    { 2 } { \tl_set:Nn \l__akizumi_icu_tl { ja } }
+    { 3 } { \tl_set:Nn \l__akizumi_icu_tl { ko } }
+  }
+\cs_new_protected:Npn \akizumi@writeist #1
+  {
+    \iow_open:Nn \g__akizumi_ist_iow { #1 .ist }
+    \iow_now:Nx \g__akizumi_ist_iow { \c_percent_str \c_space_tl written~by~akizumi-index~for~upmendex }
+    \tl_if_empty:NF \l__akizumi_icu_tl
+      { \iow_now:Nx \g__akizumi_ist_iow { icu_locale~"\l__akizumi_icu_tl" } }
+    \iow_close:N \g__akizumi_ist_iow
+  }
+\ExplSyntaxOff
+
+% \akizumiNewIndex{<name>}{<title>}: one more index, used as \index[<name>]{...}
+% and printed with \printindex[<name>]; <name> is also its file name.
+\newcommand{\akizumiNewIndex}[3][]{%
+  \makeindex[name=#2, title={#3}, intoc, columns=2, columnsep=2em, noautomatic, #1]%
+  \if@filesw\akizumi@writeist{#2}\fi}
+\@onlypreamble\akizumiNewIndex
+
+\makeindex[intoc, columns=2, columnsep=2em, noautomatic]
+\if@filesw\akizumi@writeist{\jobname}\fi
+\edef\akizumi@notaname{\jobname-notation}
+\akizumiNewIndex[columns=1]{\akizumi@notaname}{\akizumi@str{notation}}
+\indexsetup{othercode=\small}
+
+% ---------- list of notation ----------
+% \nota{sym}{meaning} records an entry where the symbol is introduced; the list
+% keeps the order of appearance and gives the page. ! @ | " are escaped for the
+% indexer, so any text works.
+\ExplSyntaxOn
+\int_new:N \g__akizumi_nota_int
+\str_new:N \l__akizumi_nota_sym_str
+\str_new:N \l__akizumi_nota_text_str
+\cs_new_protected:Npn \__akizumi_nota_escape:N #1
+  {
+    \str_replace_all:Nnn #1 { " } { "" }
+    \str_replace_all:Nnn #1 { ! } { "! }
+    \str_replace_all:Nnn #1 { @ } { "@ }
+    \str_replace_all:Nnn #1 { | } { "| }
+  }
+\cs_new_protected:Npn \akizumi@nota #1#2
+  {
+    \int_gincr:N \g__akizumi_nota_int
+    \str_set:Nn \l__akizumi_nota_sym_str {#1}
+    \str_set:Nn \l__akizumi_nota_text_str {#2}
+    \__akizumi_nota_escape:N \l__akizumi_nota_sym_str
+    \__akizumi_nota_escape:N \l__akizumi_nota_text_str
+    \use:x
+      {
+        \exp_not:N \index [ \akizumi@notaname ]
+          {
+            \int_compare:nNnT \g__akizumi_nota_int < { 10000 } { 0 }
+            \int_compare:nNnT \g__akizumi_nota_int < { 1000 } { 0 }
+            \int_compare:nNnT \g__akizumi_nota_int < { 100 } { 0 }
+            \int_compare:nNnT \g__akizumi_nota_int < { 10 } { 0 }
+            \int_use:N \g__akizumi_nota_int
+            @ \token_to_str:N \akizuminotaentry
+            { \l__akizumi_nota_sym_str } { \l__akizumi_nota_text_str }
+          }
+      }
+  }
+\ExplSyntaxOff
+% Yield to a \nota or \printnotation defined in the preamble.
+\AtBeginDocument{%
+  \providecommand{\nota}{\akizumi@nota}%
+  \providecommand{\printnotation}{\akizumi@printnotation}}
+
+% Same columns and rules as the notation environment: symbol, meaning, and the
+% page at the right. Long meanings wrap under themselves.
+\newlength{\akizumi@notasym}
+\newcommand{\akizumi@notarule}[1]{\par\vskip0.3em\hrule\@height#1\relax\vskip0.4em\relax}
+\newcommand{\akizumi@notaitem}{\par\noindent\hangindent\akizumi@notasym\hangafter\@ne}
+\newcommand{\akizumi@notapage}{\unskip\nobreak\hfil\penalty50\hskip1.5em\hbox{}\nobreak\hfil}
+% the indexer writes "\akizuminotaentry{sym}{meaning}, <page>"; the delimited
+% argument eats the comma before the page
+\def\akizuminotaentry#1#2,{%
+  \sbox\z@{#1}%
+  \ifdim\wd\z@>\dimexpr\akizumi@notasym-0.8em\relax\box\z@\quad\else\makebox[\akizumi@notasym][l]{\box\z@}\fi
+  #2\akizumi@notapage}
+\newcommand{\akizumi@notahead}{%
+  \akizumi@notarule{\heavyrulewidth}%
+  \noindent{\sffamily\small\color{mute}\makebox[\akizumi@notasym][l]{\akizumi@str{symbol}}%
+    \akizumi@str{meaning}\hfill\akizumi@str{page}}\par
+  \akizumi@notarule{\lightrulewidth}}
+\newcommand{\akizumi@printnotation}{%
+  \begingroup
+  \setlength{\akizumi@notasym}{0.24\linewidth}%
+  \let\imki@clearpage\relax  % a section in the flow; \chapter* still starts a page
+  \def\imki@othercode{\normalsize\parskip0.2em\relax\rightskip\z@\parfillskip\z@skip
+    \let\item\akizumi@notaitem\let\indexspace\relax\akizumi@notahead}%
+  \expandafter\printindex\expandafter[\akizumi@notaname]%
+  \akizumi@notarule{\heavyrulewidth}%
+  \endgroup}
+
+\endinput

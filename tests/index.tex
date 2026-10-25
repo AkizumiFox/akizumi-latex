@@ -1,0 +1,28 @@
+% !TEX program = xelatex
+% index=true: subject index with subentries and CJK terms, a second index,
+% and the list of notation (\nota, \printnotation) with ! @ | " in entries
+\documentclass[index=true]{akizumi-book}
+\akizumiNewIndex{persons}{Index of Names}
+\begin{document}
+\tableofcontents
+\printnotation
+
+\chapter{Integrals}
+A partition\index{partition} of $[a,b]$ is a finite set $P$\nota{$P$}{partition
+$a=x_0<x_1<\dots<x_n=b$ of the interval $[a,b]$, listed in increasing order so that
+every subinterval $[x_{j-1},x_j]$ has positive length}.
+Its mesh\index{partition!mesh}\index{mesh|see{partition}} is $\abs{P}$\nota{$\abs{P}$}{mesh of $P$, the longest $\Delta x_j$}.
+Riemann\index[persons]{Riemann, Bernhard} sums\index{Riemann sum}\index{sum@$\Sigma$-notation}
+\nota{$S(f,P,\xi)$}{Riemann sum of $f$}.
+Odd characters: \nota{$n!$}{factorial of $n$ (``!'')}\nota{$\{x \mid x>0\}$}{set builder with |}
+\nota{$a@b$}{at sign @ and quote "}.
+積分\index{積分}、微分\index{微分}、極限\index{極限}。
+
+\chapter{Series}
+\index{series}\index{series!convergent}\index{partition}
+Cauchy\index[persons]{Cauchy, Augustin-Louis}
+\nota{$\sum_{n\ge1} a_n$}{series with terms $a_n$}
+
+\printindex[persons]
+\printindex
+\end{document}

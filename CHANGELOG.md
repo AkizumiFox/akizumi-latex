@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6 — 2026-10-25
+
+- Renamed the package from aaron to akizumi: `akizumi-core.sty`, `akizumi-hw.cls`, … , `beamerthemeAkizumi.sty` (`\usetheme{Akizumi}`), `\akizumisetup`, `\akizumisep`, `\akizumirule`, TikZ styles `akizumi/box` etc., `bin/akizumi-both`. The TeX tree link is now `akizumi-latex`.
+- `ax upgrade` from an earlier version rewrites the old names in the project's `.tex` files; projects that stay pinned to v0.5 or older keep building with the old names.
+
 ## v0.5 — 2026-10-23
 
 - No grey rules left in documents: the running header and book chapter titles lose theirs (the title block already had).

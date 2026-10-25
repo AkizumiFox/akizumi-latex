@@ -1,6 +1,6 @@
-% aaron-core.sty -- shared visual identity: fonts, colors, theorem styles,
-% section / title / page styling. Loaded by aaron-hw, aaron-note, aaron-exam
-% and beamerthemeAaron. Requires XeLaTeX.
+% akizumi-core.sty -- shared visual identity: fonts, colors, theorem styles,
+% section / title / page styling. Loaded by akizumi-hw, akizumi-note, akizumi-exam
+% and beamerthemeAkizumi. Requires XeLaTeX.
 %
 % Options:  lang = en | zh   (default en)
 %           cjk  = <font>    (default PingFangTC-Regular)
@@ -12,56 +12,56 @@
 %           paper  = a4 | letter | pad    (pad: 3:4 page for reading on a tablet)
 %           layout = normal | margin      (margin: wide right margin for sidenotes)
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{aaron-core}[2026/10/21 v0.5 Aaron Lin shared style]
+\ProvidesPackage{akizumi-core}[2026/10/21 v0.6 Aaron Lin shared style]
 
 \RequirePackage{iftex}
 \RequireXeTeX
 
-\newif\ifaaron@zh
-\newif\ifaaron@bboldx
-\newif\ifaaron@serif
-\newif\ifaaron@marginlayout
+\newif\ifakizumi@zh
+\newif\ifakizumi@bboldx
+\newif\ifakizumi@serif
+\newif\ifakizumi@marginlayout
 \ExplSyntaxOn
-\tl_new:N \l__aaron_bb_tl
-\clist_new:N \l__aaron_bib_clist
-\int_new:N \l__aaron_paper_int
-\keys_define:nn { aaron/core }
+\tl_new:N \l__akizumi_bb_tl
+\clist_new:N \l__akizumi_bib_clist
+\int_new:N \l__akizumi_paper_int
+\keys_define:nn { akizumi/core }
   {
     lang     .choices:nn = { en, zh }
-      { \str_if_eq:VnTF \l_keys_choice_tl { zh } { \aaron@zhtrue } { \aaron@zhfalse } },
-    cjk      .tl_set:N = \aaron@cjkfont,
+      { \str_if_eq:VnTF \l_keys_choice_tl { zh } { \akizumi@zhtrue } { \akizumi@zhfalse } },
+    cjk      .tl_set:N = \akizumi@cjkfont,
     cjk      .initial:n = PingFangTC-Regular,
-    cjk-bold .tl_set:N = \aaron@cjkboldfont,
+    cjk-bold .tl_set:N = \akizumi@cjkboldfont,
     cjk-bold .initial:n = PingFangTC-Semibold,
     bb       .choices:nn = { light, regular, ams }
-      { \tl_set_eq:NN \l__aaron_bb_tl \l_keys_choice_tl },
+      { \tl_set_eq:NN \l__akizumi_bb_tl \l_keys_choice_tl },
     bb       .initial:n = light,
     text     .choices:nn = { sans, serif }
-      { \str_if_eq:VnTF \l_keys_choice_tl { serif } { \aaron@seriftrue } { \aaron@seriffalse } },
+      { \str_if_eq:VnTF \l_keys_choice_tl { serif } { \akizumi@seriftrue } { \akizumi@seriffalse } },
     text     .initial:n = serif,
-    bib      .clist_set:N = \l__aaron_bib_clist,
+    bib      .clist_set:N = \l__akizumi_bib_clist,
     paper    .choices:nn = { a4, letter, pad }
-      { \int_set_eq:NN \l__aaron_paper_int \l_keys_choice_int },
+      { \int_set_eq:NN \l__akizumi_paper_int \l_keys_choice_int },
     paper    .initial:n = a4,
     layout   .choices:nn = { normal, margin }
-      { \str_if_eq:VnTF \l_keys_choice_tl { margin } { \aaron@marginlayouttrue } { \aaron@marginlayoutfalse } },
+      { \str_if_eq:VnTF \l_keys_choice_tl { margin } { \akizumi@marginlayouttrue } { \akizumi@marginlayoutfalse } },
     layout   .initial:n = normal,
   }
-\ProcessKeyOptions [ aaron/core ]
-\cs_new:Npn \aaron@paper { \int_use:N \l__aaron_paper_int }
-\str_case:Vn \l__aaron_bb_tl
+\ProcessKeyOptions [ akizumi/core ]
+\cs_new:Npn \akizumi@paper { \int_use:N \l__akizumi_paper_int }
+\str_case:Vn \l__akizumi_bb_tl
   {
-    { light }   { \aaron@bboldxtrue \PassOptionsToPackage { light } { bboldx } }
-    { regular } { \aaron@bboldxtrue }
+    { light }   { \akizumi@bboldxtrue \PassOptionsToPackage { light } { bboldx } }
+    { regular } { \akizumi@bboldxtrue }
   }
 \ExplSyntaxOff
 
-\RequirePackage{aaron-math}
+\RequirePackage{akizumi-math}
 
 % Blackboard bold: bboldx covers upper/lowercase, digits and Greek, so
 % \mathbb{1} and \mathbb{k} work; \mathbfbb is the bold weight. Kept out of
-% aaron-math so papers keep the venue's default \mathbb.
-\ifaaron@bboldx\RequirePackage{bboldx}\fi
+% akizumi-math so papers keep the venue's default \mathbb.
+\ifakizumi@bboldx\RequirePackage{bboldx}\fi
 
 % ---------- fonts ----------
 % Lato is the structure font: headings, labels, titles, headers, slides.
@@ -77,8 +77,8 @@
   ItalicFont     = *-Italic,
   BoldItalicFont = *-BoldItalic,
   Ligatures      = NoCommon]
-\@ifclassloaded{beamer}{\aaron@seriffalse}{}
-\ifaaron@serif
+\@ifclassloaded{beamer}{\akizumi@seriffalse}{}
+\ifakizumi@serif
   \setmainfont{NewCM10}[
     Extension      = .otf,
     UprightFont    = *-Book,
@@ -95,31 +95,31 @@
 \RequirePackage{xeCJK}
 % PingFang and Songti ship with macOS only. Elsewhere fall back to Noto CJK TC,
 % then to Fandol (always in TeX Live), with a warning instead of a hard error.
-\newcommand{\aaron@cjkserif}{STSongti-TC-Regular}
-\newcommand{\aaron@cjkserifbold}{STSongti-TC-Bold}
-\IfFontExistsTF{\aaron@cjkfont}{}{%
+\newcommand{\akizumi@cjkserif}{STSongti-TC-Regular}
+\newcommand{\akizumi@cjkserifbold}{STSongti-TC-Bold}
+\IfFontExistsTF{\akizumi@cjkfont}{}{%
   \IfFontExistsTF{Noto Sans CJK TC}
-    {\def\aaron@cjkfont{Noto Sans CJK TC}\def\aaron@cjkboldfont{Noto Sans CJK TC Bold}}
-    {\def\aaron@cjkfont{FandolHei-Regular.otf}\def\aaron@cjkboldfont{FandolHei-Bold.otf}}%
-  \PackageWarningNoLine{aaron-core}{CJK sans font not found; using \aaron@cjkfont}}
-\IfFontExistsTF{\aaron@cjkserif}{}{%
+    {\def\akizumi@cjkfont{Noto Sans CJK TC}\def\akizumi@cjkboldfont{Noto Sans CJK TC Bold}}
+    {\def\akizumi@cjkfont{FandolHei-Regular.otf}\def\akizumi@cjkboldfont{FandolHei-Bold.otf}}%
+  \PackageWarningNoLine{akizumi-core}{CJK sans font not found; using \akizumi@cjkfont}}
+\IfFontExistsTF{\akizumi@cjkserif}{}{%
   \IfFontExistsTF{Noto Serif CJK TC}
-    {\def\aaron@cjkserif{Noto Serif CJK TC}\def\aaron@cjkserifbold{Noto Serif CJK TC Bold}}
-    {\def\aaron@cjkserif{FandolSong-Regular.otf}\def\aaron@cjkserifbold{FandolSong-Bold.otf}}%
-  \PackageWarningNoLine{aaron-core}{CJK serif font not found; using \aaron@cjkserif}}
+    {\def\akizumi@cjkserif{Noto Serif CJK TC}\def\akizumi@cjkserifbold{Noto Serif CJK TC Bold}}
+    {\def\akizumi@cjkserif{FandolSong-Regular.otf}\def\akizumi@cjkserifbold{FandolSong-Bold.otf}}%
+  \PackageWarningNoLine{akizumi-core}{CJK serif font not found; using \akizumi@cjkserif}}
 % Chinese has no italic, so \emph / \textit on CJK text falls back to the bold
 % weight; Latin text in the same \emph still gets Lato Italic.
 % Serif body pairs with Songti TC; sans body and all structure use PingFang.
-\ifaaron@serif
-  \setCJKmainfont{\aaron@cjkserif}[BoldFont=\aaron@cjkserifbold,
-    ItalicFont=\aaron@cjkserifbold, BoldItalicFont=\aaron@cjkserifbold]
+\ifakizumi@serif
+  \setCJKmainfont{\akizumi@cjkserif}[BoldFont=\akizumi@cjkserifbold,
+    ItalicFont=\akizumi@cjkserifbold, BoldItalicFont=\akizumi@cjkserifbold]
 \else
-  \setCJKmainfont{\aaron@cjkfont}[BoldFont=\aaron@cjkboldfont,
-    ItalicFont=\aaron@cjkboldfont, BoldItalicFont=\aaron@cjkboldfont]
+  \setCJKmainfont{\akizumi@cjkfont}[BoldFont=\akizumi@cjkboldfont,
+    ItalicFont=\akizumi@cjkboldfont, BoldItalicFont=\akizumi@cjkboldfont]
 \fi
-\setCJKsansfont{\aaron@cjkfont}[BoldFont=\aaron@cjkboldfont,
-  ItalicFont=\aaron@cjkboldfont, BoldItalicFont=\aaron@cjkboldfont]
-\setCJKmonofont{\aaron@cjkfont}[ItalicFont=\aaron@cjkfont]
+\setCJKsansfont{\akizumi@cjkfont}[BoldFont=\akizumi@cjkboldfont,
+  ItalicFont=\akizumi@cjkboldfont, BoldItalicFont=\akizumi@cjkboldfont]
+\setCJKmonofont{\akizumi@cjkfont}[ItalicFont=\akizumi@cjkfont]
 \xeCJKsetup{CJKmath=true}
 
 % ---------- colors ----------
@@ -135,30 +135,30 @@
 \definecolor{softgreen}{HTML}{CDEBD3}
 
 \newcommand{\muted}[1]{{\color{mute}#1}}
-\newcommand{\aaronsep}{\enspace\textperiodcentered\enspace} % "A · B"
-\newcommand{\aaronrule}{{\color{rule}\rule{\linewidth}{0.4pt}}}
+\newcommand{\akizumisep}{\enspace\textperiodcentered\enspace} % "A · B"
+\newcommand{\akizumirule}{{\color{rule}\rule{\linewidth}{0.4pt}}}
 
 % ---------- tables ----------
 \RequirePackage{booktabs,array,tabularx}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 \renewcommand{\arraystretch}{1.25}
 
-% ---------- metadata: \aaronsetup{course=..., number=..., due=..., id=...} ----------
-\newcommand{\aaron@course}{}
-\newcommand{\aaron@number}{}
-\newcommand{\aaron@due}{}
-\newcommand{\aaron@id}{}
-\newcommand{\aaron@kicker}{}
+% ---------- metadata: \akizumisetup{course=..., number=..., due=..., id=...} ----------
+\newcommand{\akizumi@course}{}
+\newcommand{\akizumi@number}{}
+\newcommand{\akizumi@due}{}
+\newcommand{\akizumi@id}{}
+\newcommand{\akizumi@kicker}{}
 \ExplSyntaxOn
-\keys_define:nn { aaron/meta }
+\keys_define:nn { akizumi/meta }
   {
-    course .tl_set:N = \aaron@course,
-    number .tl_set:N = \aaron@number,
-    due    .tl_set:N = \aaron@due,
-    id     .tl_set:N = \aaron@id,
-    kicker .tl_set:N = \aaron@kicker,
+    course .tl_set:N = \akizumi@course,
+    number .tl_set:N = \akizumi@number,
+    due    .tl_set:N = \akizumi@due,
+    id     .tl_set:N = \akizumi@id,
+    kicker .tl_set:N = \akizumi@kicker,
   }
-\NewDocumentCommand \aaronsetup { m } { \keys_set:nn { aaron/meta } {#1} }
+\NewDocumentCommand \akizumisetup { m } { \keys_set:nn { akizumi/meta } {#1} }
 \ExplSyntaxOff
 
 % Allow \\ in titles without hyperref warnings.
@@ -170,8 +170,8 @@
 % switches fonts per character and inserts the CJK--Latin gap whether or not a
 % space is typed. Theorem-like names (Theorem, Proof, Solution, ...) are English
 % in both languages.
-\newcommand{\aaron@today}{%
-  \ifaaron@zh \the\year\ 年 \the\month\ 月 \the\day\ 日%
+\newcommand{\akizumi@today}{%
+  \ifakizumi@zh \the\year\ 年 \the\month\ 月 \the\day\ 日%
   \else \today \fi}
 
 % ---------- todo ----------
@@ -191,22 +191,22 @@
 \colorlet{codenumber}{mute!60}
 % Wrap marker is typeset once: a \color inside postbreak breaks under beamer,
 % whose color mixins recompute the color in the middle of listings' internals.
-\newsavebox{\aaron@hookbox}
-\AtBeginDocument{\sbox{\aaron@hookbox}{\color{mute}$\hookrightarrow$}}
-\lstdefinestyle{aaron}{
+\newsavebox{\akizumi@hookbox}
+\AtBeginDocument{\sbox{\akizumi@hookbox}{\color{mute}$\hookrightarrow$}}
+\lstdefinestyle{akizumi}{
   basicstyle=\ttfamily\small, columns=fullflexible, keepspaces=true,
   upquote=true, tabsize=4, showstringspaces=false, extendedchars=true,
   breaklines=true,
-  postbreak=\usebox{\aaron@hookbox}\space,
+  postbreak=\usebox{\akizumi@hookbox}\space,
   numbers=left, numberstyle=\scriptsize\ttfamily\color{codenumber}, numbersep=1em,
   keywordstyle=\color{accent}, commentstyle=\color{mute}\itshape,
   stringstyle=\color{warn},
   aboveskip=0pt, belowskip=0pt}
-\lstset{style=aaron}
+\lstset{style=akizumi}
 \tcbset{
-  aaron/code/.style={
+  akizumi/code/.style={
     enhanced jigsaw, breakable, listing only,
-    listing options={style=aaron},
+    listing options={style=akizumi},
     colback=wash, colframe=rule, frame hidden, arc=0pt, boxrule=0pt,
     left=2.4em, right=0.8em, top=0.55em, bottom=0.55em,
     before skip=0.8em, after skip=0.8em,
@@ -219,54 +219,54 @@
   numbers/true/.style={left=2.4em, listing options app={numbers=left}},
   numbers/false/.style={left=0.8em, listing options app={numbers=none}},
 }
-\DeclareTCBListing{codeblock}{ O{} }{aaron/code, #1}
-\DeclareTCBInputListing{\inputcode}{ O{} m }{aaron/code, listing file={#2}, #1}
+\DeclareTCBListing{codeblock}{ O{} }{akizumi/code, #1}
+\DeclareTCBInputListing{\inputcode}{ O{} m }{akizumi/code, listing file={#2}, #1}
 \AddToHook{env/codeblock/before}{\Needspace{6\baselineskip}}
 \NewDocumentCommand{\code}{v}{\texttt{#1}}
 
 % ---------- left bars (theorems, proofs, solutions; docs and slides) ----------
 \colorlet{accentsoft}{accent!35}
 \colorlet{asidebar}{mute!45}
-\tcbset{aaron/bar/.style 2 args={blank, breakable, parbox=false,
+\tcbset{akizumi/bar/.style 2 args={blank, breakable, parbox=false,
   borderline west={#1}{0pt}{#2}, left=0.9em, right=0pt, top=0.1em, bottom=0.1em,
   before skip=0.9em, after skip=0.9em}}
 
 % ---------- TikZ styles (the deck's diagram look) ----------
-%   \node[aaron/box] {...};  \draw[aaron/arrow] (a) -- (b);
-%   \node[aaron/label] {...};  \node[aaron/note] {...};
+%   \node[akizumi/box] {...};  \draw[akizumi/arrow] (a) -- (b);
+%   \node[akizumi/label] {...};  \node[akizumi/note] {...};
 \usetikzlibrary{arrows.meta,positioning,calc}
 \tikzset{
-  aaron/box/.style={draw=rule, rounded corners=2pt, fill=white, inner sep=4pt,
+  akizumi/box/.style={draw=rule, rounded corners=2pt, fill=white, inner sep=4pt,
     align=center, font=\sffamily\small, minimum height=0.9cm},
-  aaron/arrow/.style={-{Stealth[length=4pt]}, color=mute, thick},
-  aaron/label/.style={font=\sffamily\small\bfseries, text=accent},
-  aaron/note/.style={font=\sffamily\scriptsize, text=mute},
-  aaron/alert/.style={text=warn},
+  akizumi/arrow/.style={-{Stealth[length=4pt]}, color=mute, thick},
+  akizumi/label/.style={font=\sffamily\small\bfseries, text=accent},
+  akizumi/note/.style={font=\sffamily\scriptsize, text=mute},
+  akizumi/alert/.style={text=warn},
 }
 
-% Everything below is for documents only; beamerthemeAaron handles slides.
+% Everything below is for documents only; beamerthemeAkizumi handles slides.
 \@ifclassloaded{beamer}{\endinput}{}
 
 % ---------- page geometry ----------
-% Classes call \aaron@setgeometry{<their a4/letter margins>}. paper=pad ignores
+% Classes call \akizumi@setgeometry{<their a4/letter margins>}. paper=pad ignores
 % them for a 3:4 tablet page; layout=margin widens the right margin for notes.
 \RequirePackage{geometry}
-\newcommand{\aaron@setgeometry}[1]{%
-  \ifcase\aaron@paper\relax\or
+\newcommand{\akizumi@setgeometry}[1]{%
+  \ifcase\akizumi@paper\relax\or
     \geometry{a4paper,#1}\or
     \geometry{letterpaper,#1}\or
     \geometry{paperwidth=15.6cm, paperheight=20.8cm, margin=1.3cm,
       top=1.9cm, bottom=1.7cm, headsep=0.6cm, headheight=15pt}%
-    \ifaaron@marginlayout
-      \PackageWarningNoLine{aaron-core}{layout=margin needs a wider page; ignored with paper=pad}%
-      \aaron@marginlayoutfalse
+    \ifakizumi@marginlayout
+      \PackageWarningNoLine{akizumi-core}{layout=margin needs a wider page; ignored with paper=pad}%
+      \akizumi@marginlayoutfalse
     \fi
   \fi
-  \ifaaron@marginlayout
+  \ifakizumi@marginlayout
     \geometry{left=2.2cm, right=7.6cm, marginparsep=0.7cm, marginparwidth=5.2cm}%
   \fi}
 
-\ifaaron@zh
+\ifakizumi@zh
   \renewcommand{\contentsname}{目錄}
   \renewcommand{\figurename}{圖}
   \renewcommand{\tablename}{表}
@@ -275,9 +275,9 @@
   \@ifundefined{abstractname}{}{\renewcommand{\abstractname}{摘要}}
   \@ifundefined{appendixname}{}{\renewcommand{\appendixname}{附錄}}
 \fi
-\ifaaron@zh\linespread{1.2}\frenchspacing\fi  % CJK: more leading, no wide sentence gaps
+\ifakizumi@zh\linespread{1.2}\frenchspacing\fi  % CJK: more leading, no wide sentence gaps
 \title{}\author{}  % empty defaults: page headers use them even without \maketitle
-\date{\aaron@today}
+\date{\akizumi@today}
 
 \color{ink}
 \RequirePackage[verbose=silent]{microtype}
@@ -295,7 +295,7 @@
 % With layout=margin footnotes become sidenotes too. Without it, \sidenote is a
 % footnote, \marginnote an unnumbered footnote, and the margin floats ordinary
 % floats, so the same source compiles either way.
-\ifaaron@marginlayout
+\ifakizumi@marginlayout
   \RequirePackage{sidenotes}
   \RequirePackage[strict]{changepage}
   \renewcommand*{\marginfont}{\footnotesize}
@@ -334,11 +334,11 @@
 % Numeric, compressed ([1-3]), in citation order, with back-references to the
 % pages that cite each entry. Print with \printbibliography.
 \ExplSyntaxOn
-\clist_if_empty:NF \l__aaron_bib_clist
+\clist_if_empty:NF \l__akizumi_bib_clist
   {
     \RequirePackage[backend=biber, style=numeric-comp, sorting=none,
       maxbibnames=99, backref=true]{biblatex}
-    \clist_map_inline:Nn \l__aaron_bib_clist { \addbibresource{#1} }
+    \clist_map_inline:Nn \l__akizumi_bib_clist { \addbibresource{#1} }
   }
 \ExplSyntaxOff
 
@@ -349,7 +349,7 @@
 \hypersetup{colorlinks, linkcolor=accent, urlcolor=accent, citecolor=accent}
 \RequirePackage[capitalise, noabbrev, nameinlink]{cleveref}
 \RequirePackage{thmtools}  % \listoftheorems, restatable; must precede \newtheorem
-\ifaaron@zh
+\ifakizumi@zh
   \crefformat{section}{#2第~#1~節#3}
   \crefname{figure}{圖}{圖}
   \crefname{table}{表}{表}
@@ -365,30 +365,30 @@
 %   proof, solution                      0.8pt rule        muted label + qed
 % Every kind also has an unnumbered starred form (theorem*, definition*, ...).
 % Bodies are upright (italic would turn whole CJK statements bold).
-\newtheoremstyle{aaron-claim}{0pt}{0pt}{}{}{\sffamily\bfseries\color{accent}}{.}{0.6em}
+\newtheoremstyle{akizumi-claim}{0pt}{0pt}{}{}{\sffamily\bfseries\color{accent}}{.}{0.6em}
   {\thmname{#1}\thmnumber{ #2}\thmnote{\mdseries\color{mute}\ (#3)}}
-\newtheoremstyle{aaron-aside}{0pt}{0pt}{}{}{\sffamily\bfseries}{.}{0.6em}
+\newtheoremstyle{akizumi-aside}{0pt}{0pt}{}{}{\sffamily\bfseries}{.}{0.6em}
   {\thmname{#1}\thmnumber{ #2}\thmnote{\mdseries\color{mute}\ (#3)}}
-\theoremstyle{aaron-claim}
+\theoremstyle{akizumi-claim}
 \newtheorem{theorem}{Theorem}
 \newtheorem*{theorem*}{Theorem}
 \crefname{theorem}{Theorem}{Theorems}
-% \aaron@thm{env}{Name}{Plural}: numbered on the shared theorem counter, plus
+% \akizumi@thm{env}{Name}{Plural}: numbered on the shared theorem counter, plus
 % an unnumbered env*. cleveref cannot tell envs sharing a counter apart, so
 % each one aliases the counter to its own type while it is open.
-\def\aaron@thm#1#2#3{%
+\def\akizumi@thm#1#2#3{%
   \newtheorem{#1}[theorem]{#2}\newtheorem*{#1*}{#2}%
   \crefname{#1}{#2}{#3}%
   \AddToHook{env/#1/begin}{\crefalias{theorem}{#1}}}
-\aaron@thm{lemma}{Lemma}{Lemmas}
-\aaron@thm{proposition}{Proposition}{Propositions}
-\aaron@thm{corollary}{Corollary}{Corollaries}
-\aaron@thm{claim}{Claim}{Claims}
-\aaron@thm{definition}{Definition}{Definitions}
-\aaron@thm{assumption}{Assumption}{Assumptions}
-\theoremstyle{aaron-aside}
-\aaron@thm{example}{Example}{Examples}
-\aaron@thm{remark}{Remark}{Remarks}
+\akizumi@thm{lemma}{Lemma}{Lemmas}
+\akizumi@thm{proposition}{Proposition}{Propositions}
+\akizumi@thm{corollary}{Corollary}{Corollaries}
+\akizumi@thm{claim}{Claim}{Claims}
+\akizumi@thm{definition}{Definition}{Definitions}
+\akizumi@thm{assumption}{Assumption}{Assumptions}
+\theoremstyle{akizumi-aside}
+\akizumi@thm{example}{Example}{Examples}
+\akizumi@thm{remark}{Remark}{Remarks}
 \renewcommand{\proofname}{Proof}
 \renewcommand{\qedsymbol}{\textcolor{mute}{$\square$}}
 \renewenvironment{proof}[1][\proofname]{%
@@ -396,20 +396,20 @@
   \trivlist\item[\hskip\labelsep{\sffamily\bfseries\color{mute}#1.}]\ignorespaces}
   {\popQED\endtrivlist\@endpefalse}
 
-\def\aaron@onebar#1#2#3{%
-  \tcolorboxenvironment{#1}{aaron/bar={#2}{#3}}%
+\def\akizumi@onebar#1#2#3{%
+  \tcolorboxenvironment{#1}{akizumi/bar={#2}{#3}}%
   \AddToHook{env/#1/before}{\Needspace{4\baselineskip}}}
-\def\aaron@barenv#1#2#3{\aaron@onebar{#1}{#2}{#3}\aaron@onebar{#1*}{#2}{#3}}
-\aaron@barenv{theorem}{1.6pt}{accent}
-\aaron@barenv{lemma}{1.6pt}{accent}
-\aaron@barenv{proposition}{1.6pt}{accent}
-\aaron@barenv{corollary}{1.6pt}{accent}
-\aaron@barenv{claim}{1.6pt}{accent}
-\aaron@barenv{definition}{1.6pt}{accentsoft}
-\aaron@barenv{assumption}{1.6pt}{accentsoft}
-\aaron@barenv{example}{1pt}{asidebar}
-\aaron@barenv{remark}{1pt}{asidebar}
-\aaron@onebar{proof}{0.8pt}{rule}
+\def\akizumi@barenv#1#2#3{\akizumi@onebar{#1}{#2}{#3}\akizumi@onebar{#1*}{#2}{#3}}
+\akizumi@barenv{theorem}{1.6pt}{accent}
+\akizumi@barenv{lemma}{1.6pt}{accent}
+\akizumi@barenv{proposition}{1.6pt}{accent}
+\akizumi@barenv{corollary}{1.6pt}{accent}
+\akizumi@barenv{claim}{1.6pt}{accent}
+\akizumi@barenv{definition}{1.6pt}{accentsoft}
+\akizumi@barenv{assumption}{1.6pt}{accentsoft}
+\akizumi@barenv{example}{1pt}{asidebar}
+\akizumi@barenv{remark}{1pt}{asidebar}
+\akizumi@onebar{proof}{0.8pt}{rule}
 
 % ---------- restated theorems, proofs elsewhere ----------
 %   \begin{restatable}{theorem}{mainthm}\label{thm:main} ... \end{restatable}
@@ -421,20 +421,20 @@
 %   \listoftheorems                           everything
 %   \listoftheorems[onlynamed]                only ones with a name, e.g. [Cramér--Wold]
 %   \listoftheorems[ignoreall, show={definition}]
-\renewcommand{\listtheoremname}{\ifaaron@zh 定理列表\else List of Theorems\fi}
+\renewcommand{\listtheoremname}{\ifakizumi@zh 定理列表\else List of Theorems\fi}
 % A restated copy (\mainthm*) is not listed again: thmtools swaps \label for
 % \thmt@gobble@label inside the copy, which is how we recognise it.
-\newcommand{\aaron@noloe}[3]{}
-\addtotheorempreheadhook{\ifx\label\thmt@gobble@label\let\addcontentsline\aaron@noloe\fi}
+\newcommand{\akizumi@noloe}[3]{}
+\addtotheorempreheadhook{\ifx\label\thmt@gobble@label\let\addcontentsline\akizumi@noloe\fi}
 
-% \aaron@thmwithin{section}: number theorems per section/chapter. The kinds
+% \akizumi@thmwithin{section}: number theorems per section/chapter. The kinds
 % sharing the counter copied the old format when defined, so reset theirs too
 % (the \theH... forms keep hyperref anchors unique).
-\newcommand{\aaron@thmwithin}[1]{%
+\newcommand{\akizumi@thmwithin}[1]{%
   \counterwithin{theorem}{#1}%
-  \@for\aaron@t:=lemma,proposition,corollary,claim,definition,assumption,example,remark\do{%
-    \expandafter\def\csname the\aaron@t\endcsname{\thetheorem}%
-    \expandafter\def\csname theH\aaron@t\endcsname{\theHtheorem}}}
+  \@for\akizumi@t:=lemma,proposition,corollary,claim,definition,assumption,example,remark\do{%
+    \expandafter\def\csname the\akizumi@t\endcsname{\thetheorem}%
+    \expandafter\def\csname theH\akizumi@t\endcsname{\theHtheorem}}}
 
 % ---------- algorithms ----------
 %   \begin{algorithm}[t] \caption{...}\label{alg:x}
@@ -442,8 +442,8 @@
 %   \end{algorithm}
 \RequirePackage{algorithm}
 \RequirePackage{algpseudocodex}
-\floatname{algorithm}{\ifaaron@zh 演算法\else Algorithm\fi}
-\ifaaron@zh\crefname{algorithm}{演算法}{演算法}\else\crefname{algorithm}{Algorithm}{Algorithms}\fi
+\floatname{algorithm}{\ifakizumi@zh 演算法\else Algorithm\fi}
+\ifakizumi@zh\crefname{algorithm}{演算法}{演算法}\else\crefname{algorithm}{Algorithm}{Algorithms}\fi
 \algrenewcommand{\algorithmicrequire}{\textsf{\textbf{Input:}}}
 \algrenewcommand{\algorithmicensure}{\textsf{\textbf{Output:}}}
 
@@ -459,42 +459,42 @@
 \newcommand{\notn}[2]{#1 & #2\\}
 
 % ---------- title block (same layout as the title slide) ----------
-\newcommand{\aaron@titleblock}{%
+\newcommand{\akizumi@titleblock}{%
   \begingroup\sffamily\noindent
-  \ifx\aaron@kicker\@empty\else{\small\bfseries\color{accent}\aaron@kicker}\par\vspace{0.35em}\fi
+  \ifx\akizumi@kicker\@empty\else{\small\bfseries\color{accent}\akizumi@kicker}\par\vspace{0.35em}\fi
   {\huge\bfseries\@title\par}\vspace{0.6em}
   {\color{mute}%
    \ifx\@author\@empty\else
-     \@author\ifx\aaron@id\@empty\else\aaronsep\aaron@id\fi
-     \ifx\@date\@empty\else\aaronsep\fi
+     \@author\ifx\akizumi@id\@empty\else\akizumisep\akizumi@id\fi
+     \ifx\@date\@empty\else\akizumisep\fi
    \fi
    \@date\par}\vspace{1.8em}%
   \endgroup}
-\renewcommand{\maketitle}{\aaron@titleblock\aaron@titlepagestyle}
-\newcommand{\aaron@titlepagestyle}{\thispagestyle{plain}}
+\renewcommand{\maketitle}{\akizumi@titleblock\akizumi@titlepagestyle}
+\newcommand{\akizumi@titlepagestyle}{\thispagestyle{plain}}
 
 % ---------- page style (exam has its own header system) ----------
 \@ifclassloaded{exam}{}{%
   \RequirePackage{fancyhdr,lastpage}
-  \fancypagestyle{aaron}{%
+  \fancypagestyle{akizumi}{%
     \fancyhf{}%
-    \fancyhead[L]{\sffamily\small\color{mute}\nouppercase{\aaron@headleft}}%
-    \fancyhead[R]{\sffamily\small\color{mute}\nouppercase{\aaron@headright}}%
+    \fancyhead[L]{\sffamily\small\color{mute}\nouppercase{\akizumi@headleft}}%
+    \fancyhead[R]{\sffamily\small\color{mute}\nouppercase{\akizumi@headright}}%
     \fancyfoot[C]{\sffamily\scriptsize\color{mute}\thepage\,/\,\pageref*{LastPage}}%
     \renewcommand{\headrulewidth}{0pt}%
     \renewcommand{\footrulewidth}{0pt}%
-    \ifaaron@marginlayout\fancyhfoffset[R]{\dimexpr\marginparwidth+\marginparsep\relax}\fi}
+    \ifakizumi@marginlayout\fancyhfoffset[R]{\dimexpr\marginparwidth+\marginparsep\relax}\fi}
   \fancypagestyle{plain}{%
     \fancyhf{}%
     \fancyfoot[C]{\sffamily\scriptsize\color{mute}\thepage\,/\,\pageref*{LastPage}}%
     \renewcommand{\headrulewidth}{0pt}}
-  \pagestyle{aaron}}
-\newcommand{\aaron@headleft}{\aaron@course}
+  \pagestyle{akizumi}}
+\newcommand{\akizumi@headleft}{\akizumi@course}
 % Contents entries in body color; links elsewhere stay accent.
 \AtBeginDocument{%
-  \let\aaron@tableofcontents\tableofcontents
-  \renewcommand{\tableofcontents}{{\hypersetup{linkcolor=ink}\aaron@tableofcontents}}}
-\newcommand{\aaron@headright}{\@author}
+  \let\akizumi@tableofcontents\tableofcontents
+  \renewcommand{\tableofcontents}{{\hypersetup{linkcolor=ink}\akizumi@tableofcontents}}}
+\newcommand{\akizumi@headright}{\@author}
 
 
 \endinput

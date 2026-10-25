@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ax -- start and build LaTeX projects on the aaron-latex templates.
+"""ax -- start and build LaTeX projects on the akizumi-latex templates.
 
   ax new [KIND] [DIR] [opts] start a project: hw, note, exam, slides, book, paper
                              (asks for anything left out)
@@ -32,14 +32,16 @@ SKELETONS = REPO / "skeletons"
 CACHE = Path.home() / "Library" / "Caches" / "ax"
 USER_CONFIG = Path.home() / ".config" / "ax" / "config.json"
 PROJECT_CONFIG = ".ax.json"
-TEMPLATE_GLOBS = ("aaron-*.sty", "aaron-*.cls", "beamerthemeAaron.sty")
+# Template file names; versions before v0.6 used the aaron- prefix.
+TEMPLATE_GLOBS = ("akizumi-*.sty", "akizumi-*.cls", "beamerthemeAkizumi.sty",
+                  "aaron-*.sty", "aaron-*.cls", "beamerthemeAaron.sty")
 TIMEOUT = 600  # seconds per latexmk run
 
 KINDS = {
-    "hw": "aaron-hw",
-    "note": "aaron-note",
-    "exam": "aaron-exam",
-    "book": "aaron-book",
+    "hw": "akizumi-hw",
+    "note": "akizumi-note",
+    "exam": "akizumi-exam",
+    "book": "akizumi-book",
     "slides": "beamer",
     "paper": "article",
 }
@@ -130,7 +132,7 @@ def template_dir(pin):
     if not pin or pin in ("latest", "frozen"):
         return None
     target = CACHE / pin
-    if (target / "aaron-core.sty").exists():
+    if (target / "akizumi-core.sty").exists():
         return target
     if git("rev-parse", "-q", "--verify", f"refs/tags/{pin}").returncode:
         return None
@@ -171,7 +173,7 @@ KIND_HELP = {
     "exam": "exam or quiz on the exam class",
     "slides": "beamer slides",
     "book": "thesis or long notes with chapters",
-    "paper": "paper body for a venue template (pdfLaTeX, aaron-math only)",
+    "paper": "paper body for a venue template (pdfLaTeX, akizumi-math only)",
 }
 
 
@@ -245,12 +247,12 @@ def cmd_new(a):
         theme_opts = [f"lang={lang}"] if lang != "en" else []
         if a.progress:
             theme_opts.append("progress")
-        lines.append(f"\\usetheme{'[' + ', '.join(theme_opts) + ']' if theme_opts else ''}{{Aaron}}")
+        lines.append(f"\\usetheme{'[' + ', '.join(theme_opts) + ']' if theme_opts else ''}{{Akizumi}}")
         if a.bib:
             lines += ["\\usepackage[backend=biber, style=numeric-comp, sorting=none]{biblatex}",
                       "\\addbibresource{refs.bib}"]
     elif a.kind == "paper":
-        lines += ["\\usepackage{aaron-math}",
+        lines += ["\\usepackage{akizumi-math}",
                   "\\usepackage{hyperref}",
                   "\\usepackage[capitalise, noabbrev]{cleveref}"]
         if a.bib:
@@ -269,7 +271,7 @@ def cmd_new(a):
     if a.kind == "slides":
         setup = [f"kicker={{{a.course}}}"] if a.course else []
     if setup and a.kind != "paper":
-        lines.append("\\aaronsetup{" + ", ".join(setup) + "}")
+        lines.append("\\akizumisetup{" + ", ".join(setup) + "}")
     if title:
         lines.append(f"\\title{{{title}}}")
     if author:
@@ -451,9 +453,9 @@ def cmd_both(a):
     kind = project_config().get("kind")
     if kind and kind not in ("hw", "exam"):
         die("ax both is for hw and exam projects")
-    ok = safe_build(main, pretex=r"\def\aaronsolutions{false}")
+    ok = safe_build(main, pretex=r"\def\akizumisolutions{false}")
     ok = safe_build(main, jobname=f"{main.stem}-solutions",
-                    pretex=r"\def\aaronsolutions{true}") and ok
+                    pretex=r"\def\akizumisolutions{true}") and ok
     sys.exit(0 if ok else 1)
 
 
@@ -496,8 +498,28 @@ def cmd_upgrade(a):
     old = cfg.get("template")
     cfg["template"] = tags[0]
     save_project_config(cfg)
-    template_dir(tags[0])
+    new_dir = template_dir(tags[0])
+    if new_dir and (new_dir / "akizumi-core.sty").exists():
+        rename_aaron(Path(cfg.get("main", "main.tex")).parent)
     print(f"templates {old} -> {tags[0]}; check with ax build")
+
+
+def rename_aaron(root):
+    """v0.6 renamed the package from aaron to akizumi: rewrite the old names
+    in the project's .tex files. 'Aaron Lin' in \\author is left alone."""
+    swaps = [(re.compile(r"(\\usetheme(?:\[[^\]]*\])?)\{Aaron\}"), r"\1{Akizumi}"),
+             (re.compile(r"beamerthemeAaron"), "beamerthemeAkizumi"),
+             (re.compile(r"aaron(?=[-/@a-z])"), "akizumi")]
+    for tex in sorted(Path(root).rglob("*.tex")):
+        if "build" in tex.parts:
+            continue
+        text = tex.read_text()
+        new = text
+        for pattern, repl in swaps:
+            new = pattern.sub(repl, new)
+        if new != text:
+            tex.write_text(new)
+            print(f"  renamed aaron -> akizumi in {tex}")
 
 
 # ---------- ax pack ----------
@@ -553,9 +575,9 @@ def cmd_doctor(a):
     report(Path("/Applications/Skim.app").exists(), "Skim", "optional viewer for ax watch")
 
     print("templates")
-    r = run("kpsewhich", "aaron-core.sty")
+    r = run("kpsewhich", "akizumi-core.sty")
     found = r.stdout.strip() if r else ""
-    report(bool(found), "aaron-core.sty installed", found or "run install.sh")
+    report(bool(found), "akizumi-core.sty installed", found or "run install.sh")
     tags = template_tags()
     report(bool(tags), "version tags", ", ".join(tags[:5]) or "none: git tag the repo")
 
@@ -613,7 +635,7 @@ HELP_EXAMPLES = """\
 
 def main():
     p = argparse.ArgumentParser(
-        prog="ax", usage="ax [-h] [--version] 指令 ...", description="建立與編譯 aaron-latex 專案。",
+        prog="ax", usage="ax [-h] [--version] 指令 ...", description="建立與編譯 akizumi-latex 專案。",
         epilog=HELP_COMMANDS + HELP_EXAMPLES,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--version", action="version",

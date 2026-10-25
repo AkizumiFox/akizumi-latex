@@ -1,26 +1,26 @@
-% beamerthemeAaron.sty -- minimal slides: Lato, hairline frame titles,
+% beamerthemeAkizumi.sty -- minimal slides: Lato, hairline frame titles,
 % muted bullets, page counter bottom right, automatic section pages.
 %   \documentclass[aspectratio=169,11pt]{beamer}
-%   \usetheme[lang=zh]{Aaron}
+%   \usetheme[lang=zh]{Akizumi}
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{beamerthemeAaron}[2026/10/21 v0.5 Aaron Lin beamer theme]
+\ProvidesPackage{beamerthemeAkizumi}[2026/10/21 v0.6 Aaron Lin beamer theme]
 
 \ExplSyntaxOn
-\bool_new:N \l__aaron_progress_bool
-\keys_define:nn { aaron/beamer }
+\bool_new:N \l__akizumi_progress_bool
+\keys_define:nn { akizumi/beamer }
   {
-    lang .code:n = \PassOptionsToPackage { lang = #1 } { aaron-core },
-    cjk  .code:n = \PassOptionsToPackage { cjk = #1 } { aaron-core },
-    bb   .code:n = \PassOptionsToPackage { bb = #1 } { aaron-core },
-    progress .bool_set:N = \l__aaron_progress_bool,
+    lang .code:n = \PassOptionsToPackage { lang = #1 } { akizumi-core },
+    cjk  .code:n = \PassOptionsToPackage { cjk = #1 } { akizumi-core },
+    bb   .code:n = \PassOptionsToPackage { bb = #1 } { akizumi-core },
+    progress .bool_set:N = \l__akizumi_progress_bool,
     progress .default:n  = true,
   }
-\ProcessKeyOptions [ aaron/beamer ]
-\newif\ifaaron@progress
-\bool_if:NT \l__aaron_progress_bool { \aaron@progresstrue }
+\ProcessKeyOptions [ akizumi/beamer ]
+\newif\ifakizumi@progress
+\bool_if:NT \l__akizumi_progress_bool { \akizumi@progresstrue }
 \ExplSyntaxOff
 
-\RequirePackage{aaron-core}
+\RequirePackage{akizumi-core}
 \RequirePackage{tikz}
 % Slides after \appendix are numbered on their own and left out of the total.
 \RequirePackage{appendixnumberbeamer}
@@ -45,49 +45,49 @@
 % progress=true adds a hairline progress bar along the bottom edge.
 \setbeamertemplate{footline}{%
   \hfill{\color{mute}\scriptsize\insertframenumber\,/\,\inserttotalframenumber}\hspace{1.2em}\vspace{0.8em}%
-  \ifaaron@progress\par\nointerlineskip\noindent\aaron@progressbar\fi}
-\newcommand{\aaron@progressbar}{%
+  \ifakizumi@progress\par\nointerlineskip\noindent\akizumi@progressbar\fi}
+\newcommand{\akizumi@progressbar}{%
   \makebox[0pt][l]{\color{rule}\rule{\paperwidth}{1.2pt}}%
   {\color{accent}\rule{\ifnum\insertframenumber<\inserttotalframenumber
     \dimexpr\paperwidth*\insertframenumber/\inserttotalframenumber\relax
     \else\paperwidth\fi}{1.2pt}}}
 
 % \titlepage inside \begin{frame}[plain,noframenumbering]. Same layout as the
-% document title: kicker (\aaronsetup{kicker=...}), title, "author · date".
+% document title: kicker (\akizumisetup{kicker=...}), title, "author · date".
 % \LARGE rather than the documents' \huge: the slide page is far smaller.
 \setbeamertemplate{title page}{%
   \vfill
-  \ifx\aaron@kicker\@empty\else{\small\bfseries\color{accent}\aaron@kicker}\par\vspace{0.5em}\fi
+  \ifx\akizumi@kicker\@empty\else{\small\bfseries\color{accent}\akizumi@kicker}\par\vspace{0.5em}\fi
   {\LARGE\bfseries\inserttitle\par}
   \ifx\insertsubtitle\@empty\else\vspace{0.4em}{\large\color{mute}\insertsubtitle}\par\fi
   \vspace{0.8em}
-  {\color{mute}\insertauthor\ifx\beamer@date\@empty\else\aaronsep\insertdate\fi\par}
+  {\color{mute}\insertauthor\ifx\beamer@date\@empty\else\akizumisep\insertdate\fi\par}
   \vfill}
 
 \setbeamertemplate{section page}{%
-  \vfill{\color{mute}\small\ifaaron@zh 第 \insertsectionnumber\ 部分\else Part \insertsectionnumber\fi}\par\vspace{0.3em}
+  \vfill{\color{mute}\small\ifakizumi@zh 第 \insertsectionnumber\ 部分\else Part \insertsectionnumber\fi}\par\vspace{0.3em}
   {\LARGE\bfseries\insertsectionhead}\par\vfill}
 \AtBeginSection{\begin{frame}[plain,noframenumbering]\sectionpage\end{frame}}
 
 % Theorems and proofs: same left bars as the documents. Kind is picked by
 % environment hooks; bodies upright, numbers omitted on slides.
-\newcommand{\aaron@thmbar}{1.6pt}
-\newcommand{\aaron@thmcolor}{accent}
-\newcommand{\aaron@thmlabel}{accent}
-\def\aaron@softbar{\def\aaron@thmcolor{accentsoft}}
-\def\aaron@asidebar{\def\aaron@thmbar{1pt}\def\aaron@thmcolor{asidebar}\def\aaron@thmlabel{ink}}
-\AddToHook{env/definition/begin}{\aaron@softbar}
-\AddToHook{env/definitions/begin}{\aaron@softbar}
-\AddToHook{env/example/begin}{\aaron@asidebar}
-\AddToHook{env/examples/begin}{\aaron@asidebar}
+\newcommand{\akizumi@thmbar}{1.6pt}
+\newcommand{\akizumi@thmcolor}{accent}
+\newcommand{\akizumi@thmlabel}{accent}
+\def\akizumi@softbar{\def\akizumi@thmcolor{accentsoft}}
+\def\akizumi@asidebar{\def\akizumi@thmbar{1pt}\def\akizumi@thmcolor{asidebar}\def\akizumi@thmlabel{ink}}
+\AddToHook{env/definition/begin}{\akizumi@softbar}
+\AddToHook{env/definitions/begin}{\akizumi@softbar}
+\AddToHook{env/example/begin}{\akizumi@asidebar}
+\AddToHook{env/examples/begin}{\akizumi@asidebar}
 \setbeamertemplate{theorem begin}{%
   \normalfont
-  \begin{tcolorbox}[aaron/bar={\aaron@thmbar}{\aaron@thmcolor}, before skip=0.6em, after skip=0.6em]%
-  {\bfseries\color{\aaron@thmlabel}\inserttheoremname
+  \begin{tcolorbox}[akizumi/bar={\akizumi@thmbar}{\akizumi@thmcolor}, before skip=0.6em, after skip=0.6em]%
+  {\bfseries\color{\akizumi@thmlabel}\inserttheoremname
    \ifx\inserttheoremaddition\@empty\else{\mdseries\color{mute}\ (\inserttheoremaddition)}\fi.}\enspace}
 \setbeamertemplate{theorem end}{\end{tcolorbox}}
 \setbeamertemplate{proof begin}{%
-  \begin{tcolorbox}[aaron/bar={0.8pt}{rule}, before skip=0.6em, after skip=0.6em]%
+  \begin{tcolorbox}[akizumi/bar={0.8pt}{rule}, before skip=0.6em, after skip=0.6em]%
   {\bfseries\color{mute}\insertproofname}\enspace}
 \setbeamertemplate{proof end}{\end{tcolorbox}}
 \setbeamertemplate{qed symbol}{\textcolor{mute}{$\square$}}

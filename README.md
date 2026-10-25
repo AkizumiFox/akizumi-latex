@@ -1,4 +1,4 @@
-# aaron-latex
+# akizumi-latex
 
 作業、講義、考卷、簡報、論文共用的 LaTeX 模板，加上建立和編譯專案的指令 `ax`。
 

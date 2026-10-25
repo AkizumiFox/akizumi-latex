@@ -1,4 +1,4 @@
-# aaron-latex 參考手冊
+# akizumi-latex 參考手冊
 
 [README](../README.md) 是入門；這裡是完整的功能與選項，需要時再查。完整的範例在 [`examples/`](../examples/)。
 
@@ -97,7 +97,7 @@ Characteristic functions agree on every line through the origin.
 建立專案時加 `--bib`，或在已有的文件加上 `bib=refs.bib` 選項：
 
 ```latex
-\documentclass[bib=refs.bib]{aaron-note}
+\documentclass[bib=refs.bib]{akizumi-note}
 ...
 如 MR.Q~\cite{fujimoto2025mrq} 所示。
 ...
@@ -153,9 +153,9 @@ TikZ 圖可以用跟簡報一致的樣式：
 
 ```latex
 \begin{tikzpicture}
-  \node[aaron/box] (a) {encoder};
-  \node[aaron/box, right=1cm of a] (b) {$\vb{z}$};
-  \draw[aaron/arrow] (a) -- node[above, aaron/note] {sg} (b);
+  \node[akizumi/box] (a) {encoder};
+  \node[akizumi/box, right=1cm of a] (b) {$\vb{z}$};
+  \draw[akizumi/arrow] (a) -- node[above, akizumi/note] {sg} (b);
 \end{tikzpicture}
 ```
 
@@ -183,7 +183,7 @@ TikZ 圖可以用跟簡報一致的樣式：
 
 考卷用 [exam](https://ctan.org/pkg/exam) 的寫法：`\begin{questions} \question[10] ... \begin{parts} \part[5] ...`，`\gradetable` 產生評分表。
 
-解答開關：作業預設顯示解答，`\documentclass[solutions=false]{aaron-hw}` 隱藏；考卷預設隱藏，`solutions=true` 顯示。用 `ax both` 就不用手動切換。
+解答開關：作業預設顯示解答，`\documentclass[solutions=false]{akizumi-hw}` 隱藏；考卷預設隱藏，`solutions=true` 顯示。用 `ax both` 就不用手動切換。
 
 ### 簡報專用
 
@@ -213,7 +213,7 @@ TikZ 圖可以用跟簡報一致的樣式：
 
 ## 文件選項
 
-寫在 `\documentclass[...]` 裡（簡報寫在 `\usetheme[...]{Aaron}`）：
+寫在 `\documentclass[...]` 裡（簡報寫在 `\usetheme[...]{Akizumi}`）：
 
 | 選項 | 值 | 預設 | 作用 |
 |---|---|---|---|
@@ -281,7 +281,7 @@ ax pack      # 打包成 zip，內含模板檔，可直接上傳 Overleaf
 模板就是普通的 LaTeX class，任何資料夾都能直接用：
 
 ```latex
-\documentclass[lang=zh]{aaron-note}
+\documentclass[lang=zh]{akizumi-note}
 \title{講義}
 \author{Aaron Lin}
 \begin{document}
@@ -294,12 +294,12 @@ ax pack      # 打包成 zip，內含模板檔，可直接上傳 Overleaf
 latexmk -xelatex main.tex
 ```
 
-可用的 class：`aaron-hw`、`aaron-note`、`aaron-exam`、`aaron-book`；簡報是 `\documentclass[aspectratio=169]{beamer}` 加 `\usetheme{Aaron}`。
+可用的 class：`akizumi-hw`、`akizumi-note`、`akizumi-exam`、`akizumi-book`；簡報是 `\documentclass[aspectratio=169]{beamer}` 加 `\usetheme{Akizumi}`。
 
 投稿會議論文時，會議會要求用它自己的模板，外觀不能改。這時只載入數學巨集：
 
 ```latex
-\usepackage{aaron-math}    % \vb、\norm、\E、\argmin……；pdfLaTeX 也能用
+\usepackage{akizumi-math}    % \vb、\norm、\E、\argmin……；pdfLaTeX 也能用
 ```
 
 `ax new paper` 建出來的就是這種設定。
@@ -328,21 +328,21 @@ latexmk -xelatex main.tex
 
 **配色**（可直接用在 `\color{...}`、TikZ）：`ink` 內文、`mute` 次要文字、`accent` 藍色重點、`warn` 橘色警示、`rule` 細線、`wash` 淡灰底，另有 `softred` `softamber` `softgreen` 三個淡色塊。
 
-**其他指令**：`\aaronsep`（「A · B」的分隔點，前面不要留空格）、`\aaronrule`（細線）、表格欄型 `Y`（自動換行的左對齊欄）。
+**其他指令**：`\akizumisep`（「A · B」的分隔點，前面不要留空格）、`\akizumirule`（細線）、表格欄型 `Y`（自動換行的左對齊欄）。
 
 ## 維護這套模板
 
 ```
-aaron-math.sty        數學巨集（引擎無關）
-aaron-core.sty        共用核心：字型、配色、定理、程式碼、版面、參考文獻
-aaron-hw.cls          作業
-aaron-note.cls        講義
-aaron-exam.cls        考卷（基於 exam）
-aaron-book.cls        論文、書
-beamerthemeAaron.sty  簡報
+akizumi-math.sty        數學巨集（引擎無關）
+akizumi-core.sty        共用核心：字型、配色、定理、程式碼、版面、參考文獻
+akizumi-hw.cls          作業
+akizumi-note.cls        講義
+akizumi-exam.cls        考卷（基於 exam）
+akizumi-book.cls        論文、書
+beamerthemeAkizumi.sty  簡報
 skeletons/            ax new 用的內文骨架
 examples/             每種文件的完整範例，兼當測試
-bin/                  ax、aaron-both、biber 修正
+bin/                  ax、akizumi-both、biber 修正
 ```
 
 改完模板後：

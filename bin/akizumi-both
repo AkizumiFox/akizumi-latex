@@ -1,0 +1,14 @@
+#!/bin/sh
+# akizumi-both file.tex
+# Builds the problem sheet and the answer key of an akizumi-hw / akizumi-exam
+# document in one go: file.pdf (no solutions) and file-solutions.pdf.
+set -e
+[ $# -eq 1 ] || { echo "usage: akizumi-both file.tex" >&2; exit 2; }
+name=$(basename "$1" .tex)
+dir=$(dirname "$1")
+cd "$dir"
+latexmk -xelatex -interaction=nonstopmode \
+  -usepretex='\def\akizumisolutions{false}' "$name.tex"
+latexmk -xelatex -interaction=nonstopmode \
+  -usepretex='\def\akizumisolutions{true}' -jobname="$name-solutions" "$name.tex"
+echo "built $dir/$name.pdf and $dir/$name-solutions.pdf"

@@ -1,8 +1,8 @@
-% aaron-math.sty -- math macros only. Engine-agnostic: works with pdfLaTeX,
+% akizumi-math.sty -- math macros only. Engine-agnostic: works with pdfLaTeX,
 % XeLaTeX and LuaLaTeX, so it can go into conference papers (NeurIPS, ICML, ...)
 % that forbid custom styling. If you use unicode-math, load it BEFORE this file.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{aaron-math}[2026/10/21 v0.5 Aaron Lin math macros]
+\ProvidesPackage{akizumi-math}[2026/10/21 v0.6 Aaron Lin math macros]
 
 \RequirePackage{amsmath,amssymb,mathtools}
 
@@ -13,8 +13,8 @@
 \@ifpackageloaded{unicode-math}
   {\newcommand{\vb}[1]{\symbfup{#1}}}
   {\RequirePackage{bm}%
-   \newcommand{\vb}[1]{\aaron@vb#1\@nil}%
-   \def\aaron@vb#1#2\@nil{%
+   \newcommand{\vb}[1]{\akizumi@vb#1\@nil}%
+   \def\akizumi@vb#1#2\@nil{%
      \ifcat\relax\noexpand#1\bm{#1#2}\else\mathbf{#1#2}\fi}}
 
 % Transpose: x\T

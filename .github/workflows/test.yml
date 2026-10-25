@@ -26,10 +26,12 @@ jobs:
 
       - uses: zauguin/install-texlive@v4
         with:
+          cache_version: 2  # bump whenever the package list changes
           packages: >
             scheme-basic
             collection-xetex
             collection-latexrecommended
+            collection-mathscience
             collection-pictures
             collection-latexextra
             collection-fontsrecommended

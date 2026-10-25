@@ -10,6 +10,7 @@
 \keys_define:nn { akizumi/beamer }
   {
     lang .code:n = \PassOptionsToPackage { lang = #1 } { akizumi-core },
+    thmnames .code:n = \PassOptionsToPackage { thmnames = #1 } { akizumi-core },
     cjk  .code:n = \PassOptionsToPackage { cjk = #1 } { akizumi-core },
     bb   .code:n = \PassOptionsToPackage { bb = #1 } { akizumi-core },
     progress .bool_set:N = \l__akizumi_progress_bool,
@@ -65,9 +66,23 @@
   \vfill}
 
 \setbeamertemplate{section page}{%
-  \vfill{\color{mute}\small\ifakizumi@zh 第 \insertsectionnumber\ 部分\else Part \insertsectionnumber\fi}\par\vspace{0.3em}
+  \vfill{\color{mute}\small\akizumi@num{part}{\insertsectionnumber}}\par\vspace{0.3em}
   {\LARGE\bfseries\insertsectionhead}\par\vfill}
 \AtBeginSection{\begin{frame}[plain,noframenumbering]\sectionpage\end{frame}}
+
+% thmnames=native: beamer names its theorem environments through translator.
+\ifakizumi@nativethm\ifakizumi@cjk
+  \deftranslation[to=English]{Theorem}{\akizumi@str{theorem}}
+  \deftranslation[to=English]{Lemma}{\akizumi@str{lemma}}
+  \deftranslation[to=English]{Corollary}{\akizumi@str{corollary}}
+  \deftranslation[to=English]{Definition}{\akizumi@str{definition}}
+  \deftranslation[to=English]{Example}{\akizumi@str{example}}
+  \deftranslation[to=English]{Proof}{\akizumi@str{proof}}
+  \deftranslation[to=English]{Definitions}{\akizumi@str{definition}}
+  \deftranslation[to=English]{Examples}{\akizumi@str{example}}
+  \deftranslation[to=English]{Fact}{\akizumi@str{claim}}
+  \AtBeginDocument{\renewcommand{\proofname}{\akizumi@str{proof}}}
+\fi\fi
 
 % Theorems and proofs: same left bars as the documents. Kind is picked by
 % environment hooks; bodies upright, numbers omitted on slides.
@@ -84,11 +99,12 @@
   \normalfont
   \begin{tcolorbox}[akizumi/bar={\akizumi@thmbar}{\akizumi@thmcolor}, before skip=0.6em, after skip=0.6em]%
   {\bfseries\color{\akizumi@thmlabel}\inserttheoremname
-   \ifx\inserttheoremaddition\@empty\else{\mdseries\color{mute}\ (\inserttheoremaddition)}\fi.}\enspace}
+   \ifx\inserttheoremaddition\@empty\else{\mdseries\color{mute}\ (\inserttheoremaddition)}\fi\akizumi@thmpunct}\enspace}
 \setbeamertemplate{theorem end}{\end{tcolorbox}}
 \setbeamertemplate{proof begin}{%
   \begin{tcolorbox}[akizumi/bar={0.8pt}{rule}, before skip=0.6em, after skip=0.6em]%
-  {\bfseries\color{mute}\insertproofname}\enspace}
+  % beamer adds the period itself; CJK names take none
+  {\bfseries\color{mute}\ifx\akizumi@thmpunct\@empty\let\@addpunct\@gobble\fi\insertproofname}\enspace}
 \setbeamertemplate{proof end}{\end{tcolorbox}}
 \setbeamertemplate{qed symbol}{\textcolor{mute}{$\square$}}
 

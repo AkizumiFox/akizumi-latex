@@ -12,7 +12,8 @@
 | `--author` | 作者，預設取自 `config.json` |
 | `--course` | 課名；作業、講義、考卷放在頁首和標題上方，書和簡報放在標題上方 |
 | `--number` `--due` `--id` | 作業編號、繳交期限、學號 |
-| `--lang zh\|en` | 主語言，預設取自 `config.json` |
+| `--lang en\|zh\|ja\|ko` | 主語言，預設取自 `config.json` |
+| `--thmnames english\|native` | 定理名稱用英文（Theorem、Proof）或主語言（定理、證明），預設取自 `config.json` |
 | `--text serif\|sans` `--paper a4\|letter\|pad` `--layout normal\|margin` | 見〈文件選項〉 |
 | `--bib` | 加上 `refs.bib` 和參考文獻 |
 | `--progress` | 簡報底部的進度條 |
@@ -94,7 +95,23 @@ Characteristic functions agree on every line through the origin.
 見\cref{thm:cw}、\cref{def:collapse}、\cref{eq:loss}。
 ```
 
-英文文件輸出「Theorem 1.2」「Definition 1.1」「Equation (1.1)」；`lang=zh` 時章節、圖、表、公式、題目改成「第 1 節」「圖 1」「表 1」「式 (1.1)」「第 1 題」，定理名稱維持英文。
+英文文件輸出「Theorem 1.2」「Definition 1.1」「Equation (1.1)」。主語言是中文、日文、韓文時，章節、圖、表、公式、題目跟著換：
+
+| | 章節 | 圖 | 公式 | 題目 |
+|---|---|---|---|---|
+| `lang=zh` | 第 1 節 | 圖 1 | 式 (1.1) | 第 1 題 |
+| `lang=ja` | 第 1 節 | 図 1 | 式 (1.1) | 問 1 |
+| `lang=ko` | 제1절 | 그림 1 | 식 (1.1) | 문제 1 |
+
+定理名稱預設維持英文；加 `thmnames=native` 改用主語言：
+
+| | theorem | lemma | corollary | remark | proof | solution |
+|---|---|---|---|---|---|---|
+| `zh` | 定理 | 引理 | 推論 | 註 | 證明 | 解 |
+| `ja` | 定理 | 補題 | 系 | 注意 | 証明 | 解答 |
+| `ko` | 정리 | 보조정리 | 따름정리 | 참고 | 증명 | 풀이 |
+
+`proofof` 跟著變成「定理 1.2 的證明」「定理 1.2 の証明」「정리 1.2의 증명」。
 
 ### 參考文獻
 
@@ -163,9 +180,11 @@ TikZ 圖可以用跟簡報一致的樣式：
 \end{tikzpicture}
 ```
 
-### 中英混排
+### 多語混排
 
-不需要任何標記。中英文之間要不要打空格都可以，間距會自動處理。`\emph{強調}` 在中文顯示為粗體（中文沒有斜體），英文仍是斜體。
+不需要任何標記。中英文之間要不要打空格都可以，間距會自動處理。`\emph{強調}` 在中日韓文顯示為粗體（沒有斜體），英文仍是斜體。
+
+中文、日文、韓文也可以混在同一份文件：主語言的字型缺的字（例如日文字型沒有的繁體字、中文字型沒有的韓文），自動用另外兩種語言的字型補上。韓文的詞之間照原文保留空格。
 
 ### 其他小工具
 
@@ -221,11 +240,12 @@ TikZ 圖可以用跟簡報一致的樣式：
 
 | 選項 | 值 | 預設 | 作用 |
 |---|---|---|---|
-| `lang` | `en` `zh` | `en` | 主語言：日期格式、目錄／圖／表名稱、題號、中文行距 |
+| `lang` | `en` `zh` `ja` `ko` | `en` | 主語言：日期格式、目錄／圖／表名稱、題號、行距、中日韓字型 |
 | `text` | `serif` `sans` | `serif` | 內文字型。`serif` 用 New Computer Modern（和數學同一套設計），`sans` 整份用 Lato |
 | `bb` | `light` `regular` `ams` | `light` | 黑板粗體的粗細；`ams` 是傳統 AMS 字型（只有大寫） |
 | `paper` | `a4` `letter` `pad` | `a4` | 紙張；`pad` 是 3:4 的平板閱讀版面 |
 | `layout` | `normal` `margin` | `normal` | `margin` 留寬邊欄放 `\sidenote`（講義、書） |
+| `thmnames` | `english` `native` | `english` | 定理、證明、解答等名稱用英文或主語言（見〈交叉引用〉） |
 | `byline` | `false` `true` | `false` | 標題下方要不要印「作者 · 學號 · 日期」。預設不印，放在第一頁頁首右邊（左邊是課名）。書的封面一律印 |
 | `bib` | 檔名 | | 載入參考文獻，例如 `bib=refs.bib` |
 | `solutions` | `true` `false` | 作業 `true`，考卷 `false` | 是否印出解答 |
@@ -398,12 +418,17 @@ TeX Live 2026 的 biber 啟動時呼叫 `lipo -extract_family`，新版 Command 
 
 | 用途 | 依序嘗試 |
 |---|---|
-| 無襯線（標題、標籤、簡報） | 蘋方（macOS）→ Noto Sans CJK TC → 微軟正黑體（Windows）→ Fandol |
-| 襯線（內文） | 宋體（macOS）→ Noto Serif CJK TC → 細明體（Windows，粗體借用正黑體）→ Fandol |
+| 語言 | 無襯線（標題、標籤、簡報） | 襯線（內文） |
+|---|---|---|
+| 中文（`lang=en` 裡的中文也是） | 蘋方（macOS）→ Noto Sans CJK TC → 微軟正黑體（Windows）→ Fandol | 宋體 → Noto Serif CJK TC → 細明體 → Fandol |
+| 日文 | Hiragino Sans（macOS）→ Noto Sans CJK JP → Yu Gothic（Windows）→ 原ノ味 | Hiragino Mincho → Noto Serif CJK JP → Yu Mincho → 原ノ味 |
+| 韓文 | Apple SD Gothic Neo（macOS）→ Noto Sans CJK KR → Malgun Gothic（Windows）→ Baekmuk | AppleMyungjo → Noto Serif CJK KR → Batang → Baekmuk |
+
+沒有粗體的字型（細明體、AppleMyungjo、Batang）粗體借用同語言的無襯線粗體。日文或韓文一個字型都沒有時改用中文字型並警告。`ax doctor` 會檢查 `config.json` 設定的語言的字型。
 
 新版 macOS 的蘋方是用到時才下載的字型，全新的電腦上可能還沒有；在「字體簿」裡下載「PingFang TC」即可，沒下載時會自動改用後面的字型。
 
-Fandol 一定有（TeX Live 內建），但主要是簡體字型，用到它時 log 會警告，部分繁體字可能缺字。想在各系統看起來一致，就在每台電腦裝 [Noto CJK](https://github.com/notofonts/noto-cjk)（Linux：`fonts-noto-cjk`）。
+Fandol 一定有（TeX Live 內建），但主要是簡體字型，用到它時 log 會警告，部分繁體字可能缺字。原ノ味、Baekmuk 只在 TeX Live 的日文、韓文套件集裡。想在各系統看起來一致，就在每台電腦裝 [Noto CJK](https://github.com/notofonts/noto-cjk)（Linux：`fonts-noto-cjk`）。
 
 **編譯時出現 `XeTeX is required to compile this document.`**
 用了 pdfLaTeX。終端機請用 `ax build` 或 `latexmk`（會讀 `latexmkrc`）；編輯器設定見 README〈在 Cursor 裡寫〉。

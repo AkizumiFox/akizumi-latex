@@ -78,7 +78,7 @@ KIND_HELP = {
 # commands shown to people; the rest are called by latexmk
 PUBLIC_COMMANDS = ["new", "build", "watch", "open", "both", "doctor", "upgrade",
                    "freeze", "pack", "config", "completion", "selftest"]
-NEW_OPTIONS = ["--title", "--author", "--course", "--number", "--due", "--id", "--lang",
+NEW_OPTIONS = ["--title", "--author", "--course", "--number", "--due", "--id", "--lang", "--thmnames",
                "--text", "--paper", "--layout", "--bib", "--progress", "--pin", "--git",
                "--no-preamble", "--force"]
 
@@ -471,7 +471,7 @@ def cmd_new(a):
             "可用的種類：" + "、".join(f"{k}（{KIND_NAME[k]}）" for k in KINDS))
     # config.json "defaults": {"slides": {"progress": true}, "note": {"layout": "margin"}}
     for key, value in user.get("defaults", {}).get(a.kind, {}).items():
-        if key in ("lang", "text", "paper", "layout", "course", "author", "id"):
+        if key in ("lang", "thmnames", "text", "paper", "layout", "course", "author", "id"):
             if getattr(a, key, None) is None:
                 setattr(a, key, value)
         elif key in ("bib", "progress", "git") and value and not getattr(a, key):
@@ -494,6 +494,7 @@ def cmd_new(a):
     author = a.author or user.get("author") or git("config", "user.name").stdout.strip()
     student_id = a.id or user.get("id")
     lang = a.lang or user.get("lang", "en")
+    native = (a.thmnames or user.get("thmnames")) == "native"
     tags = template_tags()
     pin = a.pin or (tags[0] if tags else "latest")
     if a.pin and a.pin != "latest" and a.pin not in tags:
@@ -510,6 +511,8 @@ def cmd_new(a):
     elif a.kind != "paper":
         if lang != "en":
             opts.append(f"lang={lang}")
+        if native:
+            opts.append("thmnames=native")
         for key in ("text", "paper", "layout"):
             value = getattr(a, key)
             if value:
@@ -525,6 +528,8 @@ def cmd_new(a):
 
     if a.kind == "slides":
         theme_opts = [f"lang={lang}"] if lang != "en" else []
+        if native:
+            theme_opts.append("thmnames=native")
         if a.progress:
             theme_opts.append("progress")
         lines.append(f"\\usetheme{'[' + ', '.join(theme_opts) + ']' if theme_opts else ''}{{Akizumi}}")
@@ -899,6 +904,16 @@ def cmd_pack(a):
 
 # ---------- ax doctor ----------
 
+CJK_FONTS = {  # sans, serif: the first choice on each system
+    "zh": {"mac": ("PingFang TC", "Songti TC"), "win": ("Microsoft JhengHei", "MingLiU"),
+           "linux": ("Noto Sans CJK TC", "Noto Serif CJK TC")},
+    "ja": {"mac": ("Hiragino Sans", "Hiragino Mincho ProN"), "win": ("Yu Gothic", "Yu Mincho"),
+           "linux": ("Noto Sans CJK JP", "Noto Serif CJK JP")},
+    "ko": {"mac": ("Apple SD Gothic Neo", "AppleMyungjo"), "win": ("Malgun Gothic", "Batang"),
+           "linux": ("Noto Sans CJK KR", "Noto Serif CJK KR")},
+}
+
+
 def cmd_doctor(a):
     problems = []
 
@@ -944,12 +959,12 @@ def cmd_doctor(a):
         r = run("kpsewhich", f)
         report(bool(r and r.stdout.strip()), f, "", "用 tlmgr 安裝缺少的字型套件")
     # First choice per system; akizumi-core falls back along the same chain.
-    if MACOS:
-        families = ("PingFang TC", "Songti TC")
-    elif WINDOWS:
-        families = ("Microsoft JhengHei", "MingLiU")
-    else:
-        families = ("Noto Sans CJK TC", "Noto Serif CJK TC")
+    # Japanese / Korean fonts are checked when config.json sets that language.
+    system = "mac" if MACOS else "win" if WINDOWS else "linux"
+    families = CJK_FONTS["zh"][system]
+    lang = load_json(USER_CONFIG).get("lang", "en")
+    if lang in ("ja", "ko"):
+        families += CJK_FONTS[lang][system]
     if shutil.which("fc-list"):
         for family in families + ("JetBrains Mono",):
             r = run("fc-list", family, "family")
@@ -1103,6 +1118,29 @@ def cmd_selftest(a):
             if not good:
                 print(out)
         result(good, "專案 參考文獻（biber）")
+        # main languages, with all three scripts in one document. Missing
+        # characters depend on the fonts installed, so they only warn.
+        for lang in ("zh", "ja", "ko"):
+            d = tmp / f"t-{lang}"
+            r = subprocess.run(ax + ["new", "hw", str(d), "--lang", lang, "--thmnames", "native",
+                                     "--no-preamble", "--pin", "latest"],
+                               stdin=subprocess.DEVNULL, capture_output=True,
+                               encoding="utf-8", errors="replace")
+            code, out = r.returncode, r.stdout + r.stderr
+            if code == 0:
+                main_tex = d / "main.tex"
+                main_tex.write_text(main_tex.read_text().replace(
+                    "% Problem statement.", "日本語の値、繁體中文的特徵值、한국어 문장. \\cref{thm:x}\n"
+                    "\\begin{theorem}\\label{thm:x} $a=b$. \\end{theorem}"))
+                code, out, _ = run_with_spinner(ax + ["build"], f"專案 lang={lang}", cwd=d)
+            result(code == 0, f"專案 lang={lang}")
+            if code:
+                print(out)
+            else:
+                log = (d / "build" / "main.log").read_text(errors="replace")
+                missing = sorted(set(re.findall(r"Missing character: There is no (\S+)", log)))
+                if missing:
+                    warn(f"lang={lang} 缺字（裝 Noto CJK 可補齊）：{' '.join(missing[:10])}")
         shutil.rmtree(tmp, ignore_errors=True)
     print()
     if failed:
@@ -1234,7 +1272,9 @@ def main():
     n.add_argument("--number", help="作業編號")
     n.add_argument("--due", help="作業繳交期限")
     n.add_argument("--id", help="學號，預設取自 config.json")
-    n.add_argument("--lang", choices=["en", "zh"], help="主語言，預設取自 config.json")
+    n.add_argument("--lang", choices=["en", "zh", "ja", "ko"], help="主語言，預設取自 config.json")
+    n.add_argument("--thmnames", choices=["english", "native"],
+                   help="定理名稱：english（Theorem、Proof）或 native（定理、證明）")
     n.add_argument("--text", choices=["serif", "sans"], help="內文字型（預設 serif）")
     n.add_argument("--paper", choices=["a4", "letter", "pad"], help="紙張；pad 是平板閱讀版面")
     n.add_argument("--layout", choices=["normal", "margin"], help="margin：右側寬邊欄放 sidenote")

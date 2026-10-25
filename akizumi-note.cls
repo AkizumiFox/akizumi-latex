@@ -10,6 +10,7 @@
 \keys_define:nn { akizumi/note }
   {
     lang    .code:n = \PassOptionsToPackage { lang = #1 } { akizumi-core },
+    thmnames .code:n = \PassOptionsToPackage { thmnames = #1 } { akizumi-core },
     cjk     .code:n = \PassOptionsToPackage { cjk = #1 } { akizumi-core },
     bb      .code:n = \PassOptionsToPackage { bb = #1 } { akizumi-core },
     text    .code:n = \PassOptionsToPackage { text = #1 } { akizumi-core },

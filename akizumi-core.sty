@@ -2,9 +2,11 @@
 % section / title / page styling. Loaded by akizumi-hw, akizumi-note, akizumi-exam
 % and beamerthemeAkizumi. Requires XeLaTeX.
 %
-% Options:  lang = en | zh   (default en)
-%           cjk  = <font>    (default PingFangTC-Regular)
-%           cjk-bold = <font>(default PingFangTC-Semibold)
+% Options:  lang = en | zh | ja | ko   (main language; default en)
+%           thmnames = english | native  (Theorem, Proof, ... or 定理, 證明, ...;
+%                  default english)
+%           cjk  = <font>    (CJK sans font; default picked per language)
+%           cjk-bold = <font>
 %           bb   = light | regular | ams  (default light: bboldx, light weight)
 %           text = serif | sans  (body text; default serif. Headings, labels,
 %                  titles and slides stay Lato either way)
@@ -19,7 +21,9 @@
 \RequirePackage{iftex}
 \RequireXeTeX
 
-\newif\ifakizumi@zh
+\newif\ifakizumi@zh      % lang=zh (kept for user preambles)
+\newif\ifakizumi@cjk     % lang=zh, ja or ko
+\newif\ifakizumi@nativethm
 \newif\ifakizumi@bboldx
 \newif\ifakizumi@serif
 \newif\ifakizumi@marginlayout
@@ -28,14 +32,21 @@
 \tl_new:N \l__akizumi_bb_tl
 \clist_new:N \l__akizumi_bib_clist
 \int_new:N \l__akizumi_paper_int
+\int_new:N \akizumi@langnum  % 0 en, 1 zh, 2 ja, 3 ko
 \keys_define:nn { akizumi/core }
   {
-    lang     .choices:nn = { en, zh }
-      { \str_if_eq:VnTF \l_keys_choice_tl { zh } { \akizumi@zhtrue } { \akizumi@zhfalse } },
+    lang     .choices:nn = { en, zh, ja, ko }
+      {
+        \int_set:Nn \akizumi@langnum { \l_keys_choice_int - 1 }
+        \str_if_eq:VnTF \l_keys_choice_tl { zh } { \akizumi@zhtrue } { \akizumi@zhfalse }
+        \str_if_eq:VnTF \l_keys_choice_tl { en } { \akizumi@cjkfalse } { \akizumi@cjktrue }
+      },
+    thmnames .choices:nn = { english, native }
+      { \str_if_eq:VnTF \l_keys_choice_tl { native } { \akizumi@nativethmtrue } { \akizumi@nativethmfalse } },
     cjk      .tl_set:N = \akizumi@cjkfont,
-    cjk      .initial:n = PingFangTC-Regular,
+    cjk      .initial:n = ,
     cjk-bold .tl_set:N = \akizumi@cjkboldfont,
-    cjk-bold .initial:n = PingFangTC-Semibold,
+    cjk-bold .initial:n = ,
     bb       .choices:nn = { light, regular, ams }
       { \tl_set_eq:NN \l__akizumi_bb_tl \l_keys_choice_tl },
     bb       .initial:n = light,
@@ -99,33 +110,95 @@
   {}
 
 \RequirePackage{xeCJK}
-% Traditional Chinese fonts, first one installed wins:
-%   sans   PingFang (macOS) > Noto Sans CJK TC > Microsoft JhengHei (Windows) > Fandol
-%   serif  Songti (macOS)   > Noto Serif CJK TC > MingLiU (Windows) > Fandol
-% Fandol is always in TeX Live but aimed at Simplified Chinese, so falling back
-% to it gives a warning (some Traditional glyphs may be missing).
-\newcommand{\akizumi@cjkserif}{STSongti-TC-Regular}
-\newcommand{\akizumi@cjkserifbold}{STSongti-TC-Bold}
-\IfFontExistsTF{\akizumi@cjkfont}{}{%
-  \IfFontExistsTF{Noto Sans CJK TC}
-    {\def\akizumi@cjkfont{Noto Sans CJK TC}\def\akizumi@cjkboldfont{Noto Sans CJK TC Bold}}
-    {\IfFontExistsTF{Microsoft JhengHei}
-      {\def\akizumi@cjkfont{Microsoft JhengHei}\def\akizumi@cjkboldfont{Microsoft JhengHei Bold}}
-      {\def\akizumi@cjkfont{FandolHei-Regular.otf}\def\akizumi@cjkboldfont{FandolHei-Bold.otf}%
-       \PackageWarningNoLine{akizumi-core}{No Traditional Chinese sans font found;
-         using Fandol. Install Noto Sans CJK TC for full coverage}}}}
-\IfFontExistsTF{\akizumi@cjkserif}{}{%
-  \IfFontExistsTF{Noto Serif CJK TC}
-    {\def\akizumi@cjkserif{Noto Serif CJK TC}\def\akizumi@cjkserifbold{Noto Serif CJK TC Bold}}
-    {\IfFontExistsTF{MingLiU}
-      % MingLiU has no bold; borrow the sans bold
-      {\def\akizumi@cjkserif{MingLiU}\edef\akizumi@cjkserifbold{\akizumi@cjkboldfont}}
-      {\def\akizumi@cjkserif{FandolSong-Regular.otf}\def\akizumi@cjkserifbold{FandolSong-Bold.otf}%
-       \PackageWarningNoLine{akizumi-core}{No Traditional Chinese serif font found;
-         using Fandol. Install Noto Serif CJK TC for full coverage}}}}
-% Chinese has no italic, so \emph / \textit on CJK text falls back to the bold
+% CJK fonts, first one installed wins in each chain:
+%   zh  sans   PingFang TC > Noto Sans CJK TC > Microsoft JhengHei > Fandol
+%       serif  Songti TC > Noto Serif CJK TC > MingLiU > Fandol
+%   ja  sans   Hiragino Sans > Noto Sans CJK JP > Yu Gothic > HaranoAji
+%       serif  Hiragino Mincho > Noto Serif CJK JP > Yu Mincho > HaranoAji
+%   ko  sans   Apple SD Gothic Neo > Noto Sans CJK KR > Malgun Gothic > Baekmuk
+%       serif  AppleMyungjo > Noto Serif CJK KR > Batang > Baekmuk
+% The main language's fonts set the text (en uses zh); cjk= goes first. The
+% other two languages' fonts fill in characters the main one lacks, so a
+% Japanese document can quote Traditional Chinese or Korean without boxes.
+% The last of each chain ships with TeX Live (HaranoAji and Baekmuk only in
+% its Japanese / Korean collections); a main language that falls to it gets a
+% warning, as does Japanese or Korean with none of its fonts (the Chinese
+% ones stand in). A face with no bold borrows the sans bold; a language with
+% no serif face uses its sans one.
+\ExplSyntaxOn
+% \akizumi@pickfont \reg \bold { {reg}{bold}, {reg}{bold}, ... }: the first
+% pair whose regular face exists; leaves \reg empty if none does.
+\cs_new_protected:Npn \akizumi@pickfont #1#2#3
+  {
+    \tl_clear:N #1 \tl_clear:N #2
+    \clist_map_inline:nn {#3} { \__akizumi_tryfont:NNnn #1 #2 ##1 }
+  }
+\cs_new_protected:Npn \__akizumi_tryfont:NNnn #1#2#3#4
+  {
+    \IfFontExistsTF {#3}
+      { \tl_set:Nn #1 {#3} \tl_set:Nn #2 {#4} \clist_map_break: }
+      { }
+  }
+\ExplSyntaxOff
+\akizumi@pickfont\akizumi@zh@sans\akizumi@zh@sansbold{%
+  {PingFangTC-Regular}{PingFangTC-Semibold}, {Noto Sans CJK TC}{Noto Sans CJK TC Bold},
+  {Microsoft JhengHei}{Microsoft JhengHei Bold}, {FandolHei-Regular.otf}{FandolHei-Bold.otf}}
+\akizumi@pickfont\akizumi@zh@serif\akizumi@zh@serifbold{%
+  {STSongti-TC-Regular}{STSongti-TC-Bold}, {Noto Serif CJK TC}{Noto Serif CJK TC Bold},
+  {MingLiU}{}, {FandolSong-Regular.otf}{FandolSong-Bold.otf}}
+\akizumi@pickfont\akizumi@ja@sans\akizumi@ja@sansbold{%
+  {HiraginoSans-W3}{HiraginoSans-W6}, {Noto Sans CJK JP}{Noto Sans CJK JP Bold},
+  {Yu Gothic}{Yu Gothic Bold}, {HaranoAjiGothic-Regular.otf}{HaranoAjiGothic-Bold.otf}}
+\akizumi@pickfont\akizumi@ja@serif\akizumi@ja@serifbold{%
+  {HiraMinProN-W3}{HiraMinProN-W6}, {Noto Serif CJK JP}{Noto Serif CJK JP Bold},
+  {Yu Mincho}{Yu Mincho Demibold}, {HaranoAjiMincho-Regular.otf}{HaranoAjiMincho-Bold.otf}}
+\akizumi@pickfont\akizumi@ko@sans\akizumi@ko@sansbold{%
+  {AppleSDGothicNeo-Regular}{AppleSDGothicNeo-Bold}, {Noto Sans CJK KR}{Noto Sans CJK KR Bold},
+  {Malgun Gothic}{Malgun Gothic Bold}, {dotum.ttf}{}}
+\akizumi@pickfont\akizumi@ko@serif\akizumi@ko@serifbold{%
+  {AppleMyungjo}{}, {Noto Serif CJK KR}{Noto Serif CJK KR Bold}, {Batang}{}, {batang.ttf}{}}
+% fill the gaps: bold from sans bold or regular, serif from sans
+\def\akizumi@fill#1{%
+  \expandafter\ifx\csname akizumi@#1@sansbold\endcsname\@empty
+    \expandafter\let\csname akizumi@#1@sansbold\expandafter\endcsname\csname akizumi@#1@sans\endcsname\fi
+  \expandafter\ifx\csname akizumi@#1@serif\endcsname\@empty
+    \expandafter\let\csname akizumi@#1@serif\expandafter\endcsname\csname akizumi@#1@sans\endcsname\fi
+  \expandafter\ifx\csname akizumi@#1@serifbold\endcsname\@empty
+    \expandafter\let\csname akizumi@#1@serifbold\expandafter\endcsname\csname akizumi@#1@sansbold\endcsname\fi}
+\akizumi@fill{zh}\akizumi@fill{ja}\akizumi@fill{ko}
+\newcommand{\akizumi@fallbackwarning}[1]{%
+  \PackageWarningNoLine{akizumi-core}{#1; install Noto CJK for full coverage}}
+% main language: zh for en and zh; ja / ko when one of their fonts exists
+% (\akizumi@others: the languages that fill in missing characters)
+\def\akizumi@main{zh}\def\akizumi@others{ja,ko}
+\ifcase\akizumi@langnum\or\or
+  \ifx\akizumi@ja@sans\@empty\akizumi@fallbackwarning{No Japanese font found, using Chinese ones}%
+  \else\def\akizumi@main{ja}\def\akizumi@others{zh,ko}\fi
+\or
+  \ifx\akizumi@ko@sans\@empty\akizumi@fallbackwarning{No Korean font found, using Chinese ones}%
+  \else\def\akizumi@main{ko}\def\akizumi@others{zh,ja}\fi
+\fi
+\def\akizumi@lastresort{FandolHei-Regular.otf,HaranoAjiGothic-Regular.otf,dotum.ttf}
+\edef\akizumi@tmp{\csname akizumi@\akizumi@main @sans\endcsname}
+\@for\akizumi@f:=\akizumi@lastresort\do{%
+  \ifx\akizumi@f\akizumi@tmp
+    \akizumi@fallbackwarning{Using \akizumi@f, which may lack some characters}\fi}
+% user's cjk= / cjk-bold= replace the main sans face
+\ifx\akizumi@cjkfont\@empty
+  \edef\akizumi@cjkfont{\csname akizumi@\akizumi@main @sans\endcsname}
+\fi
+\ifx\akizumi@cjkboldfont\@empty
+  \edef\akizumi@cjkboldfont{\csname akizumi@\akizumi@main @sansbold\endcsname}
+\fi
+\edef\akizumi@cjkserif{\csname akizumi@\akizumi@main @serif\endcsname}
+\edef\akizumi@cjkserifbold{\csname akizumi@\akizumi@main @serifbold\endcsname}
+% Korean separates words with spaces: keep them, and add no extra gap
+% between Hangul and Latin letters or digits (2026년, not 2026 년).
+\ifnum\akizumi@langnum=3 \xeCJKsetup{CJKspace=true, CJKecglue={}}\fi
+% CJK has no italic, so \emph / \textit on CJK text falls back to the bold
 % weight; Latin text in the same \emph still gets Lato Italic.
-% Serif body pairs with Songti TC; sans body and all structure use PingFang.
+% Serif body pairs with the serif face (Songti, Mincho, Myungjo); sans body
+% and all structure use the sans face.
 \ifakizumi@serif
   \setCJKmainfont{\akizumi@cjkserif}[BoldFont=\akizumi@cjkserifbold,
     ItalicFont=\akizumi@cjkserifbold, BoldItalicFont=\akizumi@cjkserifbold]
@@ -136,7 +209,25 @@
 \setCJKsansfont{\akizumi@cjkfont}[BoldFont=\akizumi@cjkboldfont,
   ItalicFont=\akizumi@cjkboldfont, BoldItalicFont=\akizumi@cjkboldfont]
 \setCJKmonofont{\akizumi@cjkfont}[ItalicFont=\akizumi@cjkfont]
-\xeCJKsetup{CJKmath=true}
+% Fallback: the other two languages, sans or serif to match the family;
+% skips a language with no font installed.
+% \akizumi@fallback{\family}{sans|serif}
+\def\akizumi@fallback#1#2{%
+  \def\akizumi@list{}%
+  \@for\akizumi@l:=\akizumi@others\do{%
+    \expandafter\ifx\csname akizumi@\akizumi@l @sans\endcsname\@empty\else
+      \edef\akizumi@b{\csname akizumi@\akizumi@l @#2bold\endcsname}%
+      \edef\akizumi@list{\akizumi@list\ifx\akizumi@list\@empty\else,\fi
+        {[BoldFont=\akizumi@b, ItalicFont=\akizumi@b, BoldItalicFont=\akizumi@b]%
+         \csname akizumi@\akizumi@l @#2\endcsname}}%
+    \fi}%
+  \ifx\akizumi@list\@empty\else
+    \edef\akizumi@tmp{\noexpand\setCJKfallbackfamilyfont{\noexpand#1}{\akizumi@list}}\akizumi@tmp
+  \fi}
+\akizumi@fallback\CJKsfdefault{sans}
+\akizumi@fallback\CJKttdefault{sans}
+\ifakizumi@serif\akizumi@fallback\CJKrmdefault{serif}\else\akizumi@fallback\CJKrmdefault{sans}\fi
+\xeCJKsetup{CJKmath=true, AutoFallBack=true}
 
 % ---------- colors ----------
 \RequirePackage{xcolor}
@@ -183,12 +274,86 @@
 % ---------- language ----------
 % lang only sets the document's main language: date format, caption / contents
 % names, problem labels and line spacing. Mixed text needs no markup: xeCJK
-% switches fonts per character and inserts the CJK--Latin gap whether or not a
-% space is typed. Theorem-like names (Theorem, Proof, Solution, ...) are English
-% in both languages.
-\newcommand{\akizumi@today}{%
-  \ifakizumi@zh \the\year\ 年 \the\month\ 月 \the\day\ 日%
-  \else \today \fi}
+% switches fonts per character, so an English document can quote Chinese and
+% a Chinese one can use English terms. Theorem-like names (Theorem, Proof,
+% Solution, ...) stay English unless thmnames=native.
+%
+% \akizumi@str{key} is the word for the main language, from the table below:
+%   \akizumi@s{key}{en}{zh}{ja}{ko}
+% \akizumi@num{key}{n} wraps a number, e.g. "Problem 3", 第 3 題, 問 3, 문제 3:
+%   \akizumi@n{key}{en before}{en after}{zh ...}{...}{ja ...}{...}{ko ...}{...}
+% \akizumi@tn is \akizumi@s for theorem-like names: English unless thmnames=native.
+\newcommand{\akizumi@str}[1]{\csname akizumi@s@#1\endcsname}
+\newcommand{\akizumi@num}[2]{\csname akizumi@b@#1\endcsname#2\csname akizumi@a@#1\endcsname}
+\ifcase\akizumi@langnum
+     \def\akizumi@s#1#2#3#4#5{\@namedef{akizumi@s@#1}{#2}}
+     \def\akizumi@n#1#2#3#4#5#6#7#8#9{\@namedef{akizumi@b@#1}{#2}\@namedef{akizumi@a@#1}{#3}}
+\or  \def\akizumi@s#1#2#3#4#5{\@namedef{akizumi@s@#1}{#3}}
+     \def\akizumi@n#1#2#3#4#5#6#7#8#9{\@namedef{akizumi@b@#1}{#4}\@namedef{akizumi@a@#1}{#5}}
+\or  \def\akizumi@s#1#2#3#4#5{\@namedef{akizumi@s@#1}{#4}}
+     \def\akizumi@n#1#2#3#4#5#6#7#8#9{\@namedef{akizumi@b@#1}{#6}\@namedef{akizumi@a@#1}{#7}}
+\or  \def\akizumi@s#1#2#3#4#5{\@namedef{akizumi@s@#1}{#5}}
+     \def\akizumi@n#1#2#3#4#5#6#7#8#9{\@namedef{akizumi@b@#1}{#8}\@namedef{akizumi@a@#1}{#9}}
+\fi
+\ifakizumi@nativethm
+  \let\akizumi@tn\akizumi@s
+\else
+  \def\akizumi@tn#1#2#3#4#5{\@namedef{akizumi@s@#1}{#2}}
+\fi
+%            key            en                  zh          ja              ko
+\akizumi@s  {today}        {\today}            {\the\year\ 年 \the\month\ 月 \the\day\ 日}
+                                               {\the\year\ 年 \the\month\ 月 \the\day\ 日}
+                                               {\the\year 년 \the\month 월 \the\day 일}
+\akizumi@s  {contents}     {Contents}          {目錄}      {目次}          {목차}
+\akizumi@s  {figure}       {Figure}            {圖}        {図}            {그림}
+\akizumi@s  {table}        {Table}             {表}        {表}            {표}
+\akizumi@s  {references}   {References}        {參考文獻}  {参考文献}      {참고 문헌}
+\akizumi@s  {abstract}     {Abstract}          {摘要}      {概要}          {초록}
+\akizumi@s  {appendix}     {Appendix}          {附錄}      {付録}          {부록}
+\akizumi@s  {algorithm}    {Algorithm}         {演算法}    {アルゴリズム}  {알고리즘}
+\akizumi@s  {listtheorems} {List of Theorems}  {定理列表}  {定理一覧}      {정리 목록}
+\akizumi@s  {homework}     {Homework}          {作業}      {課題}          {과제}
+\akizumi@s  {due}          {Due}               {繳交期限}  {締切}          {마감}
+\akizumi@s  {name}         {Name}              {姓名}      {氏名}          {이름}
+\akizumi@s  {id}           {ID}                {學號}      {学籍番号}      {학번}
+\akizumi@s  {point}        {pt}                {分}        {点}            {점}
+\akizumi@s  {points}       {pts}               {分}        {点}            {점}
+\akizumi@s  {gradequestion}{Question}          {題號}      {問題}          {문항}
+\akizumi@s  {gradepoints}  {Points}            {配分}      {配点}          {배점}
+\akizumi@s  {gradescore}   {Score}             {得分}      {得点}          {득점}
+\akizumi@s  {gradetotal}   {Total}             {總分}      {合計}          {총점}
+\akizumi@s  {lparen}       {(}                 {（}        {（}            {(}
+\akizumi@s  {rparen}       {)}                 {）}        {）}            {)}
+%            key        en before    after  zh before after   ja before after   ko before after
+\akizumi@n  {section}   {Section~}  {}     {第~}  {~節}      {第~}  {~節}      {제}   {절}
+\akizumi@n  {chapter}   {Chapter~}  {}     {第~}  {~章}      {第~}  {~章}      {제}   {장}
+\akizumi@n  {appendix}  {Appendix~} {}     {附錄~}{}         {付録~}{}         {부록~}{}
+\akizumi@n  {problem}   {Problem~}  {}     {第~}  {~題}      {問~}  {}         {문제~}{}
+\akizumi@n  {part}      {Part~}     {}     {第~}  {~部分}    {第~}  {~部}      {제}   {부}
+\akizumi@n  {equation}  {Equation~(}{)}    {式~(} {)}        {式~(} {)}        {식~(} {)}
+% theorem-like names
+\akizumi@tn {theorem}      {Theorem}      {定理}  {定理}    {정리}
+\akizumi@tn {lemma}        {Lemma}        {引理}  {補題}    {보조정리}
+\akizumi@tn {proposition}  {Proposition}  {命題}  {命題}    {명제}
+\akizumi@tn {corollary}    {Corollary}    {推論}  {系}      {따름정리}
+\akizumi@tn {claim}        {Claim}        {斷言}  {主張}    {주장}
+\akizumi@tn {definition}   {Definition}   {定義}  {定義}    {정의}
+\akizumi@tn {assumption}   {Assumption}   {假設}  {仮定}    {가정}
+\akizumi@tn {example}      {Example}      {例}    {例}      {예}
+\akizumi@tn {remark}       {Remark}       {註}    {注意}    {참고}
+\akizumi@tn {proof}        {Proof}        {證明}  {証明}    {증명}
+\akizumi@tn {solution}     {Solution}     {解}    {解答}    {풀이}
+% "Proof of Theorem 1.2" / 定理 1.2 的證明 / 定理 1.2 の証明 / 정리 1.2의 증명
+\akizumi@tn {proofof-b}    {Proof of }    {}      {}        {}
+\akizumi@tn {proofof-a}    {}             {\ 的證明}{の証明} {의 증명}
+% Label punctuation: "Theorem 1." in English; CJK names take a space instead.
+\ifakizumi@nativethm\ifakizumi@cjk
+  \def\akizumi@thmpunct{}\else\def\akizumi@thmpunct{.}\fi
+\else\def\akizumi@thmpunct{.}\fi
+
+\ifakizumi@cjk
+  \linespread{1.2}\frenchspacing  % more leading, no wide sentence gaps
+\fi
 
 % ---------- todo ----------
 % Yields to todonotes if that package is loaded.
@@ -282,18 +447,17 @@
     \geometry{left=2.2cm, right=7.6cm, marginparsep=0.7cm, marginparwidth=5.2cm}%
   \fi}
 
-\ifakizumi@zh
-  \renewcommand{\contentsname}{目錄}
-  \renewcommand{\figurename}{圖}
-  \renewcommand{\tablename}{表}
-  \@ifundefined{refname}{}{\renewcommand{\refname}{參考文獻}}
-  \@ifundefined{bibname}{}{\renewcommand{\bibname}{參考文獻}}
-  \@ifundefined{abstractname}{}{\renewcommand{\abstractname}{摘要}}
-  \@ifundefined{appendixname}{}{\renewcommand{\appendixname}{附錄}}
+\ifakizumi@cjk
+  \renewcommand{\contentsname}{\akizumi@str{contents}}
+  \renewcommand{\figurename}{\akizumi@str{figure}}
+  \renewcommand{\tablename}{\akizumi@str{table}}
+  \@ifundefined{refname}{}{\renewcommand{\refname}{\akizumi@str{references}}}
+  \@ifundefined{bibname}{}{\renewcommand{\bibname}{\akizumi@str{references}}}
+  \@ifundefined{abstractname}{}{\renewcommand{\abstractname}{\akizumi@str{abstract}}}
+  \@ifundefined{appendixname}{}{\renewcommand{\appendixname}{\akizumi@str{appendix}}}
 \fi
-\ifakizumi@zh\linespread{1.2}\frenchspacing\fi  % CJK: more leading, no wide sentence gaps
 \title{}\author{}  % empty defaults: page headers use them even without \maketitle
-\date{\akizumi@today}
+\date{\akizumi@str{today}}
 
 \color{ink}
 \RequirePackage[verbose=silent]{microtype}
@@ -365,11 +529,11 @@
 \hypersetup{colorlinks, linkcolor=accent, urlcolor=accent, citecolor=accent}
 \RequirePackage[capitalise, noabbrev, nameinlink]{cleveref}
 \RequirePackage{thmtools}  % \listoftheorems, restatable; must precede \newtheorem
-\ifakizumi@zh
-  \crefformat{section}{#2第~#1~節#3}
-  \crefname{figure}{圖}{圖}
-  \crefname{table}{表}{表}
-  \crefformat{equation}{#2式~(#1)#3}
+\ifakizumi@cjk
+  \crefformat{section}{#2\akizumi@num{section}{#1}#3}
+  \crefname{figure}{\akizumi@str{figure}}{\akizumi@str{figure}}
+  \crefname{table}{\akizumi@str{table}}{\akizumi@str{table}}
+  \crefformat{equation}{#2\akizumi@num{equation}{#1}#3}
 \fi
 
 % ---------- theorem-like environments ----------
@@ -381,40 +545,47 @@
 %   proof, solution                      0.8pt rule        muted label + qed
 % Every kind also has an unnumbered starred form (theorem*, definition*, ...).
 % Bodies are upright (italic would turn whole CJK statements bold).
-\newtheoremstyle{akizumi-claim}{0pt}{0pt}{}{}{\sffamily\bfseries\color{accent}}{.}{0.6em}
+\newtheoremstyle{akizumi-claim}{0pt}{0pt}{}{}{\sffamily\bfseries\color{accent}}{\akizumi@thmpunct}{0.6em}
   {\thmname{#1}\thmnumber{ #2}\thmnote{\mdseries\color{mute}\ (#3)}}
-\newtheoremstyle{akizumi-aside}{0pt}{0pt}{}{}{\sffamily\bfseries}{.}{0.6em}
+\newtheoremstyle{akizumi-aside}{0pt}{0pt}{}{}{\sffamily\bfseries}{\akizumi@thmpunct}{0.6em}
   {\thmname{#1}\thmnumber{ #2}\thmnote{\mdseries\color{mute}\ (#3)}}
 \theoremstyle{akizumi-claim}
-\newtheorem{theorem}{Theorem}
-\newtheorem*{theorem*}{Theorem}
-\crefname{theorem}{Theorem}{Theorems}
-% \akizumi@thm{env}{Name}{Plural}: numbered together with theorem, plus an
+% Names come from the language table (\akizumi@tn above).
+\newtheorem{theorem}{\akizumi@str{theorem}}
+\newtheorem*{theorem*}{\akizumi@str{theorem}}
+% \akizumi@thm{env}{English plural}: numbered together with theorem, plus an
 % unnumbered env*. Not \newtheorem{env}[theorem]: the LaTeX kernel turned that
 % into a counter alias in 2026-06, which clashes with thmtools. Instead env
 % gets its own counter name whose count register *is* theorem's, so the
 % numbers are shared, cleveref reads the type from the counter name, and
 % \theH... keeps hyperref anchors unique. Works with old and new kernels.
-\def\akizumi@thm#1#2#3{%
-  \newtheorem{#1}{#2}\newtheorem*{#1*}{#2}%
+% CJK names have no plural form.
+\def\akizumi@crefname#1#2{%
+  \ifakizumi@nativethm\ifakizumi@cjk
+    \crefname{#1}{\akizumi@str{#1}}{\akizumi@str{#1}}%
+  \else\crefname{#1}{\akizumi@str{#1}}{#2}\fi
+  \else\crefname{#1}{\akizumi@str{#1}}{#2}\fi}
+\akizumi@crefname{theorem}{Theorems}
+\def\akizumi@thm#1#2{%
+  \newtheorem{#1}{\akizumi@str{#1}}\newtheorem*{#1*}{\akizumi@str{#1}}%
   \expandafter\let\csname c@#1\endcsname\c@theorem
   \expandafter\def\csname the#1\endcsname{\thetheorem}%
   \expandafter\def\csname theH#1\endcsname{\theHtheorem}%
-  \crefname{#1}{#2}{#3}}
-\akizumi@thm{lemma}{Lemma}{Lemmas}
-\akizumi@thm{proposition}{Proposition}{Propositions}
-\akizumi@thm{corollary}{Corollary}{Corollaries}
-\akizumi@thm{claim}{Claim}{Claims}
-\akizumi@thm{definition}{Definition}{Definitions}
-\akizumi@thm{assumption}{Assumption}{Assumptions}
+  \akizumi@crefname{#1}{#2}}
+\akizumi@thm{lemma}{Lemmas}
+\akizumi@thm{proposition}{Propositions}
+\akizumi@thm{corollary}{Corollaries}
+\akizumi@thm{claim}{Claims}
+\akizumi@thm{definition}{Definitions}
+\akizumi@thm{assumption}{Assumptions}
 \theoremstyle{akizumi-aside}
-\akizumi@thm{example}{Example}{Examples}
-\akizumi@thm{remark}{Remark}{Remarks}
-\renewcommand{\proofname}{Proof}
+\akizumi@thm{example}{Examples}
+\akizumi@thm{remark}{Remarks}
+\renewcommand{\proofname}{\akizumi@str{proof}}
 \renewcommand{\qedsymbol}{\textcolor{mute}{$\square$}}
 \renewenvironment{proof}[1][\proofname]{%
   \par\pushQED{\qed}\normalfont\topsep\z@\relax
-  \trivlist\item[\hskip\labelsep{\sffamily\bfseries\color{mute}#1.}]\ignorespaces}
+  \trivlist\item[\hskip\labelsep{\sffamily\bfseries\color{mute}#1\akizumi@thmpunct}]\ignorespaces}
   {\popQED\endtrivlist\@endpefalse}
 
 \def\akizumi@onebar#1#2#3{%
@@ -436,13 +607,13 @@
 %   \begin{restatable}{theorem}{mainthm}\label{thm:main} ... \end{restatable}
 %   \mainthm*                      repeat it later (appendix) with the same number
 %   \begin{proofof}{thm:main} ...  "Proof of Theorem 1.2." linking back
-\newenvironment{proofof}[1]{\begin{proof}[Proof of \cref{#1}]}{\end{proof}}
+\newenvironment{proofof}[1]{\begin{proof}[\akizumi@str{proofof-b}\cref{#1}\akizumi@str{proofof-a}]}{\end{proof}}
 
 % ---------- list of theorems ----------
 %   \listoftheorems                           everything
 %   \listoftheorems[onlynamed]                only ones with a name, e.g. [Cramér--Wold]
 %   \listoftheorems[ignoreall, show={definition}]
-\renewcommand{\listtheoremname}{\ifakizumi@zh 定理列表\else List of Theorems\fi}
+\renewcommand{\listtheoremname}{\akizumi@str{listtheorems}}
 % A restated copy (\mainthm*) is not listed again: thmtools swaps \label for
 % \thmt@gobble@label inside the copy, which is how we recognise it.
 \newcommand{\akizumi@noloe}[3]{}
@@ -463,8 +634,9 @@
 %   \end{algorithm}
 \RequirePackage{algorithm}
 \RequirePackage{algpseudocodex}
-\floatname{algorithm}{\ifakizumi@zh 演算法\else Algorithm\fi}
-\ifakizumi@zh\crefname{algorithm}{演算法}{演算法}\else\crefname{algorithm}{Algorithm}{Algorithms}\fi
+\floatname{algorithm}{\akizumi@str{algorithm}}
+\ifakizumi@cjk\crefname{algorithm}{\akizumi@str{algorithm}}{\akizumi@str{algorithm}}%
+\else\crefname{algorithm}{Algorithm}{Algorithms}\fi
 \algrenewcommand{\algorithmicrequire}{\textsf{\textbf{Input:}}}
 \algrenewcommand{\algorithmicensure}{\textsf{\textbf{Output:}}}
 

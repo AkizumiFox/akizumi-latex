@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Japanese and Korean: `lang=ja` and `lang=ko` set the date, captions, contents, section / problem / chapter labels, exam words and fonts (Hiragino, Yu, Noto CJK JP, HaranoAji; Apple SD Gothic Neo, Malgun, Noto CJK KR, Baekmuk). Korean keeps word spaces.
+- `thmnames=native` names theorem-like environments in the main language: 定理 / 證明 in Chinese, 定理 / 証明 in Japanese, 정리 / 증명 in Korean, also in cleveref, `proofof`, the list of theorems and slides. English stays the default.
+- Characters missing from the main CJK font are taken from the other two languages' fonts, so Chinese, Japanese and Korean mix in one document.
+- `ax new --lang ja|ko --thmnames native` (also in `config.json`); `ax doctor` checks the fonts for the configured language; `ax selftest` builds a document in each language.
+- The language words live in one table in `akizumi-core.sty` (`\akizumi@str`, `\akizumi@num`).
+
 ## v0.8 — 2026-10-25
 
 - Titles are centred. Author, ID and date no longer sit under the title; they go in the first page's header (course left, byline right). `byline=true` puts them back under the title; `config.json` `defaults` accepts `"byline": true`. The book cover always shows them.

@@ -12,6 +12,7 @@
 \keys_define:nn { akizumi/hw }
   {
     lang      .code:n = \PassOptionsToPackage { lang = #1 } { akizumi-core },
+    thmnames  .code:n = \PassOptionsToPackage { thmnames = #1 } { akizumi-core },
     cjk       .code:n = \PassOptionsToPackage { cjk = #1 } { akizumi-core },
     bb        .code:n = \PassOptionsToPackage { bb = #1 } { akizumi-core },
     text      .code:n = \PassOptionsToPackage { text = #1 } { akizumi-core },
@@ -38,20 +39,20 @@
 \akizumi@setgeometry{margin=2.5cm, top=2.3cm, headsep=0.8cm, headheight=15pt}
 
 % ---------- title: "Homework 3", kicker "ODE · Due 2026/10/28" ----------
-\title{\ifakizumi@zh 作業\else Homework\fi\ifx\akizumi@number\@empty\else\ \akizumi@number\fi}
+\title{\akizumi@str{homework}\ifx\akizumi@number\@empty\else\ \akizumi@number\fi}
 \AtBeginDocument{%
   \ifx\akizumi@kicker\@empty
     \edef\akizumi@kicker{\unexpanded\expandafter{\akizumi@course}%
       \ifx\akizumi@course\@empty\else\ifx\akizumi@due\@empty\else\noexpand\akizumisep\fi\fi
       \ifx\akizumi@due\@empty\else\noexpand\akizumi@duename\ \unexpanded\expandafter{\akizumi@due}\fi}%
   \fi}
-\newcommand{\akizumi@duename}{\ifakizumi@zh 繳交期限\else Due\fi}
+\newcommand{\akizumi@duename}{\akizumi@str{due}}
 \renewcommand{\akizumi@headleft}{\akizumi@course\ifx\akizumi@course\@empty\else\quad\fi\@title}
 
 % ---------- problems ----------
 \newcounter{problem}
-\ifakizumi@zh\crefformat{problem}{#2第~#1~題#3}\else\crefname{problem}{Problem}{Problems}\fi
-\newcommand{\problemname}{\ifakizumi@zh 第\ \theproblem\ 題\else Problem \theproblem\fi}
+\ifakizumi@cjk\crefformat{problem}{#2\akizumi@num{problem}{#1}#3}\else\crefname{problem}{Problem}{Problems}\fi
+\newcommand{\problemname}{\akizumi@num{problem}{\theproblem}}
 \NewDocumentEnvironment{problem}{o}
   {\par\addvspace{1.4em}\Needspace{4\baselineskip}%
    \refstepcounter{problem}%
@@ -66,7 +67,7 @@
 \NewDocumentEnvironment{solution}{+b}
   {\ifakizumi@solutions
      \begin{tcolorbox}[akizumi/bar={0.8pt}{rule}]%
-       {\sffamily\color{mute}\bfseries Solution.}\enspace #1%
+       {\sffamily\color{mute}\bfseries\akizumi@str{solution}\akizumi@thmpunct}\enspace #1%
      \end{tcolorbox}%
    \fi}
   {}

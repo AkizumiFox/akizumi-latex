@@ -13,6 +13,7 @@
 \keys_define:nn { akizumi/exam }
   {
     lang      .code:n = \PassOptionsToPackage { lang = #1 } { akizumi-core },
+    thmnames  .code:n = \PassOptionsToPackage { thmnames = #1 } { akizumi-core },
     cjk       .code:n = \PassOptionsToPackage { cjk = #1 } { akizumi-core },
     bb        .code:n = \PassOptionsToPackage { bb = #1 } { akizumi-core },
     text      .code:n = \PassOptionsToPackage { text = #1 } { akizumi-core },
@@ -43,8 +44,8 @@
 % ---------- title + name field ----------
 \let\akizumi@titlepagestyle\relax
 \newcommand{\akizumi@namefield}{%
-  \noindent\ifakizumi@zh 姓名\else Name\fi\enspace\makebox[0.32\linewidth]{\hrulefill}%
-  \hfill\ifakizumi@zh 學號\else ID\fi\enspace\makebox[0.25\linewidth]{\hrulefill}\par\vspace{1.2em}}
+  \noindent\akizumi@str{name}\enspace\makebox[0.32\linewidth]{\hrulefill}%
+  \hfill\akizumi@str{id}\enspace\makebox[0.25\linewidth]{\hrulefill}\par\vspace{1.2em}}
 \let\akizumi@coremaketitle\maketitle
 \renewcommand{\maketitle}{\akizumi@coremaketitle\ifprintanswers\else\akizumi@namefield\fi}
 \AtBeginDocument{\ifx\akizumi@kicker\@empty\let\akizumi@kicker\akizumi@course\fi}
@@ -58,16 +59,17 @@
 \footer{}{\sffamily\scriptsize\color{mute}\thepage\,/\,\numpages}{}
 
 % ---------- questions and points ----------
-\ifakizumi@zh
-  \qformat{{\sffamily\color{accent}\bfseries 第\ \thequestion\ 題}\quad{\sffamily\color{mute}\small（\totalpoints\ 分）}\hfill}
-  \pointpoints{分}{分}
-  \hqword{題號}\hpword{配分}\hsword{得分}\htword{總分}
+\ifakizumi@cjk
+  \qformat{{\sffamily\color{accent}\bfseries\akizumi@num{problem}{\thequestion}}\quad
+    {\sffamily\color{mute}\small\akizumi@str{lparen}\totalpoints\ \points\akizumi@str{rparen}}\hfill}
+  \hqword{\akizumi@str{gradequestion}}\hpword{\akizumi@str{gradepoints}}%
+  \hsword{\akizumi@str{gradescore}}\htword{\akizumi@str{gradetotal}}
 \else
   \qformat{{\sffamily\color{accent}\bfseries Question \thequestion}\quad{\sffamily\color{mute}\small(\totalpoints\ \points)}\hfill}
-  \pointpoints{pt}{pts}
 \fi
+\pointpoints{\akizumi@str{point}}{\akizumi@str{points}}
 \pointformat{\textcolor{mute}{\sffamily(\thepoints)}}
-\renewcommand{\solutiontitle}{{\sffamily\color{mute}\bfseries Solution.}\enspace}
+\renewcommand{\solutiontitle}{{\sffamily\color{mute}\bfseries\akizumi@str{solution}\akizumi@thmpunct}\enspace}
 \renewenvironment{TheSolution}
   {\begin{tcolorbox}[akizumi/bar={0.8pt}{rule}]\solutiontitle\ignorespaces}
   {\unskip\end{tcolorbox}}

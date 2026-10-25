@@ -14,6 +14,7 @@
 \keys_define:nn { akizumi/book }
   {
     lang    .code:n = \PassOptionsToPackage { lang = #1 } { akizumi-core },
+    thmnames .code:n = \PassOptionsToPackage { thmnames = #1 } { akizumi-core },
     cjk     .code:n = \PassOptionsToPackage { cjk = #1 } { akizumi-core },
     bb      .code:n = \PassOptionsToPackage { bb = #1 } { akizumi-core },
     text    .code:n = \PassOptionsToPackage { text = #1 } { akizumi-core },
@@ -38,15 +39,15 @@
 \newif\ifakizumi@inappendix
 \g@addto@macro\appendix{\global\akizumi@inappendixtrue}
 \newcommand{\akizumi@chapterlabel}{%
-  \ifakizumi@zh
-    \ifakizumi@inappendix 附錄~\thechapter\else 第~\thechapter~章\fi
+  \ifakizumi@cjk
+    \ifakizumi@inappendix\akizumi@num{appendix}{\thechapter}\else\akizumi@num{chapter}{\thechapter}\fi
   \else \@chapapp~\thechapter\fi}
 \titleformat{\chapter}[display]{\sffamily\bfseries}
   {\color{mute}\large\akizumi@chapterlabel}{0.5em}{\Huge}
 \titleformat{name=\chapter,numberless}[display]{\sffamily\bfseries}
   {}{0pt}{\Huge}
 \titlespacing*{\chapter}{0pt}{1.5cm}{1.4cm}
-\ifakizumi@zh\crefformat{chapter}{#2第~#1~章#3}\fi
+\ifakizumi@cjk\crefformat{chapter}{#2\akizumi@num{chapter}{#1}#3}\fi
 
 \akizumi@thmwithin{chapter}
 

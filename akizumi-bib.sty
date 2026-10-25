@@ -1,0 +1,80 @@
+% akizumi-bib.sty -- biblatex for the bib= option; loaded by akizumi-core.
+% Its options are class options, next to bib=:
+%   \documentclass[bib=refs.bib, bibstyle=authoryear, backref=false]{akizumi-note}
+%
+% Options:  bibstyle = numeric | authoryear | apa
+%                  numeric: [1-3], compressed, in citation order (default)
+%                  authoryear: (Lin, 2026), sorted by name; apa: APA 7 (biblatex-apa)
+%           backref  = true | false  (pages citing each entry; default true)
+%           cite     = normal | super (super: \cite is a superscript number;
+%                  numeric only)
+% \citep / \citet / \citeauthor work in every style (biblatex natbib=true).
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-bib}[2026/10/25 v0.8 Aaron Lin bibliography]
+
+\ExplSyntaxOn
+\tl_new:N \l__akizumi_bibstyle_tl
+\bool_new:N \l__akizumi_backref_bool
+\bool_new:N \l__akizumi_supercite_bool
+\keys_define:nn { akizumi/bib }
+  {
+    bibstyle .choices:nn = { numeric, authoryear, apa }
+      { \tl_set_eq:NN \l__akizumi_bibstyle_tl \l_keys_choice_tl },
+    bibstyle .initial:n = numeric,
+    backref  .bool_set:N = \l__akizumi_backref_bool,
+    backref  .initial:n = true,
+    cite     .choices:nn = { normal, super }
+      { \bool_set:Nn \l__akizumi_supercite_bool { \int_compare_p:n { \l_keys_choice_int = 2 } } },
+    cite     .initial:n = normal,
+  }
+\ProcessKeyOptions [ akizumi/bib ]
+% The classes hand unknown options to their base class by key name, which
+% leaves "bibstyle" etc. in LaTeX's unused-option warning; and hyperref would
+% read backref= as its own option (and reject true).
+\clist_clear:N \l_tmpa_clist
+\clist_map_inline:Nn \@unusedoptionlist
+  { \str_if_in:nnF { ,bibstyle,backref,cite, } { ,#1, } { \clist_put_right:Nn \l_tmpa_clist {#1} } }
+\cs_gset_eq:NN \@unusedoptionlist \l_tmpa_clist
+\cs_set_protected:Npn \__akizumi_bib_dropbackref:N #1
+  {
+    \cs_if_exist:NT #1 { \cs_if_eq:NNF #1 \scan_stop:
+      {
+        \clist_clear:N \l_tmpa_clist
+        \clist_map_inline:Nn #1
+          {
+            \regex_match:nnF { \A \s* backref \s* (= | \Z) } {##1}
+              { \clist_put_right:Nn \l_tmpa_clist {##1} }
+          }
+        \cs_gset_eq:NN #1 \l_tmpa_clist
+      } }
+  }
+\__akizumi_bib_dropbackref:N \@raw@classoptionslist
+\__akizumi_bib_dropbackref:N \@classoptionslist
+\__akizumi_bib_dropbackref:N \XKV@classoptionslist
+
+\tl_set:Nx \l_tmpa_tl
+  {
+    backend = biber, natbib = true,
+    backref = \bool_if:NTF \l__akizumi_backref_bool { true } { false },
+    \str_case:Vn \l__akizumi_bibstyle_tl
+      {
+        { numeric }    { style = numeric-comp, sorting = none, maxbibnames = 99 }
+        { authoryear } { style = authoryear-comp, maxbibnames = 99, maxcitenames = 2 }
+        { apa }        { style = apa }
+      }
+  }
+\use:x { \exp_not:N \RequirePackage [ \exp_not:V \l_tmpa_tl ] { biblatex } }
+\clist_map_inline:Nn \l__akizumi_bib_clist { \addbibresource {#1} }
+
+\bool_if:NT \l__akizumi_supercite_bool
+  {
+    \str_if_eq:VnTF \l__akizumi_bibstyle_tl { numeric }
+      {
+        \ExecuteBibliographyOptions { autocite = superscript }
+        \AtBeginDocument { \cs_set_eq:NN \cite \supercite }
+      }
+      { \PackageWarningNoLine { akizumi-bib } { cite=super~needs~bibstyle=numeric;~ignored } }
+  }
+\ExplSyntaxOff
+
+\endinput

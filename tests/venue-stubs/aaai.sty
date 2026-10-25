@@ -1,0 +1,9 @@
+% Test stand-in for the AAAI style file (not the real one): the submission
+% option, \affiliations, the bibliography style, and the real file's
+% refusal of hyperref.
+\DeclareOption{submission}{}
+\ProcessOptions\relax
+\newcommand{\affiliations}[1]{}
+\AtBeginDocument{%
+  \@ifpackageloaded{natbib}{\bibliographystyle{plainnat}}{}%
+  \@ifpackageloaded{hyperref}{\PackageError{aaai}{You must not use hyperref in AAAI papers}{}}{}}

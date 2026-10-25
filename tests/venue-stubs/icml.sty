@@ -1,0 +1,14 @@
+% Test stand-in for the ICML style file (not the real one): the options,
+% packages and author commands that `ax new paper --venue icml` relies on.
+\DeclareOption{accepted}{}
+\DeclareOption{nohyperref}{}
+\ProcessOptions\relax
+\RequirePackage{xcolor,algorithm,algorithmic,natbib,url}
+\newcommand{\icmltitlerunning}[1]{}
+\newcommand{\icmltitle}[1]{{\centering\Large\bfseries #1\par}}
+\newenvironment{icmlauthorlist}{\begin{center}}{\end{center}}
+\newcommand{\icmlauthor}[2]{#1}
+\newcommand{\icmlaffiliation}[2]{}
+\newcommand{\icmlcorrespondingauthor}[2]{}
+\newcommand{\icmlkeywords}[1]{}
+\newcommand{\printAffiliationsAndNotice}[1]{}

@@ -1,0 +1,16 @@
+% !TEX program = xelatex
+% bibstyle=authoryear, backref=false: \citep / \citet (biblatex natbib=true);
+% akizumi-paper inside an akizumi class, next to its cleveref.
+\documentclass[bib=paper.bib, bibstyle=authoryear, backref=false]{akizumi-note}
+\usepackage[refstyle=short]{akizumi-paper}
+\newcommenter{jun}{Jun}{teal}
+\title{Paper helpers}
+\begin{document}
+\maketitle
+\section{Results}\label{sec:res}
+\citet{lin2026} extend \citet{sutton2018}; see also \citep{lin2026,sutton2018},
+\citeauthor{sutton2018}, and \cref{sec:res}, \cref{fig:y}.
+\jun{Cite the 2027 version?} \jun*{This sentence was edited.}
+\begin{figure}[h]\centering\rule{2cm}{1cm}\caption{A box.}\label{fig:y}\end{figure}
+\printbibliography
+\end{document}

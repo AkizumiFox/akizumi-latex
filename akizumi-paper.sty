@@ -1,0 +1,103 @@
+% akizumi-paper.sty -- writing helpers for papers: co-author comments,
+% abbreviations, result-table marks, short reference names. Engine-agnostic
+% (pdfLaTeX, XeLaTeX, LuaLaTeX) and adds no page styling, so it goes into
+% venue templates (NeurIPS, ICML, ICLR, AAAI) as well as akizumi documents.
+% It never loads hyperref. Load it last: after hyperref, and after xcolor or
+% cleveref if you load them with options of your own.
+%
+%   \usepackage[refstyle=short]{akizumi-paper}
+%   \newcommenter{jun}{Jun}{teal}
+%   \jun{check this bound}   comment: "[Jun: check this bound]" in teal
+%   \jun*{new wording}       edit: the text itself in teal
+%   \anon[Anonymous]{Lin et al.}   replaced while anonymous
+%   \eg \ie \etal \wrt \cf \etc
+%   \best{0.91} \second{0.88} \cmark \xmark
+%
+% Options:  final      comments disappear, edits stay in the text colour
+%           anonymous  \anon{...} prints its replacement
+%           refstyle = long | short  (short: Fig. 1, Eq. (2); default long)
+% \akizumipapersetup{final} sets the same keys later in the preamble.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-paper}[2026/10/25 v0.8 Aaron Lin paper helpers]
+
+\ExplSyntaxOn
+\bool_new:N \l__akizumi_paper_final_bool
+\bool_new:N \l__akizumi_paper_anon_bool
+\tl_new:N \l__akizumi_paper_ref_tl
+\keys_define:nn { akizumi/paper }
+  {
+    final     .bool_set:N = \l__akizumi_paper_final_bool,
+    anonymous .bool_set:N = \l__akizumi_paper_anon_bool,
+    refstyle  .choices:nn = { long, short }
+      { \tl_set_eq:NN \l__akizumi_paper_ref_tl \l_keys_choice_tl },
+    refstyle  .initial:n = long,
+  }
+\ProcessKeyOptions [ akizumi/paper ]
+\NewDocumentCommand \akizumipapersetup { m } { \keys_set:nn { akizumi/paper } {#1} }
+\ExplSyntaxOff
+
+\RequirePackage{xcolor,xspace,pifont,booktabs,multirow,makecell}
+\@ifpackageloaded{cleveref}{}{\RequirePackage[capitalise,noabbrev]{cleveref}}
+
+% ---------- comments ----------
+% \newcommenter{name}{Label}{color} defines \name{comment} and \name*{edit}.
+% A vanished comment leaves one space, like \label.
+\ExplSyntaxOn
+\NewDocumentCommand \newcommenter { m m m }
+  {
+    \exp_args:Nc \NewDocumentCommand {#1} { s +m }
+      {
+        \IfBooleanTF {##1}
+          { \bool_if:NTF \l__akizumi_paper_final_bool {##2} { \leavevmode { \color {#3} ##2 } } }
+          {
+            \bool_if:NTF \l__akizumi_paper_final_bool
+              { \@bsphack \@esphack }
+              { \leavevmode { \color {#3} [ \textsf { \bfseries #2 : } ~ ##2 ] } }
+          }
+      }
+  }
+\NewDocumentCommand \anon { O{Anonymous} m }
+  { \bool_if:NTF \l__akizumi_paper_anon_bool {#1} {#2} }
+\ExplSyntaxOff
+
+% ---------- abbreviations ----------
+% No doubled period at a sentence end ("\etal." gives "et al."), and no
+% sentence-sized space after the abbreviation. Venue files that define these
+% (CVPR does) win.
+\def\akizumi@onedot{\@ifnextchar.{}{.\@\xspace}}
+\providecommand{\eg}{\emph{e.g}\akizumi@onedot}
+\providecommand{\ie}{\emph{i.e}\akizumi@onedot}
+\providecommand{\etal}{\emph{et al}\akizumi@onedot}
+\providecommand{\cf}{\emph{cf}\akizumi@onedot}
+\providecommand{\wrt}{w.r.t\akizumi@onedot}
+\providecommand{\etc}{etc\akizumi@onedot}
+
+% ---------- result tables ----------
+\providecommand{\best}[1]{\textbf{\boldmath#1}}
+\providecommand{\second}[1]{\underline{#1}}
+\providecommand{\cmark}{\ding{51}}
+\providecommand{\xmark}{\ding{55}}
+
+% ---------- reference names ----------
+% refstyle=short: Fig. 1, Figs. 1 and 2, Eq. (2); sections, tables and the
+% rest keep their full names. Only English: CJK names are already short.
+\def\akizumi@shortrefs{%
+  \crefname{figure}{Fig.}{Figs.}\Crefname{figure}{Fig.}{Figs.}%
+  \crefformat{equation}{Eq.~(##2##1##3)}\Crefformat{equation}{Eq.~(##2##1##3)}%
+  \crefrangeformat{equation}{Eqs.~(##3##1##4) to~(##5##2##6)}%
+  \Crefrangeformat{equation}{Eqs.~(##3##1##4) to~(##5##2##6)}%
+  \crefmultiformat{equation}{Eqs.~(##2##1##3)}{ and~(##2##1##3)}{, (##2##1##3)}{ and~(##2##1##3)}%
+  \Crefmultiformat{equation}{Eqs.~(##2##1##3)}{ and~(##2##1##3)}{, (##2##1##3)}{ and~(##2##1##3)}}
+\ExplSyntaxOn
+\AtBeginDocument
+  {
+    \str_if_eq:VnT \l__akizumi_paper_ref_tl { short }
+      {
+        \int_compare:nNnT
+          { \cs_if_exist:NTF \akizumi@langnum { \akizumi@langnum } { 0 } } = 0
+          { \akizumi@shortrefs }
+      }
+  }
+\ExplSyntaxOff
+
+\endinput

@@ -1,0 +1,35 @@
+% !TEX program = pdflatex
+% akizumi-paper in a plain article, as under a venue style: commenters and
+% final, \anon, abbreviations, table marks, refstyle=short with hyperref.
+\documentclass{article}
+\usepackage{hyperref}
+\usepackage{akizumi-math}
+\usepackage[refstyle=short, anonymous]{akizumi-paper}
+\newcommenter{jun}{Jun}{teal}
+\newcommenter{lance}{Lance}{orange}
+\begin{document}
+
+\section{Method}\label{sec:method}
+As in \anon{Lin \etal (2025)}, we follow Sutton \etal.
+Models, \eg transformers, \ie sequence models, are trained \wrt the loss,
+\cf \cref{sec:method}, \cref{fig:x}, \cref{eq:loss}, \cref{eq:loss,eq:two}.
+A \jun{is this bound tight?} sentence with a \lance*{rewritten clause} in it.
+\begin{equation}\label{eq:loss} L = \E\norm{x}^2 \end{equation}
+\begin{equation}\label{eq:two} M = 0 \end{equation}
+
+{\akizumipapersetup{final, anonymous=false}%
+Final: a \jun{gone} b, and \lance*{kept plain}; \anon{Lin et al.} named.\par}
+
+\begin{table}[h]\centering
+\begin{tabular}{lccc}
+\toprule
+Method & \makecell{Atari\\100k} & DMC & Sparse \\
+\midrule
+\multirow{2}{*}{Ours} & \best{0.91} & \second{0.88} & \cmark \\
+                      & \second{0.80} & \best{$0.93$} & \xmark \\
+\bottomrule
+\end{tabular}
+\caption{Marks.}
+\end{table}
+\begin{figure}[h]\centering\rule{2cm}{1cm}\caption{A box.}\label{fig:x}\end{figure}
+\end{document}

@@ -1,0 +1,8 @@
+% Test stand-in for the NeurIPS style file (not the real one): the options
+% and the natbib loading that `ax new paper --venue neurips` relies on.
+\newif\if@neuripsfinal
+\DeclareOption{final}{\@neuripsfinaltrue}
+\DeclareOption{preprint}{\@neuripsfinaltrue}
+\DeclareOption{nonatbib}{}
+\ProcessOptions\relax
+\RequirePackage{natbib}

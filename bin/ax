@@ -129,14 +129,15 @@ KIND_HELP = {
     "slides": T("簡報", "slides"),
     "book": T("論文、長篇講義：章、封面、每章目錄",
               "thesis, long notes: chapters, cover page, per-chapter contents"),
-    "paper": T("投稿論文的內文：用會議模板，只借數學巨集（pdfLaTeX）",
-               "paper body for a venue template: only the math macros (pdfLaTeX)"),
+    "paper": T("投稿論文：會議模板（--venue）加數學巨集和寫作小工具（pdfLaTeX）",
+               "paper on a venue template (--venue), with math macros and writing helpers (pdfLaTeX)"),
 }
 # commands shown to people; the rest are called by latexmk
 PUBLIC_COMMANDS = ["new", "build", "watch", "open", "both", "doctor", "upgrade",
                    "freeze", "pack", "config", "completion", "selftest", "migrate"]
 NEW_OPTIONS = ["--title", "--author", "--course", "--number", "--due", "--id", "--lang", "--thmnames",
-               "--text", "--paper", "--layout", "--bib", "--code", "--progress", "--pin", "--git",
+               "--text", "--paper", "--layout", "--bib", "--code", "--progress", "--venue", "--split",
+               "--anonymous", "--no-anonymous", "--pin", "--git",
                "--no-preamble", "--force", "--problems"]
 
 LATEXMKRC = r"""# Written by ax. Builds into build/; `ax build` copies the PDF out only when
@@ -580,6 +581,158 @@ def write_problem_files(target, problems):
         f = target / "problems" / f"{stem}.tex"
         if not f.exists():
             f.write_text("% Problem statement.\n\\begin{solution}\n% Solution.\n\\end{solution}\n")
+# ---------- ax new paper: venue scaffolds ----------
+# Venue style files are not shipped (each venue publishes new ones every
+# year); main.tex names the file and says where to get it. The venue's file
+# loads natbib and decides about hyperref, so the scaffold adds neither.
+PAPER_VENUES = {
+    "plain": {},
+    "neurips": {"sty": "neurips_2026", "where": "neurips.cc (Call for Papers → style files)"},
+    "icml": {"sty": "icml2026", "where": "icml.cc (Call for Papers → style files)"},
+    "iclr": {"sty": "iclr2026_conference", "where": "github.com/ICLR/Master-Template"},
+    "aaai": {"sty": "aaai2026", "where": "aaai.org (AAAI-26 Author Kit)"},
+}
+PAPER_SECTIONS = [("introduction", "Introduction", "sec:intro"),
+                  ("related", "Related Work", "sec:related"),
+                  ("method", "Method", "sec:method"),
+                  ("experiments", "Experiments", "sec:experiments"),
+                  ("conclusion", "Conclusion", "sec:conclusion")]
+
+
+def paper_scaffold(a, title, author, pin, extra):
+    """main.tex for ax new paper, and the other files to write ({path: text})."""
+    venue = a.venue or "plain"
+    v = PAPER_VENUES[venue]
+    sty = v.get("sty", "")
+    anonymous = a.anonymous if a.anonymous is not None else venue != "plain"
+    title = title or "Title"
+    author = author or "Author"
+    files = {}
+    # akizumi-paper exists from the version after v0.8 on; older pins get cleveref only
+    has_helpers = ((template_dir(pin) or REPO) / "akizumi-paper.sty").exists()
+
+    L = ["% !TEX program = pdflatex",
+         "\\documentclass[letterpaper]{article}  % DO NOT CHANGE THIS" if venue == "aaai"
+         else "\\documentclass{article}"]
+    if venue == "plain":
+        L += ["% \\anonymoustrue hides the author names (blind review).",
+              f"\\newif\\ifanonymous \\anonymous{'true' if anonymous else 'false'}"]
+    else:
+        L += ["% \\anonymoustrue: anonymous submission; \\anonymousfalse: camera-ready.",
+              f"\\newif\\ifanonymous \\anonymous{'true' if anonymous else 'false'}",
+              "",
+              f"% {sty}.sty is not included: download the style files from",
+              f"% {v['where']} into this folder.",
+              "% For another year, change the name here and in \\bibliographystyle."]
+    if venue == "plain":
+        if a.bib:
+            L.append("\\usepackage[numbers]{natbib}")
+        L.append("\\usepackage{hyperref}")
+    elif venue == "neurips":
+        L += ["% It loads natbib (author-year); for numeric citations [1, 2] uncomment:",
+              "% \\PassOptionsToPackage{numbers, compress}{natbib}",
+              f"\\ifanonymous\\usepackage{{{sty}}}\\else\\usepackage[final]{{{sty}}}\\fi  % [preprint]: arXiv",
+              "\\usepackage[utf8]{inputenc}", "\\usepackage[T1]{fontenc}",
+              "\\usepackage{hyperref}", "\\usepackage{url}",
+              "\\usepackage{microtype}", "\\usepackage{graphicx}"]
+    elif venue == "icml":
+        L += ["\\usepackage{microtype}", "\\usepackage{graphicx}", "\\usepackage{booktabs}",
+              "\\usepackage{hyperref}",
+              "\\newcommand{\\theHalgorithm}{\\arabic{algorithm}}",
+              f"\\ifanonymous\\usepackage{{{sty}}}\\else\\usepackage[accepted]{{{sty}}}\\fi"]
+    elif venue == "iclr":
+        L += [f"\\usepackage{{{sty},times}}",
+              "% ICLR's math_commands.tex defines \\E, \\R, \\Var, ... as akizumi-math does;",
+              "% use one of the two.",
+              "\\usepackage{hyperref}", "\\usepackage{url}"]
+    elif venue == "aaai":
+        L += [f"\\ifanonymous\\usepackage[submission]{{{sty}}}\\else\\usepackage{{{sty}}}\\fi",
+              "\\usepackage{times}  % DO NOT CHANGE THIS",
+              "\\usepackage{helvet}  % DO NOT CHANGE THIS",
+              "\\usepackage{courier}  % DO NOT CHANGE THIS",
+              "\\usepackage[hyphens]{url}  % DO NOT CHANGE THIS",
+              "\\usepackage{graphicx}  % DO NOT CHANGE THIS",
+              "\\urlstyle{rm}  % DO NOT CHANGE THIS",
+              "\\def\\UrlFont{\\rm}  % DO NOT CHANGE THIS",
+              "\\usepackage{natbib}  % DO NOT ADD OPTIONS",
+              "\\usepackage{caption}  % DO NOT ADD OPTIONS",
+              "\\frenchspacing  % DO NOT CHANGE THIS",
+              "\\setlength{\\pdfpagewidth}{8.5in}  % DO NOT CHANGE THIS",
+              "\\setlength{\\pdfpageheight}{11in}  % DO NOT CHANGE THIS",
+              "% AAAI forbids hyperref; akizumi-paper does not load it."]
+    L.append("")
+    L.append("\\usepackage{akizumi-math}")
+    if has_helpers:
+        L += ["\\usepackage[refstyle=short]{akizumi-paper}  % [final] hides the comments below",
+              "\\ifanonymous\\akizumipapersetup{anonymous}\\fi",
+              "% \\newcommenter{jun}{Jun}{teal}  % \\jun{comment}, \\jun*{edited text}"]
+    else:
+        L.append("\\usepackage[capitalise, noabbrev]{cleveref}")
+    if extra:
+        L += ["", extra]
+    L.append("")
+
+    # title and authors
+    if venue == "icml":
+        L.append(f"\\icmltitlerunning{{{title}}}")
+    else:
+        L.append(f"\\title{{{title}}}")
+    if venue == "plain":
+        L.append(f"\\ifanonymous\\author{{Anonymous}}\\else\\author{{{author}}}\\fi")
+    elif venue == "iclr":
+        L += [f"\\author{{{author} \\\\ Institution \\\\ \\texttt{{email@example.com}}}}",
+              "\\ifanonymous\\else\\iclrfinalcopy\\fi"]
+    elif venue == "aaai":
+        L += [f"\\author{{{author}}}", "\\affiliations{Institution\\\\ email@example.com}"]
+    elif venue == "neurips":
+        L.append(f"\\author{{{author} \\\\ Institution \\\\ \\texttt{{email@example.com}}}}")
+    L += ["", "\\begin{document}"]
+    if venue == "icml":
+        L += ["\\twocolumn[",
+              f"  \\icmltitle{{{title}}}",
+              "  \\begin{icmlauthorlist}",
+              f"    \\icmlauthor{{{author}}}{{inst}}",
+              "  \\end{icmlauthorlist}",
+              "  \\icmlaffiliation{inst}{Institution, City, Country}",
+              f"  \\icmlcorrespondingauthor{{{author}}}{{email@example.com}}",
+              "  \\icmlkeywords{Machine Learning}",
+              "  \\vskip 0.3in",
+              "]",
+              "\\printAffiliationsAndNotice{}"]
+    else:
+        L.append("\\maketitle")
+    L += ["", "\\begin{abstract}", "\\end{abstract}", ""]
+
+    # body: one file per section with --split
+    if a.split:
+        for name, heading, label in PAPER_SECTIONS:
+            files[f"sections/{name}.tex"] = f"\\section{{{heading}}}\\label{{{label}}}\n\n"
+            L.append(f"\\input{{sections/{name}}}")
+        files["sections/appendix.tex"] = "\\section{Additional Results}\\label{app:results}\n\n"
+    else:
+        L += ["\\section{Introduction}\\label{sec:intro}", ""]
+    L.append("")
+
+    if venue == "plain":
+        if a.bib:
+            L += ["\\bibliographystyle{plainnat}", "\\bibliography{refs}"]
+    elif venue == "neurips":
+        L += ["\\bibliographystyle{plainnat}", "\\bibliography{refs}"]
+    elif venue in ("icml", "iclr"):
+        L += ["\\bibliography{refs}", f"\\bibliographystyle{{{sty}}}"]
+    else:  # aaai: the style file sets the bibliography style
+        L.append("\\bibliography{refs}")
+    if a.split or venue in ("neurips", "icml", "iclr"):
+        L += ["", "\\newpage", "\\appendix"]
+        if venue == "icml":
+            L.append("\\onecolumn")
+        if a.split:
+            L.append("\\input{sections/appendix}")
+    if venue == "neurips":
+        L += ["", "% NeurIPS paper checklist: checklist.tex from the style files",
+              "% \\input{checklist}"]
+    L += ["", "\\end{document}"]
+    return "\n".join(L) + "\n", files
 
 
 def cmd_new(a):
@@ -599,10 +752,10 @@ def cmd_new(a):
               "Kinds: " + ", ".join(f"{k} ({KIND_NAME[k]})" for k in KINDS)))
     # config.json "defaults": {"slides": {"progress": true}, "note": {"layout": "margin"}}
     for key, value in user.get("defaults", {}).get(a.kind, {}).items():
-        if key in ("lang", "thmnames", "text", "paper", "layout", "course", "author", "id"):
+        if key in ("lang", "thmnames", "text", "paper", "layout", "course", "author", "id", "venue"):
             if getattr(a, key, None) is None:
                 setattr(a, key, value)
-        elif key in ("bib", "progress", "git") and value and not getattr(a, key):
+        elif key in ("bib", "progress", "git", "split") and value and not getattr(a, key):
             setattr(a, key, True)
         elif key == "byline":
             a.byline = bool(value)
@@ -640,6 +793,11 @@ def cmd_new(a):
     if a.bib and a.kind in ("hw", "exam"):
         warn(T(f"{KIND_NAME[a.kind]}不支援 --bib，已略過", f"--bib is not available for {KIND_NAME[a.kind]}; skipped"))
         a.bib = False
+    if a.kind != "paper" and (a.venue or a.split or a.anonymous is not None):
+        warn(T("--venue、--split、--anonymous 只用在 paper，已略過",
+               "--venue, --split and --anonymous are for paper only; skipped"))
+    if a.kind == "paper" and (a.venue or "plain") != "plain":
+        a.bib = True  # the venue's style loads natbib; refs.bib is expected
 
     # --- ax new hw --problems: one file per problem ---
     problems = parse_problems(a.problems, a.kind) if a.problems else []
@@ -687,12 +845,6 @@ def cmd_new(a):
         if a.bib:
             lines += ["\\usepackage[backend=biber, style=numeric-comp, sorting=none]{biblatex}",
                       "\\addbibresource{refs.bib}"]
-    elif a.kind == "paper":
-        lines += ["\\usepackage{akizumi-math}",
-                  "\\usepackage{hyperref}",
-                  "\\usepackage[capitalise, noabbrev]{cleveref}"]
-        if a.bib:
-            lines.append("\\usepackage[numbers]{natbib}")
 
     setup = []
     if a.course:
@@ -724,14 +876,19 @@ def cmd_new(a):
         bibend = {
             "slides": "\\begin{frame}[allowframebreaks]{References}\n"
                       "  \\printbibliography\n\\end{frame}\n",
-            "paper": "\\bibliographystyle{plainnat}\n\\bibliography{refs}\n\n",
         }.get(a.kind, "\\printbibliography\n\n")
     body = body.replace("<<BIBEND>>", bibend)
 
     target.mkdir(parents=True, exist_ok=True)
     (target / "figures").mkdir(exist_ok=True)
     (target / "figures" / ".gitkeep").touch()
-    (target / "main.tex").write_text("\n".join(lines) + "\n\n" + body)
+    main_text, other_files = "\n".join(lines) + "\n\n" + body, {}
+    if a.kind == "paper":
+        main_text, other_files = paper_scaffold(a, title, author, pin, extra)
+    (target / "main.tex").write_text(main_text)
+    for name, text in other_files.items():
+        (target / name).parent.mkdir(parents=True, exist_ok=True)
+        (target / name).write_text(text)
     if problems:
         write_problem_files(target, problems)
     write_build_files(target, a.kind)
@@ -766,6 +923,10 @@ def cmd_new(a):
     shared = shared_preamble(target) if a.kind != "paper" else None
     if shared:
         note(T(f"  編譯時會讀共用 preamble {shared}", f"  Builds read the shared preamble {shared}"))
+    if a.kind == "paper" and (a.venue or "plain") != "plain":
+        v = PAPER_VENUES[a.venue]
+        warn(T(f"  {v['sty']}.sty 沒有附上：從 {v['where']} 下載到 {target}",
+               f"  {v['sty']}.sty is not included: download it from {v['where']} into {target}"))
     print(T("\n下一步：", "\nNext:"))
     print(f"  {cmd_text(f'cd {target}')}")
     keys = 'Cmd+Option+V' if MACOS else 'Ctrl+Alt+V'
@@ -2176,6 +2337,9 @@ def cmd_selftest(a):
     if a.part in ("all", "projects"):
         tmp = Path(tempfile.mkdtemp(prefix="ax-selftest-"))
         ax = [sys.executable, str(AX)]
+        # --pin latest builds against this checkout, not the installed copy
+        # (they differ in a worktree; new template files must be found too)
+        os.environ["TEXINPUTS"] = f"{REPO}{os.pathsep}{os.environ.get('TEXINPUTS', '')}"
         for kind in KINDS:
             d = tmp / f"t-{kind}"
             # --pin latest: test the templates as they are now, not the last tag
@@ -2246,6 +2410,30 @@ def cmd_selftest(a):
             if not good:
                 print(out)
         result(good, T("專案 code=minted", "project code=minted"))
+        # paper venues: the scaffold builds on the venue's style file without
+        # option clashes. tests/venue-stubs stand in for the real files.
+        bst = subprocess.run(["kpsewhich", "plainnat.bst"], capture_output=True, text=True).stdout.strip()
+        for venue, v in PAPER_VENUES.items():
+            if not v:
+                continue
+            d = tmp / f"t-paper-{venue}"
+            r = subprocess.run(ax + ["new", "paper", str(d), "--venue", venue, "--split", "--title", "Test",
+                                     "--no-preamble", "--pin", "latest"], stdin=subprocess.DEVNULL,
+                               capture_output=True, encoding="utf-8", errors="replace")
+            code, out = r.returncode, r.stdout + r.stderr
+            if code == 0:
+                shutil.copy(REPO / "tests" / "venue-stubs" / f"{venue}.sty", d / f"{v['sty']}.sty")
+                if bst:
+                    shutil.copy(bst, d / f"{v['sty']}.bst")
+                (d / "refs.bib").write_text("@article{key, author={A. Author}, title={T}, "
+                                            "journal={J}, year={2026}}\n")
+                intro = d / "sections" / "introduction.tex"
+                intro.write_text(intro.read_text() + "See \\citet{key}, \\eg \\cref{sec:method}.\n")
+                code, out, _ = run_with_spinner(ax + ["build"], T(f"專案 paper {venue}", f"project paper {venue}"),
+                                                cwd=d)
+            result(code == 0, T(f"專案 paper --venue {venue}", f"project paper --venue {venue}"))
+            if code:
+                print(out)
         # main languages, with all three scripts in one document. Missing
         # characters depend on the fonts installed, so they only warn.
         for lang in ("zh", "ja", "ko"):
@@ -2461,6 +2649,16 @@ def main():
                    help=T("程式碼上色：listings（預設）或 minted（Pygments，編譯時加 -shell-escape）",
                           "code highlighting: listings (default) or minted (Pygments; builds with -shell-escape)"))
     n.add_argument("--progress", action="store_true", help=T("簡報底部加進度條", "progress bar along the slides' bottom"))
+    n.add_argument("--venue", choices=list(PAPER_VENUES),
+                   help=T("paper：投稿的會議（預設 plain）；會議的 .sty 要自己下載",
+                          "paper: the venue (default plain); you download its .sty"))
+    n.add_argument("--split", action="store_true",
+                   help=T("paper：每一節放在 sections/ 裡的獨立檔案", "paper: each section in its own file in sections/"))
+    g = n.add_mutually_exclusive_group()
+    g.add_argument("--anonymous", action="store_true", default=None,
+                   help=T("paper：匿名投稿版（會議預設如此）", "paper: anonymous submission (the default for venues)"))
+    g.add_argument("--no-anonymous", dest="anonymous", action="store_false",
+                   help=T("paper：署名版（camera-ready）", "paper: with author names (camera-ready)"))
     n.add_argument("--pin", help=T("模板版本，預設最新的 tag；latest 表示永遠用安裝的最新檔案",
                                    "template version; default the newest tag. latest always uses the installed files"))
     n.add_argument("--git", action="store_true", help=T("建立 git repo 並做第一個 commit",

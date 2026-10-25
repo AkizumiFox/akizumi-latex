@@ -168,6 +168,20 @@ if ($ax_pin && $ax_pin !~ /^(latest|frozen)$/) {
 # macOS only: TeX Live's biber does not start with current Command Line Tools.
 $biber = "'$ENV{HOME}/bin/biber' %O %S" if $^O eq 'darwin' && -x "$ENV{HOME}/bin/biber";
 $pdf_previewer = 'open -a Skim' if $^O eq 'darwin' && -d '/Applications/Skim.app';
+
+# ---------- index (index=true) ----------
+# latexmk runs the indexer for every .idx: upmendex, which sorts Chinese,
+# Japanese and Korean, when installed, else makeindex. akizumi-index writes
+# <name>.ist next to <name>.idx with the collation for the main language.
+use File::Spec;
+$makeindex = 'internal ax_makeindex %O -o %D %S';
+sub ax_makeindex {
+  (my $ist = $_[-1]) =~ s/\.idx$/.ist/;
+  if (grep { -f "$_/upmendex" || -f "$_/upmendex.exe" } File::Spec->path()) {
+    return system('upmendex', (-f $ist ? ('-s', $ist) : ()), @_);
+  }
+  return system('makeindex', @_);
+}
 """
 
 # Cursor / VS Code (LaTeX Workshop): build with latexmk so latexmkrc decides
@@ -1291,6 +1305,10 @@ def cmd_doctor(a):
     report(biber_ok, T("biber（參考文獻）", "biber (references)"),
            (r.stdout.strip().splitlines() or [""])[-1] if biber_ok else T("啟動失敗", "does not start"),
            T("見 docs/reference.md〈疑難排解〉", "See Troubleshooting in docs/reference.md"))
+    # index=true: latexmk runs upmendex when it is there, else makeindex
+    optional(bool(shutil.which("upmendex")), T("upmendex（中日韓索引排序）", "upmendex (CJK index sorting)"),
+             "" if shutil.which("upmendex") else T("沒裝，索引改用 makeindex，中文照字碼排",
+                                                   "not installed; makeindex sorts CJK terms by code point"))
     report(bool(shutil.which("git")), "git", "" if shutil.which("git") else missing,
            T("安裝 git；模板版本靠它管理", "Install git; template versions rely on it"))
     report(bool(shutil.which("ax")), T("ax 在 PATH 上", "ax on PATH"), "" if shutil.which("ax") else missing,
@@ -1483,6 +1501,20 @@ def cmd_selftest(a):
             result(code == 0, T(f"範例 {name:<7}（{elapsed(secs)}）", f"example {name:<7} ({elapsed(secs)})"))
             if code:
                 print_error(ex / "build" / f"{name}.log")
+    if a.part in ("all", "tests"):
+        # tests/*.tex: one small document per feature, built against the working
+        # tree; "% !TEX program = pdflatex|lualatex" on line 1 picks the engine
+        td = REPO / "tests"
+        shutil.rmtree(td / "build", ignore_errors=True)
+        for tex in sorted(td.glob("*.tex")):
+            first = tex.read_text(errors="replace").split("\n", 1)[0]
+            engine = "-pdf" if "pdflatex" in first else "-lualatex" if "lualatex" in first else "-xelatex"
+            code, _, secs = run_with_spinner(
+                ["latexmk", "-r", "latexmkrc", engine, "-halt-on-error", "-interaction=nonstopmode",
+                 tex.name], T(f"測試 {tex.stem}", f"test {tex.stem}"), cwd=td)
+            result(code == 0, T(f"測試 {tex.stem}（{elapsed(secs)}）", f"test {tex.stem} ({elapsed(secs)})"))
+            if code:
+                print_error(td / "build" / f"{tex.stem}.log")
     if a.part in ("all", "projects"):
         tmp = Path(tempfile.mkdtemp(prefix="ax-selftest-"))
         ax = [sys.executable, str(AX)]
@@ -1549,6 +1581,35 @@ def cmd_selftest(a):
                 if missing:
                     warn(T(f"lang={lang} 缺字（裝 Noto CJK 可補齊）：{' '.join(missing[:10])}",
                            f"lang={lang} missing characters (Noto CJK fills them in): {' '.join(missing[:10])}"))
+        # ---------- index=true: ax build runs the indexer (upmendex or makeindex) ----------
+        d = tmp / "t-index"
+        r = subprocess.run(ax + ["new", "note", str(d), "--lang", "zh", "--no-preamble", "--pin", "latest"],
+                           stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace")
+        code, out = r.returncode, r.stdout + r.stderr
+        if code == 0:
+            main_tex = d / "main.tex"
+            main_tex.write_text(main_tex.read_text().replace("[lang=zh]", "[lang=zh, index=true]").replace(
+                "\\section{Introduction}", "\\printnotation\n\\section{Introduction}\n"
+                "積分\\index{積分}、一致\\index{一致}、mesh\\index{partition!mesh}"
+                "\\nota{$\\abs{x}$}{絕對值 |x|}\n\\printindex"))
+            # this checkout's templates, not the installed ones
+            old = os.environ.get("TEXINPUTS")
+            os.environ["TEXINPUTS"] = f"{REPO}{os.pathsep}"
+            try:
+                code, out, _ = run_with_spinner(ax + ["build"], T("專案 索引", "project index"), cwd=d)
+            finally:
+                if old is None:
+                    os.environ.pop("TEXINPUTS", None)
+                else:
+                    os.environ["TEXINPUTS"] = old
+            ind = d / "build" / "main.ind"
+            nota = d / "build" / "main-notation.ind"
+            if code == 0 and not (ind.exists() and "\\hyperpage" in ind.read_text()
+                                  and nota.exists() and "絕對值" in nota.read_text()):
+                code, out = 1, T("索引或符號表沒有產生", "the index or the notation list was not made")
+        result(code == 0, T("專案 索引（index=true）", "project index (index=true)"))
+        if code:
+            print(out)
         shutil.rmtree(tmp, ignore_errors=True)
     print()
     if failed:
@@ -1781,7 +1842,7 @@ def main():
     c.add_argument("shell", choices=["zsh", "bash", "powershell"])
     c.set_defaults(func=cmd_completion)
     t = sub.add_parser("selftest", help=HELP_LINES["selftest"], description=HELP_LINES["selftest"])
-    t.add_argument("part", nargs="?", choices=["all", "examples", "projects"], default="all")
+    t.add_argument("part", nargs="?", choices=["all", "examples", "tests", "projects"], default="all")
     t.set_defaults(func=cmd_selftest)
 
     # internal: latexmkrc asks for the pinned template path; ax watch explains

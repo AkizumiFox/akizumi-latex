@@ -4,29 +4,33 @@
 
 ## ax new 的選項與專案內容
 
-`ax new` 的選項：
-
-
+不給參數直接打 `ax new`，會用選單問你種類、資料夾和標題。選項：
 
 | 選項 | 意思 |
 |---|---|
 | `--title` | 標題（作業不需要，會自動寫成「作業 N」） |
 | `--author` | 作者，預設取自 `config.json` |
-| `--course` | 課名；書是標題上方那一行，簡報是日期那一行 |
+| `--course` | 課名；作業、講義、考卷放在頁首和標題上方，書和簡報放在標題上方 |
 | `--number` `--due` `--id` | 作業編號、繳交期限、學號 |
 | `--lang zh\|en` | 主語言，預設取自 `config.json` |
 | `--text serif\|sans` `--paper a4\|letter\|pad` `--layout normal\|margin` | 見〈文件選項〉 |
 | `--bib` | 加上 `refs.bib` 和參考文獻 |
 | `--progress` | 簡報底部的進度條 |
 | `--git` | 建立 git repo 並做第一個 commit |
+| `--no-preamble` | 這次不加入你的 `preamble.tex`、`preamble-種類.tex`（見 README〈自訂 preamble〉） |
+| `--pin v0.7` | 指定模板版本；預設是最新的 tag。`--pin latest` 表示永遠用安裝的最新檔案（改模板時測試用） |
+| `--force` | 資料夾已存在且不是空的也照樣建立 |
+
+`config.json` 的 `defaults` 可以替每種文件設預設選項，命令列給的優先。
 
 每個新專案的內容：
 
 ```
 ode-hw3/
 ├── main.tex      序言已經填好
-├── latexmkrc     編譯設定（XeLaTeX、輸出到 build/、SyncTeX）
+├── latexmkrc     編譯設定（XeLaTeX、輸出到 build/、SyncTeX）；沒有電腦專屬的路徑
 ├── .ax.json      記錄種類和模板版本
+├── .vscode/      Cursor／VS Code 的編譯設定
 ├── .gitignore
 ├── figures/
 └── refs.bib      加了 --bib 才有
@@ -231,31 +235,45 @@ TikZ 圖可以用跟簡報一致的樣式：
 
 ## ax 指令細節
 
+除了 `new`、`doctor`、`config`、`completion`，其他指令都在專案資料夾裡執行；在它的子資料夾（例如 `figures/`）裡也可以，`ax` 會像 git 一樣往上找 `.ax.json`。
+
 | 指令 | 作用 |
 |---|---|
+| `ax` | 在專案裡：顯示種類、模板版本（有新版會提示）、PDF 什麼時候更新的、常用指令。不在專案裡：顯示說明 |
 | `ax new` | 建立專案（見〈ax new 的選項〉） |
-| `ax build` | 編譯一次。只有成功才更新 `main.pdf`；失敗時印出第一個錯誤的檔案、行號和那一行，保留舊 PDF |
-| `ax watch` | 存檔就重編；有 Skim 就用 Skim 開，否則用預覽程式 |
+| `ax build` | 編譯一次，顯示花了幾秒。只有成功才更新 `main.pdf`；失敗時印出第一個錯誤的檔案、行號和那一行，附上白話提示，保留舊 PDF |
+| `ax watch` | 存檔就重編，每次成功或失敗都會說；有 Skim 就用 Skim 開 |
+| `ax open` | 用系統預設的閱讀器打開 PDF；`--solutions` 打開解答 |
 | `ax both` | 作業／考卷：`main.pdf`（題目）和 `main-solutions.pdf`（解答） |
-| `ax doctor` | 檢查工具、字型、模板安裝和版本 |
-| `ax upgrade` | 把專案換到最新的模板版本 |
+| `ax doctor` | 檢查工具、字型、模板安裝和版本，最後列出有問題的項目和修法 |
+| `ax upgrade` | 把專案換到最新的模板版本，順便更新 `latexmkrc` 和編輯器設定 |
 | `ax freeze` | 把模板檔複製進專案，從此不依賴這個 repo |
-| `ax pack` | 打包成 `<資料夾名>-overleaf.zip` |
+| `ax pack` | 打包成 `<資料夾名>-overleaf.zip`，告訴你上傳後要選哪個編譯器 |
+| `ax config` | 設定資料夾、`config.json`、preamble、模板快取各在哪裡 |
+| `ax completion zsh\|bash\|powershell` | 印出 Tab 補全腳本；裝法見 `ax completion --help` |
+| `ax selftest` | 重編所有範例、建立並編譯每種專案（改模板後用，見〈維護這套模板〉） |
 | `ax --version` | 目前最新的模板版本 |
 
-`ax build` 錯誤訊息的樣子：
+`ax build` 失敗時的樣子：
 
 ```
-failed  main.tex
-  ./main.tex:11: Undefined control sequence.
-    l.11 \undefinedmacro
-                         here
-  kept the previous main.pdf
+✗ 編譯失敗：main.tex
+  ./main.tex:10：Missing $ inserted.
+    l.10 x_
+           1 不在數學模式
+  提示：數學符號（_、^、\alpha 等）要放在 $...$ 裡
+  上一份 main.pdf 保留著，沒有被覆蓋
+  完整紀錄：build/main.log
 ```
 
-`l.11` 那兩行是原始碼第 11 行，斷開的地方就是出錯的位置。
+`l.10` 那兩行是原始碼第 10 行，斷開的地方就是出錯的位置。
 
-`ax build` 還會處理兩種常見狀況：latexmk 記住上一次的失敗而不肯重跑時，自動清掉重試一次；編譯超過 10 分鐘（通常是在等輸入）就停止。
+`ax build` 還會處理幾種常見狀況：
+
+- latexmk 記住上一次的失敗而不肯重跑時，自動清掉重試一次。
+- 編譯超過 10 分鐘（通常是在等輸入）就停止。
+- 打錯指令、文件種類或選項值時，猜你想打什麼，例如 `ax biuld` → `ax build`。
+- 輸出導到檔案或設定了 `NO_COLOR` 時，不加顏色和轉圈動畫。
 
 ## 版本固定
 

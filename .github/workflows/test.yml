@@ -29,6 +29,8 @@ jobs:
           packages: >
             scheme-basic
             collection-xetex
+            collection-latexrecommended
+            collection-pictures
             collection-latexextra
             collection-fontsrecommended
             collection-bibtexextra

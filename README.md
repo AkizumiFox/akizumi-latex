@@ -30,6 +30,8 @@ python3 install.py        # Windows：py install.py
 
 三個欄位都可省略，之後每個新專案會自動填入。
 
+**Tab 補全**（選用）：在 `~/.zshrc` 加 `eval "$(ax completion zsh)"`，之後打 `ax ` 再按 Tab 就會列出指令和文件種類。bash、PowerShell 的寫法見 `ax completion --help`。
+
 ## 開始一份文件
 
 ```sh
@@ -63,15 +65,19 @@ cursor ode-hw3
 
 ## 日常指令
 
-在專案資料夾裡：
+在專案資料夾（或它的任何子資料夾）裡：
 
 | 指令 | 作用 |
 |---|---|
+| `ax` | 這個專案的狀態：種類、模板版本、PDF 什麼時候更新的 |
 | `ax watch` | 存檔就重編（不用 Cursor 時） |
-| `ax build` | 編譯一次；失敗時指出錯在哪一行，並保留上一份 PDF |
+| `ax build` | 編譯一次；失敗時指出錯在哪一行、附上白話提示，並保留上一份 PDF |
+| `ax open` | 打開 PDF（`--solutions` 打開解答） |
 | `ax both` | 作業、考卷：同時產生題目卷和解答 |
 | `ax pack` | 打包上傳 Overleaf（編譯器選 XeLaTeX） |
 | `ax doctor` | 出問題時先跑這個 |
+
+打錯指令時 `ax` 會猜你想打什麼，例如 `ax biuld` 會問你是不是要 `ax build`。
 
 ## 在 Cursor 裡寫
 

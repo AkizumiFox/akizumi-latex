@@ -1,22 +1,14 @@
 #!/usr/bin/env python3
 """ax -- start and build LaTeX projects on the akizumi-latex templates.
 
-  ax new [KIND] [DIR] [opts] start a project: hw, note, exam, slides, book, paper
-                             (asks for anything left out)
-  ax build [FILE]            compile once; the PDF is replaced only on success
-  ax watch [FILE]            recompile on every save and keep the viewer open
-  ax both [FILE]             problem sheet and answer key (hw, exam)
-  ax doctor                  check the toolchain, fonts and template versions
-  ax freeze                  copy the pinned template files into the project
-  ax upgrade                 move the project to the newest template version
-  ax pack                    zip the project for Overleaf (compiler: XeLaTeX)
-
-Each project records its template version in .ax.json. Its latexmkrc asks
-`ax texinputs` for that version, so editors that call latexmk directly build
-against the same files as `ax build`.
+Each project records its template version in .ax.json; its latexmkrc reads
+that file and finds the version in ax's cache, so editors that call latexmk
+directly build against the same files as `ax build`. Runs on macOS, Linux and
+Windows (bin/ax.cmd). Messages are in Traditional Chinese, matching the docs.
 """
 
 import argparse
+import difflib
 import io
 import json
 import os
@@ -26,6 +18,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -72,6 +65,22 @@ KINDS = {
     "slides": "beamer",
     "paper": "article",
 }
+KIND_NAME = {"hw": "作業", "note": "講義", "exam": "考卷", "book": "論文／書",
+             "slides": "簡報", "paper": "投稿論文"}
+KIND_HELP = {
+    "hw": "作業：題目、解答，ax both 一次產生題目卷和解答",
+    "note": "講義、筆記、報告",
+    "exam": "考卷、小考：配分、評分表",
+    "slides": "簡報",
+    "book": "論文、長篇講義：章、封面、每章目錄",
+    "paper": "投稿論文的內文：用會議模板，只借數學巨集（pdfLaTeX）",
+}
+# commands shown to people; the rest are called by latexmk
+PUBLIC_COMMANDS = ["new", "build", "watch", "open", "both", "doctor", "upgrade",
+                   "freeze", "pack", "config", "completion", "selftest"]
+NEW_OPTIONS = ["--title", "--author", "--course", "--number", "--due", "--id", "--lang",
+               "--text", "--paper", "--layout", "--bib", "--progress", "--pin", "--git",
+               "--no-preamble", "--force"]
 
 LATEXMKRC = r"""# Written by ax. Builds into build/; `ax build` copies the PDF out only when
 # the run succeeds. No machine-specific paths: the same file works on macOS,
@@ -130,6 +139,117 @@ build/
 """
 
 
+# ---------- terminal output ----------
+# Colour and the spinner only when writing to a terminal; NO_COLOR turns
+# colour off (https://no-color.org).
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+
+def _enable_windows_ansi():
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)
+        mode = ctypes.c_ulong()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+    except (AttributeError, OSError):
+        pass
+    return False
+
+
+def _color_on(stream):
+    if os.environ.get("NO_COLOR") or not stream.isatty():
+        return False
+    return _enable_windows_ansi() if WINDOWS else True
+
+
+def _unicode_ok(stream):
+    enc = (getattr(stream, "encoding", "") or "").lower()
+    return "utf" in enc
+
+
+COLOR = {"out": _color_on(sys.stdout), "err": _color_on(sys.stderr)}
+MARK = ({"ok": "✓", "fail": "✗", "warn": "!", "dot": "·"} if _unicode_ok(sys.stdout)
+        else {"ok": "ok", "fail": "x", "warn": "!", "dot": "-"})
+
+
+def _paint(text, code, err=False):
+    return f"\033[{code}m{text}\033[0m" if COLOR["err" if err else "out"] else text
+
+
+def ok(msg):
+    print(f"{_paint(MARK['ok'], '32')} {msg}", flush=True)
+
+
+def fail(msg):
+    print(f"{_paint(MARK['fail'], '31', err=True)} {msg}", file=sys.stderr, flush=True)
+
+
+def warn(msg):
+    print(f"{_paint(MARK['warn'], '33')} {msg}", flush=True)
+
+
+def note(msg, err=False):
+    print(_paint(msg, "2", err=err), file=sys.stderr if err else sys.stdout, flush=True)
+
+
+def cmd_text(text):
+    """A command the reader should type, in bold."""
+    return _paint(text, "1")
+
+
+def die(msg, hint=None):
+    fail(msg)
+    if hint:
+        note(f"  {hint}", err=True)
+    sys.exit(1)
+
+
+def elapsed(seconds):
+    return f"{seconds:.1f} 秒" if seconds < 60 else f"{int(seconds // 60)} 分 {int(seconds % 60)} 秒"
+
+
+def run_with_spinner(cmd, label, cwd=None, timeout=TIMEOUT):
+    """Run cmd, showing 'label … 3.2 s' on a terminal while it works."""
+    start = time.time()
+    proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            stdin=subprocess.DEVNULL, text=True, errors="replace")
+    spin = sys.stderr.isatty()
+    frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if _unicode_ok(sys.stderr) else "|/-\\"
+    i = 0
+    while True:
+        try:
+            out, _ = proc.communicate(timeout=0.12)
+            break
+        except subprocess.TimeoutExpired:
+            if time.time() - start > timeout:
+                proc.kill()
+                proc.communicate()
+                if spin:
+                    sys.stderr.write("\r\033[K")
+                die(f"超過 {timeout // 60} 分鐘還沒結束，已停止",
+                    "通常是 LaTeX 在等輸入；看 build/ 裡的 .log 找原因")
+            if spin:
+                sys.stderr.write(f"\r{frames[i % len(frames)]} {label} {time.time() - start:4.1f} 秒")
+                sys.stderr.flush()
+                i += 1
+    if spin:
+        sys.stderr.write("\r\033[K")
+        sys.stderr.flush()
+    return proc.returncode, out, time.time() - start
+
+
+def need_tool(name, hint):
+    if not shutil.which(name):
+        die(f"找不到 {name}", hint)
+
+
 # ---------- small helpers ----------
 
 def write_build_files(target, kind):
@@ -156,14 +276,11 @@ def copy_pdf(src, dest):
         return False
 
 
-def die(msg):
-    print(f"ax: {msg}", file=sys.stderr)
-    sys.exit(1)
-
-
 def git(*args):
-    return subprocess.run(["git", "-C", str(REPO), *args],
-                          capture_output=True, text=True)
+    try:
+        return subprocess.run(["git", "-C", str(REPO), *args], capture_output=True, text=True)
+    except OSError:
+        return subprocess.CompletedProcess(args, 1, "", "")
 
 
 def template_tags():
@@ -187,6 +304,28 @@ def save_project_config(cfg):
     Path(PROJECT_CONFIG).write_text(json.dumps(cfg, indent=2) + "\n")
 
 
+def find_project(quiet=False):
+    """Like git: use the nearest folder upwards that has .ax.json, and work
+    from there. Returns its config, or {} outside a project."""
+    here = Path.cwd()
+    for folder in (here, *here.parents):
+        if (folder / PROJECT_CONFIG).exists():
+            if folder != here:
+                os.chdir(folder)
+                if not quiet:
+                    note(f"（在專案資料夾 {folder} 執行）")
+            return project_config()
+    return {}
+
+
+def require_project():
+    cfg = find_project()
+    if not cfg:
+        die("這裡不是 ax 專案（往上找也找不到 .ax.json）",
+            f"建立新專案：{cmd_text('ax new')}；或先 cd 到專案資料夾")
+    return cfg
+
+
 def template_dir(pin):
     """Directory holding the template files for a pinned version, or None to
     use whatever is installed (pin 'latest') or the project's own copies
@@ -200,8 +339,7 @@ def template_dir(pin):
         return None
     CACHE.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix=f".{pin}-", dir=CACHE))
-    archive = subprocess.run(["git", "-C", str(REPO), "archive", pin],
-                             capture_output=True)
+    archive = subprocess.run(["git", "-C", str(REPO), "archive", pin], capture_output=True)
     if archive.returncode:
         return None
     with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as t:
@@ -224,30 +362,49 @@ def template_files(directory):
 
 
 def main_file(arg):
-    name = arg or project_config().get("main", "main.tex")
-    path = Path(name if name.endswith(".tex") else name + ".tex")
+    """The .tex file to build: the argument, else the project's main file."""
+    if arg:
+        path = Path(arg if arg.endswith(".tex") else arg + ".tex")
+        if not path.exists():
+            die(f"找不到 {path}")
+        return path
+    cfg = require_project()
+    path = Path(cfg.get("main", "main.tex"))
     if not path.exists():
-        die(f"{path} not found (run inside a project, or name the .tex file)")
+        die(f"找不到專案的主檔 {path}", "檢查 .ax.json 裡的 main")
     return path
+
+
+def suggest(word, choices):
+    match = difflib.get_close_matches(word, choices, n=1, cutoff=0.5)
+    return match[0] if match else None
 
 
 # ---------- ax new ----------
 
-KIND_HELP = {
-    "hw": "homework: problems, solutions, ax both",
-    "note": "lecture notes / write-up",
-    "exam": "exam or quiz on the exam class",
-    "slides": "beamer slides",
-    "book": "thesis or long notes with chapters",
-    "paper": "paper body for a venue template (pdfLaTeX, akizumi-math only)",
-}
-
-
 def ask(prompt):
     try:
         return input(prompt).strip()
-    except EOFError:
-        return ""
+    except (EOFError, KeyboardInterrupt):
+        print()
+        sys.exit(130)
+
+
+def choose_kind():
+    names = list(KINDS)
+    print("要建立哪一種文件？")
+    for i, k in enumerate(names, 1):
+        print(f"  {cmd_text(str(i))}. {k:<7} {_paint(KIND_HELP[k], '2')}")
+    for _ in range(3):
+        choice = ask(f"種類 [1-{len(names)}]：")
+        if choice.isdigit() and 1 <= int(choice) <= len(names):
+            return names[int(choice) - 1]
+        if choice in KINDS:
+            return choice
+        guess = suggest(choice, names)
+        warn(f"沒有「{choice}」這種文件" + (f"，你是不是要選 {guess}？" if guess else "")
+             + f" 請輸入 1–{len(names)} 或種類名稱")
+    die("沒有選到種類")
 
 
 def user_preamble(kind):
@@ -255,7 +412,7 @@ def user_preamble(kind):
     kind except paper, which follows a venue template) and preamble-KIND.tex,
     both in the config directory. Copied into main.tex, so the project stays
     self-contained."""
-    parts = []
+    parts, used = [], []
     names = ([] if kind == "paper" else ["preamble.tex"]) + [f"preamble-{kind}.tex"]
     for name in names:
         f = CONFIG_DIR / name
@@ -263,7 +420,8 @@ def user_preamble(kind):
             text = f.read_text().strip()
             if text:
                 parts.append(f"% --- from {name} ---\n{text}")
-    return "\n".join(parts)
+                used.append(name)
+    return "\n".join(parts), used
 
 
 def cmd_new(a):
@@ -271,19 +429,12 @@ def cmd_new(a):
     interactive = sys.stdin.isatty()
     if a.kind is None:
         if not interactive:
-            die("ax new needs a KIND: " + ", ".join(KINDS))
-        names = list(KINDS)
-        for i, k in enumerate(names, 1):
-            print(f"  {i}. {k:<7} {KIND_HELP[k]}")
-        choice = ask("Kind [1-6]: ")
-        if choice.isdigit() and 1 <= int(choice) <= len(names):
-            a.kind = names[int(choice) - 1]
-        elif choice in KINDS:
-            a.kind = choice
-        else:
-            die(f"unknown kind {choice!r}")
+            die("ax new 需要種類", "例如 ax new note 資料夾名稱；種類：" + "、".join(KINDS))
+        a.kind = choose_kind()
     if a.kind not in KINDS:
-        die(f"unknown kind {a.kind!r}; choose from " + ", ".join(KINDS))
+        guess = suggest(a.kind, list(KINDS))
+        die(f"沒有「{a.kind}」這種文件" + (f"，你是不是要打 {cmd_text(guess)}？" if guess else ""),
+            "可用的種類：" + "、".join(f"{k}（{KIND_NAME[k]}）" for k in KINDS))
     # config.json "defaults": {"slides": {"progress": true}, "note": {"layout": "margin"}}
     for key, value in user.get("defaults", {}).get(a.kind, {}).items():
         if key in ("lang", "text", "paper", "layout", "course", "author", "id"):
@@ -293,25 +444,27 @@ def cmd_new(a):
             setattr(a, key, True)
     if a.dir is None:
         if not interactive:
-            die("ax new needs a DIR")
-        a.dir = ask("Directory: ") or die("no directory given")
+            die("ax new 需要資料夾名稱", f"例如 ax new {a.kind} my-{a.kind}")
+        a.dir = ask("資料夾名稱：") or die("沒有給資料夾名稱")
     target = Path(a.dir)
     if target.exists() and any(target.iterdir()) and not a.force:
-        die(f"{target} exists and is not empty (use --force)")
+        die(f"{target} 已經存在而且不是空的", "換一個名字，或加 --force 照樣建立")
 
     title = a.title
     if title is None and a.kind != "hw" and interactive:
-        title = ask("Title: ") or None
+        title = ask("標題：") or None
     if a.kind == "hw" and a.course is None and interactive:
-        a.course = ask("Course (optional): ") or None
+        a.course = ask("課名（可留白）：") or None
     author = a.author or user.get("author") or git("config", "user.name").stdout.strip()
     student_id = a.id or user.get("id")
     lang = a.lang or user.get("lang", "en")
     tags = template_tags()
     pin = a.pin or (tags[0] if tags else "latest")
+    if a.pin and a.pin not in tags:
+        die(f"沒有模板版本 {a.pin}", "現有版本：" + ("、".join(tags) or "（尚未打版本）"))
 
     if a.bib and a.kind in ("hw", "exam"):
-        print("ax: --bib is ignored for hw and exam", file=sys.stderr)
+        warn(f"{KIND_NAME[a.kind]}不支援 --bib，已略過")
         a.bib = False
 
     # class options
@@ -365,7 +518,7 @@ def cmd_new(a):
         lines.append(f"\\title{{{title}}}")
     if author:
         lines.append(f"\\author{{{author}}}")
-    extra = "" if a.no_preamble else user_preamble(a.kind)
+    extra, used_preambles = ("", []) if a.no_preamble else user_preamble(a.kind)
     if extra:
         lines += ["", extra]
 
@@ -396,13 +549,38 @@ def cmd_new(a):
         run("add", "-A")
         run("commit", "-q", "-m", f"Start {a.kind} project")
 
-    print(f"created {target}/ ({a.kind}, templates {pin})")
-    print(f"  cd {target} && ax watch")
+    print()
+    ok(f"已建立 {cmd_text(str(target))}（{KIND_NAME[a.kind]}，模板 {pin}）")
+    note(f"  main.tex 寫內容 {MARK['dot']} figures/ 放圖"
+         + (f" {MARK['dot']} refs.bib 放參考文獻" if a.bib else "")
+         + (f" {MARK['dot']} 已建立 git repo" if a.git else ""))
+    if used_preambles:
+        note("  已加入你的 " + "、".join(used_preambles))
+    print("\n下一步：")
+    print(f"  {cmd_text(f'cd {target}')}")
+    print(f"  {cmd_text('ax watch'):<24} 存檔就重編，PDF 自動更新")
+    if shutil.which("cursor"):
+        print(f"  {cmd_text('cursor .'):<24} 用 Cursor 開啟，{'Cmd+Option+V' if MACOS else 'Ctrl+Alt+V'} 看 PDF")
+    if a.kind in ("hw", "exam"):
+        print(f"  {cmd_text('ax both'):<24} 題目卷和解答各一份")
 
 
 # ---------- building ----------
 
 ERROR_LINE = re.compile(r"^(?P<file>[^\s:][^:]*\.(?:tex|sty|cls|bib)):(?P<line>\d+): (?P<msg>.*)$")
+
+# Plain-language hints for the errors people meet most often.
+ERROR_HINTS = [
+    ("Undefined control sequence", "指令拼錯，或用到的套件沒有載入"),
+    ("Missing $ inserted", "數學符號（_、^、\\alpha 等）要放在 $...$ 裡"),
+    ("Missing } inserted", "大括號沒有成對"),
+    ("Extra }", "多了一個 }"),
+    ("Environment", "環境名稱拼錯，或 \\begin 和 \\end 沒有成對"),
+    ("File `", "找不到檔案或套件；檢查檔名，或用 tlmgr 安裝套件"),
+    ("XeTeX is required", "這份文件要用 XeLaTeX 編譯；用 ax build，或檢查編輯器的編譯設定"),
+    ("Emergency stop", "LaTeX 中途停止，通常是前面某個錯誤造成的"),
+    ("Runaway argument", "某個指令的參數沒有結束，常見是少了 }"),
+]
 
 
 def first_error(log_path):
@@ -430,9 +608,24 @@ def first_error(log_path):
                 for c in context:
                     lm = re.match(r"l\.(\d+)", c)
                     if lm:
-                        location = f"line {lm.group(1)}"
+                        location = f"第 {lm.group(1)} 行"
             return location, message, context
     return None
+
+
+def print_error(log):
+    err = first_error(log)
+    if not err:
+        return False
+    location, message, context = err
+    print(f"  {_paint(location, '1', err=True) + '：' if location else ''}{message}", file=sys.stderr)
+    for c in context:
+        print(f"    {c}", file=sys.stderr)
+    for key, hint in ERROR_HINTS:
+        if key in message:
+            note(f"  提示：{hint}", err=True)
+            break
+    return True
 
 
 def warnings_summary(log_path):
@@ -442,19 +635,19 @@ def warnings_summary(log_path):
         return []
     found = []
     refs = len(re.findall(r"Reference `[^']*' on page \d+ undefined", log))
-    cites = len(re.findall(r"Citation `[^']*' on page \d+ undefined", log)) + \
-        len(re.findall(r"Citation '[^']*' on page \d+ undefined", log))
+    cites = len(re.findall(r"Citation [`'][^']*' on page \d+ undefined", log))
     overfull = len(re.findall(r"^Overfull \\hbox", log, re.M))
     if refs:
-        found.append(f"{refs} undefined reference(s)")
+        found.append(f"{refs} 個 \\ref 找不到對應的 \\label")
     if cites:
-        found.append(f"{cites} undefined citation(s)")
+        found.append(f"{cites} 個 \\cite 找不到文獻")
     if overfull:
-        found.append(f"{overfull} overfull line(s)")
+        found.append(f"{overfull} 行超出版面")
     return found
 
 
-def latexmk(main, jobname=None, pretex=None, clean_first=False):
+def latexmk(main, label, jobname=None, pretex=None, clean_first=False):
+    need_tool("latexmk", "請先安裝 TeX Live，再執行 ax doctor")
     base = ["latexmk", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error"]
     if jobname:
         base.append(f"-jobname={jobname}")
@@ -462,68 +655,57 @@ def latexmk(main, jobname=None, pretex=None, clean_first=False):
         base.append(f"-usepretex={pretex}")
     if clean_first:
         subprocess.run(base[:1] + ["-C"] + base[4:] + [str(main)], capture_output=True)
-    try:
-        return subprocess.run(base + [str(main)], capture_output=True, text=True,
-                              errors="replace", timeout=TIMEOUT)
-    except subprocess.TimeoutExpired:
-        die(f"gave up after {TIMEOUT} s; is something waiting for input?")
+    return run_with_spinner(base + [str(main)], label)
 
 
-def safe_build(main, jobname=None, pretex=None, quiet=False):
+def safe_build(main, jobname=None, pretex=None, label=None):
     """Compile into build/ and copy the PDF next to the source only on success.
     Returns True on success."""
     job = jobname or main.stem
-    result = latexmk(main, jobname, pretex)
-    output = result.stdout + result.stderr
-    if result.returncode and "error in previous invocation" in output:
+    label = label or f"編譯 {main}"
+    code, output, secs = latexmk(main, label, jobname, pretex)
+    if code and "error in previous invocation" in output:
         # latexmk remembers a failed run (biber, say) and refuses to retry
-        result = latexmk(main, jobname, pretex, clean_first=True)
-        output = result.stdout + result.stderr
+        code, output, more = latexmk(main, label, jobname, pretex, clean_first=True)
+        secs += more
 
     built = Path("build") / f"{job}.pdf"
     log = Path("build") / f"{job}.log"
-    if result.returncode == 0 and built.exists():
+    if code == 0 and built.exists():
         dest = Path(f"{job}.pdf")
         if not copy_pdf(built, dest):
-            print(f"ok  {built}  ({dest} is open in a viewer that locks it; "
-                  f"close it or open {built} instead)")
+            ok(f"{built}（{elapsed(secs)}）")
+            warn(f"{dest} 正被閱讀器鎖住，沒辦法更新；關掉它，或改開 {built}")
             return True
-        if not quiet:
-            notes = warnings_summary(log)
-            print(f"ok  {dest}" + (f"  ({'; '.join(notes)})" if notes else ""))
+        ok(f"{dest}（{elapsed(secs)}）")
+        for w in warnings_summary(log):
+            warn(w)
         return True
 
-    print(f"failed  {main}" + (f" ({job})" if jobname else ""), file=sys.stderr)
+    fail(f"編譯失敗：{main}" + (f"（{job}）" if jobname else ""))
     if not print_error(log):
         tail = [l for l in output.splitlines() if re.search(r"error|failed", l, re.I)]
         for l in tail[-5:]:
             print(f"  {l.strip()}", file=sys.stderr)
     if Path(f"{job}.pdf").exists():
-        print(f"  kept the previous {job}.pdf", file=sys.stderr)
+        note(f"  上一份 {job}.pdf 保留著，沒有被覆蓋", err=True)
+    note(f"  完整紀錄：{log}", err=True)
     return False
-
-
-def print_error(log):
-    err = first_error(log)
-    if not err:
-        return False
-    location, message, context = err
-    print(f"  {location}: {message}" if location else f"  {message}", file=sys.stderr)
-    for c in context:
-        print(f"    {c}", file=sys.stderr)
-    return True
 
 
 def cmd_explain(a):
     """Called by latexmk after a failed run in ax watch."""
+    fail(f"編譯失敗（{time.strftime('%H:%M:%S')}），PDF 保留上一份")
     if not print_error(Path("build") / f"{a.job}.log"):
-        print("  no LaTeX error in the log; see the latexmk output above", file=sys.stderr)
+        note("  log 裡沒有 LaTeX 錯誤；看上面 latexmk 的輸出", err=True)
 
 
 def cmd_copypdf(a):
     """Called by latexmk after a successful run in ax watch."""
-    if not copy_pdf(a.src, a.dest):
-        print(f"  {a.dest} is locked by a viewer; the new PDF is {a.src}", file=sys.stderr)
+    if copy_pdf(a.src, a.dest):
+        ok(f"已更新 {a.dest}（{time.strftime('%H:%M:%S')}）")
+    else:
+        warn(f"{a.dest} 正被閱讀器鎖住；新的 PDF 在 {a.src}")
 
 
 def cmd_build(a):
@@ -532,64 +714,89 @@ def cmd_build(a):
 
 def cmd_watch(a):
     main = main_file(a.file)
-    print("watching; Ctrl-C to stop")
-    cmd = ["latexmk", "-pvc", "-interaction=nonstopmode", "-file-line-error",
+    need_tool("latexmk", "請先安裝 TeX Live，再執行 ax doctor")
+    print(f"監看 {cmd_text(str(main))}：存檔就重編，成功才更新 PDF。按 Ctrl-C 停止。")
+    cmd = ["latexmk", "-pvc", "-silent", "-interaction=nonstopmode", "-file-line-error",
            "-e", f"$success_cmd = q({AX_CMD} copypdf %D %R.pdf);",
            "-e", f"$failure_cmd = q({AX_CMD} explain %R);", str(main)]
     try:
         sys.exit(subprocess.call(cmd))
     except KeyboardInterrupt:
-        pass
+        print()
+        note("已停止監看")
 
 
 def cmd_both(a):
     main = main_file(a.file)
     kind = project_config().get("kind")
     if kind and kind not in ("hw", "exam"):
-        die("ax both is for hw and exam projects")
-    ok = safe_build(main, pretex=r"\def\akizumisolutions{false}")
-    ok = safe_build(main, jobname=f"{main.stem}-solutions",
-                    pretex=r"\def\akizumisolutions{true}") and ok
-    sys.exit(0 if ok else 1)
+        die(f"ax both 只用在作業和考卷；這個專案是{KIND_NAME.get(kind, kind)}")
+    ok1 = safe_build(main, pretex=r"\def\akizumisolutions{false}", label="編譯題目卷")
+    ok2 = safe_build(main, jobname=f"{main.stem}-solutions",
+                     pretex=r"\def\akizumisolutions{true}", label="編譯解答")
+    sys.exit(0 if ok1 and ok2 else 1)
+
+
+def open_file(path):
+    if MACOS:
+        subprocess.run(["open", str(path)])
+    elif WINDOWS:
+        os.startfile(str(path))  # noqa: the default PDF viewer
+    else:
+        subprocess.run(["xdg-open", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def cmd_open(a):
+    if a.file:
+        pdf = Path(a.file).with_suffix(".pdf")
+    else:
+        cfg = require_project()
+        pdf = Path(cfg.get("main", "main.tex")).with_suffix(".pdf")
+        if a.solutions:
+            pdf = pdf.with_name(pdf.stem + "-solutions.pdf")
+    if not pdf.exists():
+        die(f"還沒有 {pdf}", f"先執行 {cmd_text('ax build')}" + ("（或 ax both）" if a.solutions else ""))
+    open_file(pdf)
+    ok(f"已打開 {pdf}")
 
 
 # ---------- versions ----------
 
 def cmd_texinputs(a):
-    d = template_dir(project_config().get("template"))
+    d = template_dir(find_project(quiet=True).get("template"))
     if d:
         print(d)
 
 
 def cmd_freeze(a):
-    cfg = project_config()
-    if not cfg:
-        die("not in an ax project (no .ax.json)")
+    cfg = require_project()
     if cfg.get("template") == "frozen":
-        die("already frozen")
+        die("這個專案已經 freeze 過了", f"要回到版本管理：{cmd_text('ax upgrade')}")
     source = template_dir(cfg.get("template")) or REPO
-    for f in template_files(source):
+    files = template_files(source)
+    for f in files:
         shutil.copy2(f, f.name)
-        print(f"  copied {f.name}")
     cfg["frozen_from"] = cfg.get("template")
     cfg["template"] = "frozen"
     save_project_config(cfg)
-    print("frozen: this project now builds from its own copies")
+    ok(f"已複製 {len(files)} 個模板檔進專案（來自 {cfg['frozen_from']}）")
+    note("  之後這個專案只靠自己就能編譯，可以交出去或封存")
 
 
 def cmd_upgrade(a):
-    cfg = project_config()
-    if not cfg:
-        die("not in an ax project (no .ax.json)")
+    cfg = require_project()
     tags = template_tags()
     if not tags:
-        die("the template repo has no version tags")
-    if cfg.get("template") == "frozen":
+        die("模板 repo 還沒有任何版本 tag")
+    old = cfg.get("template")
+    if old == tags[0]:
+        ok(f"已經是最新的模板 {old}")
+        return
+    if old == "frozen":
         for f in template_files("."):
             f.unlink()
-            print(f"  removed copy {f.name}")
         cfg.pop("frozen_from", None)
-    old = cfg.get("template")
+        note("  已移除 freeze 時複製進來的模板檔")
     cfg["template"] = tags[0]
     save_project_config(cfg)
     new_dir = template_dir(tags[0])
@@ -598,8 +805,9 @@ def cmd_upgrade(a):
     rc = Path("latexmkrc")
     if not rc.exists() or rc.read_text().startswith("# Written by ax"):
         write_build_files(".", cfg.get("kind"))
-        print("  refreshed latexmkrc and .vscode/settings.json")
-    print(f"templates {old} -> {tags[0]}; check with ax build")
+        note("  已更新 latexmkrc 和 .vscode/settings.json")
+    ok(f"模板 {old} → {tags[0]}")
+    print(f"  接著跑 {cmd_text('ax build')} 確認一切正常；改了什麼見模板 repo 的 CHANGELOG.md")
 
 
 def rename_aaron(root):
@@ -617,18 +825,17 @@ def rename_aaron(root):
             new = pattern.sub(repl, new)
         if new != text:
             tex.write_text(new)
-            print(f"  renamed aaron -> akizumi in {tex}")
+            note(f"  {tex}：舊名稱 aaron 改成 akizumi")
 
 
 # ---------- ax pack ----------
 
 def cmd_pack(a):
-    cfg = project_config()
-    if not cfg:
-        die("not in an ax project (no .ax.json)")
+    cfg = require_project()
     name = Path.cwd().name
     out = Path(f"{name}-overleaf.zip")
     skip_dirs = {"build", ".git", ".vscode"}
+    count = 0
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for path in sorted(Path(".").rglob("*")):
             if path.is_dir() or skip_dirs & set(path.parts) or path == out:
@@ -636,24 +843,32 @@ def cmd_pack(a):
             if path.suffix == ".pdf" or path.name in (PROJECT_CONFIG, "latexmkrc"):
                 continue
             z.write(path)
+            count += 1
         if cfg.get("template") != "frozen":
             for f in template_files(template_dir(cfg.get("template")) or REPO):
                 z.write(f, f.name)
+                count += 1
         engine = 1 if cfg.get("kind") == "paper" else 5
         z.writestr("latexmkrc", f"$pdf_mode = {engine};\n")
-    print(f"wrote {out}; on Overleaf set the compiler to "
-          f"{'pdfLaTeX' if cfg.get('kind') == 'paper' else 'XeLaTeX'}")
+    ok(f"已打包 {out}（{count + 1} 個檔案，含模板檔）")
+    print(f"  上傳到 Overleaf（New Project → Upload Project），在 Menu 把 Compiler 設成 "
+          f"{cmd_text('pdfLaTeX' if cfg.get('kind') == 'paper' else 'XeLaTeX')}")
 
 
 # ---------- ax doctor ----------
 
 def cmd_doctor(a):
-    problems = 0
+    problems = []
 
-    def report(ok, label, detail=""):
-        nonlocal problems
-        problems += not ok
-        print(f"  {'ok ' if ok else 'BAD'}  {label}" + (f"  {detail}" if detail else ""))
+    def report(good, label, detail="", fix=""):
+        mark = _paint(MARK["ok"], "32") if good else _paint(MARK["fail"], "31")
+        print(f"  {mark} {label}" + (_paint(f"  {detail}", "2") if detail else ""))
+        if not good:
+            problems.append((label, fix))
+
+    def optional(good, label, detail=""):
+        mark = _paint(MARK["ok"], "32") if good else _paint("–", "2")
+        print(f"  {mark} {label}" + (_paint(f"  {detail}", "2") if detail else ""))
 
     def run(*cmd):
         try:
@@ -661,28 +876,31 @@ def cmd_doctor(a):
         except (OSError, subprocess.TimeoutExpired):
             return None
 
-    print("tools")
+    print(cmd_text("工具"))
     for tool in ("xelatex", "latexmk", "pdflatex"):
-        report(bool(shutil.which(tool)), tool, shutil.which(tool) or "not on PATH")
+        report(bool(shutil.which(tool)), tool, shutil.which(tool) or "找不到",
+               "安裝 TeX Live（https://tug.org/texlive/）後開新的終端機")
     r = run("biber", "--version")
     biber_ok = bool(r) and r.returncode == 0
-    report(biber_ok, "biber", (r.stdout.strip().splitlines() or [""])[-1] if biber_ok else
-           "fails to start; see docs/reference.md, troubleshooting")
-    report(bool(shutil.which("ax")), "ax on PATH",
-           "" if shutil.which("ax") else "run install.py, then open a new terminal")
-    report(bool(shutil.which("git")), "git", "" if shutil.which("git") else "needed for template versions")
+    report(biber_ok, "biber（參考文獻）",
+           (r.stdout.strip().splitlines() or [""])[-1] if biber_ok else "啟動失敗",
+           "見 docs/reference.md〈疑難排解〉")
+    report(bool(shutil.which("git")), "git", "" if shutil.which("git") else "找不到",
+           "安裝 git；模板版本靠它管理")
+    report(bool(shutil.which("ax")), "ax 在 PATH 上", "" if shutil.which("ax") else "找不到",
+           "在模板 repo 執行 install.py，然後開新的終端機")
 
-    print("templates")
+    print(cmd_text("模板"))
     r = run("kpsewhich", "akizumi-core.sty")
     found = r.stdout.strip() if r else ""
-    report(bool(found), "akizumi-core.sty installed", found or "run install.py")
+    report(bool(found), "TeX 找得到模板", found or "找不到", "在模板 repo 執行 install.py")
     tags = template_tags()
-    report(bool(tags), "version tags", ", ".join(tags[:5]) or "none: git tag the repo")
+    report(bool(tags), "模板版本", "、".join(tags[:5]) or "沒有 tag", "在模板 repo 打版本 tag")
 
-    print("fonts")
+    print(cmd_text("字型"))
     for f in ("Lato-Regular.ttf", "NewCM10-Book.otf", "bboldx.sty"):
         r = run("kpsewhich", f)
-        report(bool(r and r.stdout.strip()), f)
+        report(bool(r and r.stdout.strip()), f, "", "用 tlmgr 安裝缺少的字型套件")
     # First choice per system; akizumi-core falls back along the same chain.
     if MACOS:
         families = ("PingFang TC", "Songti TC")
@@ -693,51 +911,114 @@ def cmd_doctor(a):
     if shutil.which("fc-list"):
         for family in families + ("JetBrains Mono",):
             r = run("fc-list", family, "family")
-            ok = bool(r and r.stdout.strip())
-            print(f"  {'ok ' if ok else '-- '}  {family}" + ("" if ok else
-                  "  not installed; falls back (see docs/reference.md)"))
+            good = bool(r and r.stdout.strip())
+            optional(good, family, "" if good else "沒裝，會自動改用其他字型")
     else:
-        print("  --   system fonts not checked (no fc-list); CJK falls back automatically")
+        optional(False, "中文字型", "沒有 fc-list，無法檢查；缺字型時會自動改用其他字型")
 
-    cfg = project_config()
+    cfg = find_project(quiet=True)
     if cfg:
-        print("this project")
+        print(cmd_text("這個專案"))
         pin = cfg.get("template")
         if pin == "frozen":
-            report(bool(template_files(".")), "frozen copies present",
-                   f"from {cfg.get('frozen_from')}")
+            report(bool(template_files(".")), "模板檔已複製進專案", f"來自 {cfg.get('frozen_from')}",
+                   "ax upgrade 重新取得模板")
         else:
             d = template_dir(pin)
-            report(pin == "latest" or bool(d), f"templates {pin}", str(d or "installed version"))
+            report(pin == "latest" or bool(d), f"模板 {pin}", str(d or "使用安裝的最新版"),
+                   "這個版本不存在；ax upgrade 換到最新版")
             if tags and pin not in ("latest", tags[0]):
-                print(f"       newer templates: {tags[0]} (ax upgrade)")
-    sys.exit(1 if problems else 0)
+                optional(False, f"有新版模板 {tags[0]}", "想用新外觀就跑 ax upgrade")
+
+    print()
+    if problems:
+        fail(f"有 {len(problems)} 個問題：")
+        for label, fix in problems:
+            print(f"  {label}：{fix}", file=sys.stderr)
+        sys.exit(1)
+    ok("一切正常")
 
 
 def cmd_config(a):
-    print(f"config directory  {CONFIG_DIR}")
-    print(f"  config.json     {'present' if USER_CONFIG.exists() else 'not created'}")
-    for name in ["preamble.tex"] + [f"preamble-{k}.tex" for k in KINDS]:
-        if (CONFIG_DIR / name).exists():
-            print(f"  {name:<20} used by ax new")
-    print(f"template cache    {CACHE}")
-    print(f"template repo     {REPO}")
+    print(f"{cmd_text('設定資料夾')}  {CONFIG_DIR}")
+    print(f"  config.json    {'有' if USER_CONFIG.exists() else '還沒建立'}")
+    used = [n for n in ["preamble.tex"] + [f"preamble-{k}.tex" for k in KINDS]
+            if (CONFIG_DIR / n).exists()]
+    print(f"  preamble       {'、'.join(used) if used else '沒有'}")
+    print(f"{cmd_text('模板快取')}    {CACHE}")
+    print(f"{cmd_text('模板 repo')}   {REPO}")
+    if not USER_CONFIG.exists():
+        note(f"\n建立 {USER_CONFIG}，例如：")
+        note('  {"author": "你的名字", "lang": "zh"}')
 
+
+# ---------- shell completion ----------
+
+def cmd_completion(a):
+    cmds = " ".join(PUBLIC_COMMANDS)
+    kinds = " ".join(KINDS)
+    opts = " ".join(NEW_OPTIONS)
+    if a.shell == "zsh":
+        described = " ".join(f"'{c}:{HELP_LINES.get(c, '')}'" for c in PUBLIC_COMMANDS)
+        print(f"""#compdef ax
+_ax() {{
+  local -a cmds; cmds=({described})
+  if (( CURRENT == 2 )); then _describe 'command' cmds
+  elif [[ $words[2] == new && CURRENT == 3 ]]; then compadd -- {kinds}
+  elif [[ $words[2] == new ]]; then compadd -- {opts}
+  elif [[ $words[2] == (build|watch|both|open) ]]; then _files -g '*.tex'
+  elif [[ $words[2] == completion ]]; then compadd -- zsh bash powershell
+  elif [[ $words[2] == selftest ]]; then compadd -- all examples projects
+  fi
+}}
+compdef _ax ax""")
+    elif a.shell == "bash":
+        print(f"""_ax() {{
+  local cur=${{COMP_WORDS[COMP_CWORD]}}
+  if [ "$COMP_CWORD" -eq 1 ]; then COMPREPLY=($(compgen -W "{cmds}" -- "$cur"))
+  elif [ "${{COMP_WORDS[1]}}" = new ] && [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=($(compgen -W "{kinds}" -- "$cur"))
+  elif [ "${{COMP_WORDS[1]}}" = new ]; then COMPREPLY=($(compgen -W "{opts}" -- "$cur"))
+  elif [ "${{COMP_WORDS[1]}}" = completion ]; then COMPREPLY=($(compgen -W "zsh bash powershell" -- "$cur"))
+  fi
+}}
+complete -o default -F _ax ax""")
+    else:
+        ps = lambda words: ", ".join(f"'{w}'" for w in words.split())
+        print(f"""Register-ArgumentCompleter -Native -CommandName ax -ScriptBlock {{
+  param($wordToComplete, $commandAst, $cursorPosition)
+  $words = @($commandAst.CommandElements | ForEach-Object {{ $_.ToString() }})
+  $n = $words.Count; if ($wordToComplete -eq '') {{ $n++ }}
+  if ($n -le 2) {{ $list = @({ps(cmds)}) }}
+  elseif ($words[1] -eq 'new' -and $n -eq 3) {{ $list = @({ps(kinds)}) }}
+  elseif ($words[1] -eq 'new') {{ $list = @({ps(opts)}) }}
+  elseif ($words[1] -eq 'completion') {{ $list = @('zsh', 'bash', 'powershell') }}
+  else {{ return }}
+  $list | Where-Object {{ $_ -like "$wordToComplete*" }} | ForEach-Object {{
+    [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+  }}
+}}""")
+
+
+# ---------- ax selftest ----------
 
 def cmd_selftest(a):
     """Rebuild the examples and build one fresh project of each kind."""
     failed = []
+
+    def result(good, label):
+        (ok if good else fail)(label)
+        if not good:
+            failed.append(label)
+
     if a.part in ("all", "examples"):
         ex = REPO / "examples"
         shutil.rmtree(ex / "build", ignore_errors=True)
         for name in ("hw", "note", "exam", "slides", "book"):
-            r = subprocess.run(["latexmk", "-r", "latexmkrc", "-halt-on-error",
-                                "-interaction=nonstopmode", f"{name}.tex"],
-                               cwd=ex, capture_output=True)
-            ok = r.returncode == 0
-            print(f"example {name:<7} {'ok' if ok else 'FAILED'}", flush=True)
-            if not ok:
-                failed.append(name)
+            code, _, secs = run_with_spinner(
+                ["latexmk", "-r", "latexmkrc", "-halt-on-error", "-interaction=nonstopmode",
+                 f"{name}.tex"], f"範例 {name}", cwd=ex)
+            result(code == 0, f"範例 {name:<7}（{elapsed(secs)}）")
+            if code:
                 print_error(ex / "build" / f"{name}.log")
     if a.part in ("all", "projects"):
         tmp = Path(tempfile.mkdtemp(prefix="ax-selftest-"))
@@ -746,39 +1027,83 @@ def cmd_selftest(a):
             d = tmp / f"t-{kind}"
             r = subprocess.run(ax + ["new", kind, str(d), "--title", "Test", "--no-preamble"],
                                stdin=subprocess.DEVNULL, capture_output=True, text=True)
-            if r.returncode == 0:
-                r = subprocess.run(ax + ["build"], cwd=d, capture_output=True, text=True)
-            ok = r.returncode == 0
-            print(f"project {kind:<7} {'ok' if ok else 'FAILED'}", flush=True)
-            if not ok:
-                failed.append(kind)
-                print(r.stdout + r.stderr)
-        r = subprocess.run(ax + ["both"], cwd=tmp / "t-hw", capture_output=True, text=True)
-        ok = r.returncode == 0 and (tmp / "t-hw" / "main-solutions.pdf").exists()
-        print(f"project both    {'ok' if ok else 'FAILED'}", flush=True)
-        if not ok:
-            failed.append("both")
-            print(r.stdout + r.stderr)
+            out = r.stdout + r.stderr
+            code = r.returncode
+            if code == 0:
+                code, out, secs = run_with_spinner(ax + ["build"], f"專案 {kind}", cwd=d)
+            result(code == 0, f"專案 {kind:<7}")
+            if code:
+                print(out)
+        code, out, _ = run_with_spinner(ax + ["both"], "專案 both", cwd=tmp / "t-hw")
+        result(code == 0 and (tmp / "t-hw" / "main-solutions.pdf").exists(), "專案 both")
+        if code:
+            print(out)
         shutil.rmtree(tmp, ignore_errors=True)
-    sys.exit(1 if failed else 0)
+    print()
+    if failed:
+        fail(f"{len(failed)} 項失敗")
+        sys.exit(1)
+    ok("全部通過")
+
+
+# ---------- bare `ax`: project status ----------
+
+def ago(path):
+    secs = time.time() - path.stat().st_mtime
+    if secs < 60:
+        return "剛剛"
+    if secs < 3600:
+        return f"{int(secs // 60)} 分鐘前"
+    if secs < 86400:
+        return f"{int(secs // 3600)} 小時前"
+    return f"{int(secs // 86400)} 天前"
+
+
+def show_status():
+    """Bare `ax` inside a project: what this project is and what to do next."""
+    cfg = find_project(quiet=True)
+    if not cfg:
+        return False
+    kind = cfg.get("kind", "?")
+    main = Path(cfg.get("main", "main.tex"))
+    pin = cfg.get("template", "?")
+    tags = template_tags()
+    print(f"{cmd_text(Path.cwd().name)}（{KIND_NAME.get(kind, kind)}）")
+    version = pin
+    if pin == "frozen":
+        version = f"已 freeze（來自 {cfg.get('frozen_from')}）"
+    elif tags and pin != tags[0]:
+        version = f"{pin}（有新版 {tags[0]}：ax upgrade）"
+    print(f"  模板  {version}")
+    pdf = main.with_suffix(".pdf")
+    print(f"  PDF   {f'{pdf}，{ago(pdf)}更新' if pdf.exists() else '還沒編譯過'}")
+    print("\n常用：")
+    for c, text in (("ax watch", "存檔就重編"), ("ax build", "編譯一次"), ("ax open", "打開 PDF")) + \
+            ((("ax both", "題目卷和解答"),) if kind in ("hw", "exam") else ()):
+        print(f"  {cmd_text(c):<20} {text}")
+    note("\n全部指令：ax --help")
+    return True
 
 
 # ---------- command line ----------
 
-HELP_COMMANDS = """\
-指令（new、doctor 以外都在專案資料夾裡執行）：
-  new       建立新專案（ax new --help 看選項）
-  watch     存檔就重編
-  build     編譯一次；失敗時指出錯在哪一行，保留上一份 PDF
-  both      作業／考卷：題目卷和解答各一份
-  doctor    檢查工具、字型、模板版本
-  upgrade   改用最新的模板版本
-  freeze    把模板檔複製進專案，從此不依賴模板 repo
-  pack      打包成 zip 上傳 Overleaf
-  config    顯示設定檔、preamble、快取的位置
-  selftest  重編所有範例、建立並編譯每種專案（改模板後用）
+HELP_LINES = {
+    "new": "建立新專案",
+    "build": "編譯一次；失敗時指出錯在哪一行，保留上一份 PDF",
+    "watch": "存檔就重編",
+    "open": "打開 PDF（--solutions 打開解答）",
+    "both": "作業／考卷：題目卷和解答各一份",
+    "doctor": "檢查工具、字型、模板版本",
+    "upgrade": "改用最新的模板版本",
+    "freeze": "把模板檔複製進專案，從此不依賴模板 repo",
+    "pack": "打包成 zip 上傳 Overleaf",
+    "config": "顯示設定檔、preamble、快取的位置",
+    "completion": "印出 Tab 補全腳本（zsh、bash、powershell）",
+    "selftest": "重編所有範例、建立並編譯每種專案（改模板後用）",
+}
 
-"""
+HELP_COMMANDS = "指令（new、doctor、config 以外都在專案資料夾或它的子資料夾裡執行）：\n" + \
+    "\n".join(f"  {c:<10}{HELP_LINES[c]}" for c in PUBLIC_COMMANDS) + "\n\n"
 
 HELP_EXAMPLES = """\
 範例：
@@ -788,29 +1113,58 @@ HELP_EXAMPLES = """\
   ax new slides talk --title "The JEPA Flood" --course "ELSA Lab" --progress
   cd ode-hw3 && ax watch                  存檔就重編
 
+Tab 補全：在 ~/.zshrc 加 eval "$(ax completion zsh)"（bash 同理；PowerShell 見 ax completion --help）
 說明文件：README.md、docs/reference.md（在模板 repo 裡）
 """
 
 
+class Parser(argparse.ArgumentParser):
+    """argparse with friendlier, Chinese error messages and typo suggestions."""
+
+    def error(self, message):
+        m = re.search(r"invalid choice: '([^']*)'", message)
+        if m and "指令" in message:
+            word = m.group(1)
+            guess = suggest(word, PUBLIC_COMMANDS)
+            die(f"沒有 {word} 這個指令" + (f"，你是不是要打 {cmd_text('ax ' + guess)}？" if guess else ""),
+                "ax --help 看全部指令")
+        m = re.search(r"argument (\S+): invalid choice: '([^']*)' \(choose from (.*)\)", message)
+        if m:
+            choices = re.findall(r"'([^']*)'", m.group(3))
+            guess = suggest(m.group(2), choices)
+            die(f"{m.group(1)} 不能是 {m.group(2)}" + (f"，你是不是要打 {guess}？" if guess else ""),
+                f"可用的值：{'、'.join(choices)}")
+        m = re.search(r"unrecognized arguments: (.*)", message)
+        if m:
+            word = m.group(1).split()[0]
+            guess = suggest(word, NEW_OPTIONS) if word.startswith("-") else None
+            die(f"看不懂的參數：{m.group(1)}" + (f"，你是不是要打 {guess}？" if guess else ""),
+                f"{self.prog} --help 看可用的參數")
+        m = re.search(r"the following arguments are required: (.*)", message)
+        if m:
+            die(f"少了參數：{m.group(1)}", f"{self.prog} --help 看用法")
+        die(message, f"{self.prog} --help 看用法")
+
+
 def main():
-    p = argparse.ArgumentParser(
-        prog="ax", usage="ax [-h] [--version] 指令 ...", description="建立與編譯 akizumi-latex 專案。",
-        epilog=HELP_COMMANDS + HELP_EXAMPLES,
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = Parser(prog="ax", usage="ax [-h] [--version] 指令 ...",
+               description="建立與編譯 akizumi-latex 專案。",
+               epilog=HELP_COMMANDS + HELP_EXAMPLES,
+               formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--version", action="version",
                    version=f"ax（模板 {', '.join(template_tags()[:1]) or '未打版本'}）")
     # The command list is written out in HELP_COMMANDS; argparse's own list
-    # would also show the internal ones (texinputs, explain).
-    sub = p.add_subparsers(dest="command", required=True, metavar="指令",
-                           help=argparse.SUPPRESS)
+    # would also show the internal ones (texinputs, copypdf, explain).
+    sub = p.add_subparsers(dest="command", required=True, metavar="指令", help=argparse.SUPPRESS,
+                           parser_class=Parser)
 
-    n = sub.add_parser("new", help="建立新專案",
+    n = sub.add_parser("new", help=HELP_LINES["new"],
                        description="建立新專案。沒給的種類、資料夾、標題會互動式詢問。",
                        epilog=HELP_EXAMPLES, formatter_class=argparse.RawDescriptionHelpFormatter)
     n.add_argument("kind", nargs="?", metavar="種類", help=" / ".join(KINDS))
     n.add_argument("dir", nargs="?", metavar="資料夾")
     n.add_argument("--title", help="標題（作業不用，會寫成「作業 N」）")
-    n.add_argument("--author", help="作者，預設取自 ~/.config/ax/config.json")
+    n.add_argument("--author", help="作者，預設取自 config.json（ax config 看位置）")
     n.add_argument("--course", help="課名；書和簡報放在標題上方")
     n.add_argument("--number", help="作業編號")
     n.add_argument("--due", help="作業繳交期限")
@@ -828,20 +1182,26 @@ def main():
     n.add_argument("--force", action="store_true", help="資料夾已存在且不是空的也照樣建立")
     n.set_defaults(func=cmd_new)
 
-    for name, func, text in (("build", cmd_build, "編譯一次；失敗時保留上一份 PDF"),
-                             ("watch", cmd_watch, "存檔就重編"),
-                             ("both", cmd_both, "作業／考卷：題目卷和解答各一份")):
-        c = sub.add_parser(name, help=text, description=text)
-        c.add_argument("file", nargs="?", metavar="檔案", help="預設是 main.tex")
+    for name, func in (("build", cmd_build), ("watch", cmd_watch), ("both", cmd_both)):
+        c = sub.add_parser(name, help=HELP_LINES[name], description=HELP_LINES[name])
+        c.add_argument("file", nargs="?", metavar="檔案", help="預設是專案的 main.tex")
         c.set_defaults(func=func)
-    for name, func, text in (("doctor", cmd_doctor, "檢查工具、字型、模板版本"),
-                             ("upgrade", cmd_upgrade, "改用最新的模板版本"),
-                             ("freeze", cmd_freeze, "把模板檔複製進專案，從此不依賴模板 repo"),
-                             ("pack", cmd_pack, "打包成 zip 上傳 Overleaf")):
-        sub.add_parser(name, help=text, description=text).set_defaults(func=func)
-
-    sub.add_parser("config", help="設定檔位置", description="顯示設定檔、preamble、快取的位置").set_defaults(func=cmd_config)
-    t = sub.add_parser("selftest", help="測試模板與 ax", description="重編所有範例、建立並編譯每種專案")
+    o = sub.add_parser("open", help=HELP_LINES["open"], description=HELP_LINES["open"])
+    o.add_argument("file", nargs="?", metavar="檔案", help="預設是專案的 main.pdf")
+    o.add_argument("--solutions", action="store_true", help="打開 ax both 產生的解答")
+    o.set_defaults(func=cmd_open)
+    for name, func in (("doctor", cmd_doctor), ("upgrade", cmd_upgrade), ("freeze", cmd_freeze),
+                       ("pack", cmd_pack), ("config", cmd_config)):
+        sub.add_parser(name, help=HELP_LINES[name], description=HELP_LINES[name]).set_defaults(func=func)
+    c = sub.add_parser("completion", help=HELP_LINES["completion"],
+                       description="印出 Tab 補全腳本。\n\n"
+                                   "  zsh：       在 ~/.zshrc 加  eval \"$(ax completion zsh)\"\n"
+                                   "  bash：      在 ~/.bashrc 加 eval \"$(ax completion bash)\"\n"
+                                   "  PowerShell：在 $PROFILE 加  ax completion powershell | Out-String | Invoke-Expression",
+                       formatter_class=argparse.RawDescriptionHelpFormatter)
+    c.add_argument("shell", choices=["zsh", "bash", "powershell"])
+    c.set_defaults(func=cmd_completion)
+    t = sub.add_parser("selftest", help=HELP_LINES["selftest"], description=HELP_LINES["selftest"])
     t.add_argument("part", nargs="?", choices=["all", "examples", "projects"], default="all")
     t.set_defaults(func=cmd_selftest)
 
@@ -857,10 +1217,15 @@ def main():
     e.set_defaults(func=cmd_explain)
 
     if len(sys.argv) == 1:
-        p.print_help()
+        if not show_status():
+            p.print_help()
         sys.exit(0)
     a = p.parse_args()
-    a.func(a)
+    try:
+        a.func(a)
+    except KeyboardInterrupt:
+        print()
+        sys.exit(130)
 
 
 if __name__ == "__main__":

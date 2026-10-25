@@ -1,0 +1,2 @@
+$out_dir = 'build';
+ensure_path('TEXINPUTS', '..');     # templates at the repo root, not installed copies

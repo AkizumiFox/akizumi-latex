@@ -1,0 +1,49 @@
+% !TEX program = xelatex
+% book layout: twoside / openright, part pages with partreset, chapter
+% subtitles and short titles, chaptername, cover fields, run-in paragraphs,
+% wide contents numbers, \preface
+\documentclass[openright, partreset, chaptername=Lecture]{akizumi-book}
+\akizumisetup{kicker={APCS Camp}, institution={National Taiwan University}, term={Winter 2026}}
+\title{Algorithms}
+\subtitle{A Second Course}
+\author{Aaron Lin}
+
+\begin{document}
+\frontmatter
+\maketitle
+\preface
+Why this book.
+\tableofcontents
+
+\mainmatter
+\part[sub=Foundations]{基礎}
+\chapter[sub=Vector Spaces]{向量空間}\label{ch:vs}
+\section{Spans}
+Text.
+\paragraph{Run-in.} A paragraph heading in Lato.
+\subparagraph{Smaller.} A subparagraph heading.
+\setcounter{section}{11}
+\section{Two-digit section}\label{sec:wide}
+\setcounter{subsection}{11}
+\subsection{Two-digit subsection}
+\clearpage
+Text on an even page.
+\section{Third}
+Text.
+
+\setcounter{chapter}{12}
+\chapter[short=Maps]{Linear Maps Between Vector Spaces}
+See \cref{ch:vs} and \cref{sec:wide}.
+\setcounter{section}{9}
+\section{Section 13.10}
+\subsection{Subsection}
+
+\part{Applications}
+\chapter{Graphs}\label{ch:graphs}
+Chapter numbers restart: \cref{ch:graphs}.
+\chapter*[sub=Unnumbered]{Notes}
+
+\appendix
+\chapter{Proofs}
+Appendix label stays.
+\end{document}

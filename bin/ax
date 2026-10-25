@@ -3259,7 +3259,14 @@ def cmd_selftest(a):
         td = REPO / "tests"
         shutil.rmtree(td / "build", ignore_errors=True)
         for tex in sorted(td.glob("*.tex")):
-            first = tex.read_text(errors="replace").split("\n", 1)[0]
+            # "% ci-skip: macos" skips a test on that system in CI (fonts macOS
+            # downloads on first use make XeTeX wait forever without network)
+            head = tex.read_text(errors="replace")[:600]
+            system = "macos" if MACOS else "windows" if WINDOWS else "linux"
+            if os.environ.get("CI") and re.search(rf"^% ci-skip:.*\b{system}\b", head, re.M):
+                note(T(f"略過 {tex.stem}（CI 的 {system} 上不跑）", f"skipped {tex.stem} (not run on {system} in CI)"))
+                continue
+            first = head.split("\n", 1)[0]
             engine = "-pdf" if "pdflatex" in first else "-lualatex" if "lualatex" in first else "-xelatex"
             code, out, secs = run_with_spinner(
                 ["latexmk", "-r", "latexmkrc", engine, "-halt-on-error", "-interaction=nonstopmode",

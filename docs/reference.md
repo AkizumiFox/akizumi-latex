@@ -719,7 +719,7 @@ $A\cup B=[-2,3]$。
 | `cjk`、`cjk-bold` | 字型名稱 | 蘋方 | 換掉中文無襯線字型 |
 | `par` | `skip` `indent` | `skip` | 段落。`indent` 每段（含標題後第一段）首行縮排 2 字，段落間不留空白，適合中文報告 |
 | `secnum` | `arabic` `zh` | `arabic` | `zh` 章節編號改成「一、」「（一）」「1.」；書的章是「第一章」。定理、公式號碼仍用阿拉伯數字（定理 1.2），`\cref` 寫成「第一節」「一（一）」 |
-| `kai` | | | 中文內文改用楷書：Kaiti TC（macOS）> 標楷體 BiauKai（macOS）> DFKai-SB（Windows）> AR PL UKai（Linux）> STKaiti > FandolKai（TeX Live 內附，只有簡體字，會出警告）。`text=sans` 也有效，標題仍是蘋方 |
+| `kai` | | | 中文內文改用楷書：Kaiti TC（macOS）> 標楷體 BiauKai（macOS）> DFKai-SB（Windows）> AR PL UKai（Linux）> STKaiti > 文鼎楷書 bkai00mp（TeX Live 中文套件集）> FandolKai（TeX Live 內附，只有簡體字，會出警告）。`text=sans` 也有效，標題仍是蘋方。macOS 的楷體是第一次用到時才下載，全新的電腦第一次編譯會等下載完成；也可以先在「字體簿」下載「楷體-繁」或「標楷體」 |
 | `cjk-serif`、`cjk-serif-bold` | 字型名稱 | 宋體 | 換掉襯線內文（`text=serif\|times\|palatino`）的中文字型和粗體，例如 `cjk-serif-bold=Noto Serif CJK TC SemiBold`。只給 `cjk-serif` 或楷書沒有粗體時，粗體用描粗 |
 | `delims` | `manual` `auto` | `manual` | `auto` 讓 `\abs`、`\norm`、`\set`、`\Prob` 這些配對括號不加星號就自動調整大小，加星號反而維持原本大小 |
 | `letters` | `bold` `cal` `bb` `greek` `all` `single` | 無 | 字母捷徑，見〈數學〉 |

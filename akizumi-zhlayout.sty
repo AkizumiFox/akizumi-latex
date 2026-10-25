@@ -79,17 +79,18 @@
   \renewcommand{\familydefault}{\rmdefault}
 \fi\fi
 % Kai chain, first one installed wins: Kaiti TC (macOS) > BiauKai (macOS) >
-% DFKai-SB (Windows) > AR PL UKai (Linux) > STKaiti > FandolKai (TeX Live,
-% Simplified only). kai sets the CJK body face whatever text= is; cjk-serif
+% DFKai-SB (Windows) > AR PL UKai (Linux) > STKaiti > AR PL KaitiM Big5
+% (bkai00mp, TeX Live's Chinese collection) > FandolKai (TeX Live, Simplified
+% only). The macOS faces are downloaded on first use: XeTeX waits for that. kai sets the CJK body face whatever text= is; cjk-serif
 % and cjk-serif-bold replace the serif one. A face with no bold is emboldened.
 \ifakizumi@kai
   \akizumi@pickfont\akizumi@cjkbody\akizumi@cjkbodybold{%
     {STKaitiTC-Regular}{STKaitiTC-Bold}, {BiauKaiTC-Regular}{}, {BiauKai}{},
     {DFKai-SB}{}, {AR PL UKai TW}{}, {AR PL UKai}{}, {STKaiti}{},
-    {FandolKai-Regular.otf}{}}
+    {bkai00mp.ttf}{}, {FandolKai-Regular.otf}{}}
   \def\akizumi@tmp{FandolKai-Regular.otf}\ifx\akizumi@cjkbody\akizumi@tmp
     \PackageWarningNoLine{akizumi-zhlayout}{kai: using FandolKai, which lacks
-      most Traditional characters; install Kaiti TC, BiauKai, DFKai-SB or AR PL UKai}\fi
+      most Traditional characters; install Kaiti TC, BiauKai, DFKai-SB, AR PL UKai or TeX Live's arphic-ttf}\fi
   % Kaiti TC / STKaiti draw small in their em box: next to Latin text and the
   % sans headings they read a size smaller, so they are scaled up a little.
   \def\akizumi@tmp{STKaitiTC-Regular}\ifx\akizumi@cjkbody\akizumi@tmp\def\akizumi@kaiscale{1.08}\fi

@@ -6,6 +6,8 @@
 - `thmnames=native` names theorem-like environments in the main language: 定理 / 證明 in Chinese, 定理 / 証明 in Japanese, 정리 / 증명 in Korean, also in cleveref, `proofof`, the list of theorems and slides. English stays the default.
 - Characters missing from the main CJK font are taken from the other two languages' fonts, so Chinese, Japanese and Korean mix in one document.
 - `ax new --lang ja|ko --thmnames native` (also in `config.json`); `ax doctor` checks the fonts for the configured language; `ax selftest` builds a document in each language.
+- `ax` speaks English or Chinese: it follows the system language; `"ui": "en"|"zh"` in `config.json` or `AX_LANG` override it, and `ax config` shows which is used.
+- English README (`README.en.md`) and reference manual (`docs/reference.en.md`).
 - The language words live in one table in `akizumi-core.sty` (`\akizumi@str`, `\akizumi@num`).
 
 ## v0.8 — 2026-10-25

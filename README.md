@@ -1,6 +1,8 @@
 # akizumi-latex
 
-作業、講義、考卷、簡報、論文共用的 LaTeX 模板，加上建立和編譯專案的指令 `ax`。
+English: [README.en.md](README.en.md)
+
+作業、講義、考卷、簡報、論文共用的 LaTeX 模板，加上建立和編譯專案的指令 `ax`。文件可以用中文、英文、日文、韓文寫，也可以混著寫。
 
 ## 安裝
 
@@ -20,7 +22,7 @@ cd akizumi-latex
 python3 install.py        # Windows：py install.py
 ```
 
-`install.py` 把模板掛進 TeX，並讓終端機找得到 `ax`：macOS 放在 `~/bin`，Linux 放在 `~/.local/bin`，Windows 會把 repo 的 `bin` 資料夾加進 PATH。裝完**開一個新的終端機**，跑 `ax doctor`，沒有 `BAD` 就完成了。
+`install.py` 把模板掛進 TeX，並讓終端機找得到 `ax`：macOS 放在 `~/bin`，Linux 放在 `~/.local/bin`，Windows 會把 repo 的 `bin` 資料夾加進 PATH。裝完**開一個新的終端機**，跑 `ax doctor`，沒有 ✗ 就完成了。
 
 設定作者資料：`ax config` 會顯示設定資料夾在哪裡（macOS、Linux 是 `~/.config/ax/`，Windows 在 `%APPDATA%\ax\`），在裡面建 `config.json`：
 
@@ -28,7 +30,9 @@ python3 install.py        # Windows：py install.py
 {"author": "Aaron Lin", "id": "B12345678", "lang": "zh"}
 ```
 
-三個欄位都可省略，之後每個新專案會自動填入。
+三個欄位都可省略，之後每個新專案會自動填入。`lang` 是新文件的主語言：`en`、`zh`、`ja`、`ko`。
+
+`ax` 本身的訊息有中文和英文，跟著系統語言走；想指定就在 `config.json` 加 `"ui": "zh"` 或 `"ui": "en"`（或設環境變數 `AX_LANG`）。
 
 **Tab 補全**（選用）：在 `~/.zshrc` 加 `eval "$(ax completion zsh)"`，之後打 `ax ` 再按 Tab 就會列出指令和文件種類。bash、PowerShell 的寫法見 `ax completion --help`。
 
@@ -61,7 +65,7 @@ cursor ode-hw3
 | `book` | 論文、長篇講義 |
 | `paper` | 投稿論文的內文（用會議模板，只借數學巨集） |
 
-常用選項：`--title`、`--course`、`--lang zh`、`--bib`（參考文獻）。全部選項見[參考手冊](docs/reference.md#ax-new-的選項與專案內容)。
+常用選項：`--title`、`--course`、`--lang zh|ja|ko`、`--thmnames native`（定理、證明取代 Theorem、Proof）、`--bib`（參考文獻）。全部選項見[參考手冊](docs/reference.md#ax-new-的選項與專案內容)。
 
 ## 日常指令
 

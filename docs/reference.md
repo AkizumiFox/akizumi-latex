@@ -1,5 +1,7 @@
 # akizumi-latex 參考手冊
 
+English: [reference.en.md](reference.en.md)
+
 [README](../README.md) 是入門；這裡是完整的功能與選項，需要時再查。完整的範例在 [`examples/`](../examples/)。
 
 ## ax new 的選項與專案內容
@@ -59,7 +61,7 @@ Characteristic functions agree on every line through the origin.
 \end{proof}
 ```
 
-可用的環境：`theorem` `lemma` `proposition` `corollary` `claim` `definition` `assumption` `example` `remark` `proof`，每一種都有不編號的版本（`theorem*` 等）。每個環境左側都有一條細線標出起訖；名稱一律用英文（Theorem、Proof），不論文件主語言。
+可用的環境：`theorem` `lemma` `proposition` `corollary` `claim` `definition` `assumption` `example` `remark` `proof`，每一種都有不編號的版本（`theorem*` 等）。每個環境左側都有一條細線標出起訖；名稱預設用英文（Theorem、Proof），不論文件主語言；`thmnames=native` 改用主語言（見〈交叉引用〉）。
 
 定理可以在附錄重述並證明：
 
@@ -301,7 +303,7 @@ TikZ 圖可以用跟簡報一致的樣式：
 模板會持續修改，但三個月前的作業應該照原樣編譯。做法是**每個專案記住自己用的模板版本**：
 
 - 建立專案時，`.ax.json` 記下當時最新的版本（例如 `"template": "v0.4"`）。
-- 之後模板改到 v0.5，這個專案仍然用 v0.4 編譯。各版本的檔案放在 `~/Library/Caches/ax/<版本>/`。
+- 之後模板改到 v0.5，這個專案仍然用 v0.4 編譯。各版本的檔案放在快取資料夾：macOS `~/Library/Caches/ax/<版本>/`，Linux `~/.cache/ax/<版本>/`，Windows `%LOCALAPPDATA%\ax\Cache\<版本>\`（`ax config` 會顯示）。
 - 想要新外觀時，在專案裡跑 `ax upgrade`，再 `ax build` 確認。
 
 這也適用於編輯器：專案的 `latexmkrc` 會向 `ax` 查詢版本，所以從編輯器直接呼叫 latexmk 也是同一個版本。
@@ -383,7 +385,7 @@ skeletons/            ax new 用的內文骨架
 examples/             每種文件的完整範例，兼當測試
 bin/                  ax（ax.cmd 給 Windows）、akizumi-both、biber 修正（macOS）
 install.py            安裝（三個系統共用）
-.github/workflows/    在 Linux、Windows 上自動測試
+.github/workflows/    在 Linux、Windows、macOS 上自動測試
 ```
 
 改完模板後：
@@ -401,7 +403,7 @@ Linux 與 Windows 的測試在 GitHub Actions 上跑：推送版本 tag 時自�
 1. 更新 `CHANGELOG.md`。
 2. 把各檔 `\ProvidesPackage` / `\ProvidesClass` 裡的版本號改掉。
 3. `ax selftest`。
-4. `git commit`，然後 `git tag -a v0.8 -m v0.8 && git push && git push --tags`（推 tag 會觸發 Linux、Windows 測試）。
+4. `git commit`，然後 `git tag -a v0.8 -m v0.8 && git push && git push --tags`（推 tag 會觸發三個系統的測試）。
 
 沒有打 tag 的修改只影響 `examples/` 和直接用模板的文件，不會影響已經固定版本的專案。
 
@@ -413,11 +415,9 @@ TeX Live 2026 的 biber 啟動時呼叫 `lipo -extract_family`，新版 Command 
 **改了模板，專案的 PDF 沒變**
 專案固定在舊版本（見〈版本固定〉）。跑 `ax upgrade`；或者模板的修改還沒打 tag。
 
-**換到另一台電腦，中文字型不一樣**
+**換到另一台電腦，中日韓字型不一樣**
 每個系統用找得到的第一個字型：
 
-| 用途 | 依序嘗試 |
-|---|---|
 | 語言 | 無襯線（標題、標籤、簡報） | 襯線（內文） |
 |---|---|---|
 | 中文（`lang=en` 裡的中文也是） | 蘋方（macOS）→ Noto Sans CJK TC → 微軟正黑體（Windows）→ Fandol | 宋體 → Noto Serif CJK TC → 細明體 → Fandol |
@@ -444,4 +444,4 @@ Fandol 一定有（TeX Live 內建），但主要是簡體字型，用到它時 
 
 ---
 
-版本紀錄見 [`CHANGELOG.md`](CHANGELOG.md)。
+版本紀錄見 [`CHANGELOG.md`](../CHANGELOG.md)。

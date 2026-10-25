@@ -8,8 +8,8 @@
 %           cjk  = <font>    (CJK sans font; default picked per language)
 %           cjk-bold = <font>
 %           bb   = light | regular | ams  (default light: bboldx, light weight)
-%           text = serif | sans  (body text; default serif. Headings, labels,
-%                  titles and slides stay Lato either way)
+%           text = serif | sans | times | palatino  (body text; default serif.
+%                  Headings, labels, titles and slides stay Lato either way)
 %           bib  = <file.bib>[,<file2.bib>]  (loads biblatex + biber; documents only)
 %           paper  = a4 | letter | pad    (pad: 3:4 page for reading on a tablet)
 %           layout = normal | margin      (margin: wide right margin for sidenotes)
@@ -50,8 +50,12 @@
     bb       .choices:nn = { light, regular, ams }
       { \tl_set_eq:NN \l__akizumi_bb_tl \l_keys_choice_tl },
     bb       .initial:n = light,
-    text     .choices:nn = { sans, serif }
-      { \str_if_eq:VnTF \l_keys_choice_tl { serif } { \akizumi@seriftrue } { \akizumi@seriffalse } },
+    % times / palatino: serif body in TeX Gyre (set in akizumi-zhlayout)
+    text     .choices:nn = { sans, serif, times, palatino }
+      {
+        \str_if_eq:VnTF \l_keys_choice_tl { sans } { \akizumi@seriffalse } { \akizumi@seriftrue }
+        \tl_set_eq:NN \akizumi@textfont \l_keys_choice_tl
+      },
     text     .initial:n = serif,
     bib      .clist_set:N = \l__akizumi_bib_clist,
     paper    .choices:nn = { a4, letter, pad }
@@ -665,6 +669,7 @@
   \begingroup\sffamily\centering
   \ifx\akizumi@kicker\@empty\else{\small\bfseries\color{accent}\akizumi@kicker}\par\vspace{0.35em}\fi
   {\huge\bfseries\@title\par}%
+  \akizumi@aftertitle  % subtitle and info line (akizumi-zhlayout)
   \ifakizumi@byline\vspace{0.6em}{\color{mute}\akizumi@byline\par}\fi
   \vspace{1.8em}%
   \endgroup}
@@ -704,5 +709,7 @@
   \renewcommand{\tableofcontents}{{\hypersetup{linkcolor=ink}\akizumi@tableofcontents}}}
 \newcommand{\akizumi@headright}{\@author}
 
+% Chinese report layout: par, secnum, fontsize, kai, subtitle / info, ...
+\RequirePackage{akizumi-zhlayout}
 
 \endinput

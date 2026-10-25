@@ -21,6 +21,8 @@ import sys
 import tarfile
 import tempfile
 import time
+import unicodedata
+import webbrowser
 import zipfile
 from pathlib import Path
 
@@ -135,7 +137,7 @@ KIND_HELP = {
 }
 # commands shown to people; the rest are called by latexmk
 PUBLIC_COMMANDS = ["new", "build", "watch", "open", "both", "count", "doctor", "upgrade",
-                   "freeze", "pack", "config", "completion", "selftest", "migrate"]
+                   "freeze", "pack", "config", "completion", "selftest", "migrate", "docs"]
 NEW_OPTIONS = ["--title", "--author", "--course", "--number", "--due", "--id", "--lang", "--thmnames",
                "--text", "--paper", "--layout", "--bib", "--code", "--progress", "--venue", "--split",
                "--anonymous", "--no-anonymous", "--pin", "--git",
@@ -2383,6 +2385,391 @@ def cmd_config(a):
         note(T('  {"author": "你的名字", "lang": "zh"}', '  {"author": "Your Name", "lang": "en"}'))
 
 
+# ---------- ax docs: the reference manual in the terminal ----------
+# Sections of docs/reference.md (or .en.md) by heading. The two files mirror
+# each other heading for heading, so a match in one maps to the other by
+# position: "ax docs theorem" finds the Chinese section too.
+
+DOCS = REPO / "docs"
+DOCS_WEB = "https://github.com/AkizumiFox/akizumi-latex/blob/main/docs/"
+CHEATSHEET = REPO / "examples" / "cheatsheet.pdf"
+
+
+def docs_file(lang):
+    return DOCS / ("reference.en.md" if lang == "en" else "reference.md")
+
+
+def _plain_heading(title):
+    """A heading as GitHub shows it: no backticks, links as their text."""
+    title = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", title)
+    return title.replace("`", "").strip()
+
+
+def heading_anchor(title, seen=None):
+    """GitHub's #anchor for a heading (seen counts repeats: -1, -2, ...)."""
+    slug = re.sub(r"[^\w\- ]", "", _plain_heading(title).lower()).replace(" ", "-")
+    if seen is not None:
+        n = seen.get(slug, 0)
+        seen[slug] = n + 1
+        if n:
+            slug = f"{slug}-{n}"
+    return slug
+
+
+def doc_sections(path):
+    """(lines, sections); a section is a dict with level, title, line (the
+    heading's index), own (end of its own text: the next heading) and end
+    (the next heading of the same or a higher level). Fenced code is skipped,
+    so a '# comment' in a shell example is not a heading."""
+    lines = path.read_text(errors="replace").splitlines()
+    heads, fence, seen = [], False, {}
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        elif not fence:
+            m = re.match(r"(#{1,6})\s+(.*\S)", line)
+            if m:
+                heads.append({"level": len(m.group(1)), "title": m.group(2), "line": i,
+                              "anchor": heading_anchor(m.group(2), seen)})
+    for k, h in enumerate(heads):
+        h["own"] = heads[k + 1]["line"] if k + 1 < len(heads) else len(lines)
+        h["end"] = next((g["line"] for g in heads[k + 1:] if g["level"] <= h["level"]), len(lines))
+    return lines, heads
+
+
+def doc_blocks(lines, start, end):
+    """Paragraphs, list items, tables and code blocks of lines[start:end], as
+    lists of line indexes."""
+    blocks, cur, kind = [], [], None
+    i = start
+    while i < end:
+        line = lines[i]
+        if line.lstrip().startswith("```"):
+            if cur:
+                blocks.append(cur)
+            cur = [i]
+            i += 1
+            while i < end and not lines[i].lstrip().startswith("```"):
+                cur.append(i)
+                i += 1
+            if i < end:
+                cur.append(i)
+            blocks.append(cur)
+            cur, kind = [], None
+        elif not line.strip():
+            if cur:
+                blocks.append(cur)
+            cur, kind = [], None
+        else:
+            new = ("table" if line.lstrip().startswith("|") else
+                   "item" if re.match(r"([-*]|\d+\.)\s", line) else "text")
+            if cur and (new == "item" or (new == "table") != (kind == "table")):
+                blocks.append(cur)
+                cur = []
+            if not cur:
+                kind = new
+            cur.append(i)
+        i += 1
+    if cur:
+        blocks.append(cur)
+    return blocks
+
+
+def _is_table(lines, block):
+    return lines[block[0]].lstrip().startswith("|")
+
+
+def _doc_hits(lines, sec, tokens):
+    """The blocks of a section's own text containing every token, as
+    {block number: line indexes to show}; a table shows its header and the
+    matching rows only."""
+    hits = {}
+    for b, block in enumerate(doc_blocks(lines, sec["line"] + 1, sec["own"])):
+        if _is_table(lines, block):
+            rows = [i for i in block[2:] if all(t in lines[i].lower() for t in tokens)]
+            if rows:
+                hits[b] = block[:2] + rows
+        elif all(t in " ".join(lines[i] for i in block).lower() for t in tokens):
+            hits[b] = block
+    return hits
+
+
+def _doc_scores(lines, heads, query):
+    """{section number: (score, hits)}: 80-100 when the heading has the
+    words, 60-75 when it has some and its text the rest, 30-58 when only
+    paragraphs or table rows have them."""
+    q = query.lower().strip()
+    tokens = [t.lstrip("\\") for t in q.split()] or [q]
+    out = {}
+    for k, h in enumerate(heads):
+        if h["level"] < 2:
+            continue
+        title = _plain_heading(h["title"]).lower()
+        if title in (q, q.lstrip("\\")):
+            score = 100
+        elif all(t in title for t in tokens):
+            score = 80 + 15 * len(q) / max(len(title), 1)
+        elif len(title) >= 2 and title in q:  # 參考文獻格式 → 參考文獻
+            score = 60 + 10 * len(title) / len(q)
+        else:
+            score = 0
+        hits = _doc_hits(lines, h, tokens)
+        named = [t for t in tokens if t in title]
+        if not score and named and not hits:
+            # "theorem numbering": some words in the heading, the rest in its text
+            text = "\n".join(lines[h["line"]:h["own"]]).lower()
+            if all(t in text for t in tokens):
+                score = 60 + 15 * len(named) / len(tokens)
+        if not score and hits:
+            # a table row that defines it (an option, a macro) counts most
+            defines = any(all(t in lines[i].split("|")[1].lower() for t in tokens)
+                          for rows in hits.values() for i in rows[2:]
+                          if lines[i].lstrip().startswith("|") and lines[i].count("|") > 2)
+            # and so does a section that starts with it
+            score = 30 + min(len(hits), 8) + 12 * defines + 2 * max(4 - min(hits), 0)
+        if score:
+            out[k] = (score, hits)
+    return out
+
+
+def _same_shape(heads, oheads):
+    return [h["level"] for h in heads] == [h["level"] for h in oheads]
+
+
+def _map_hits(lines, mine, olines, theirs, hits):
+    """Hits found in the other language's paragraphs, moved to the same
+    paragraphs (and table rows) of this language's text."""
+    out = {}
+    for b, shown in hits.items():
+        if _is_table(olines, theirs[b]) and len(mine[b]) == len(theirs[b]):
+            out[b] = [mine[b][j] for j, i in enumerate(theirs[b]) if i in shown]
+        else:
+            out[b] = mine[b]
+    return out
+
+
+def doc_search(query, lang):
+    """(lines, sections, [(score, section number, hits, lines the hits index)])
+    for the language's file, best first; matches in the other language's file
+    count too, shown in this language when the paragraphs line up."""
+    lines, heads = doc_sections(docs_file(lang))
+    found = {k: (s, hits, lines) for k, (s, hits) in _doc_scores(lines, heads, query).items()}
+    other = docs_file("zh" if lang == "en" else "en")
+    if other.exists():
+        olines, oheads = doc_sections(other)
+        if _same_shape(heads, oheads):
+            for k, (s, hits) in _doc_scores(olines, oheads, query).items():
+                s *= 0.95
+                if s <= found.get(k, (0,))[0]:
+                    continue
+                mine = doc_blocks(lines, heads[k]["line"] + 1, heads[k]["own"])
+                theirs = doc_blocks(olines, oheads[k]["line"] + 1, oheads[k]["own"])
+                if len(mine) == len(theirs):
+                    found[k] = (s, _map_hits(lines, mine, olines, theirs, hits), lines)
+                else:
+                    found[k] = (s, hits, olines)
+    ranked = sorted(found.items(), key=lambda kv: (-kv[1][0], len(heads[kv[0]]["title"]), kv[0]))
+    return lines, heads, [(s, k, hits, src) for k, (s, hits, src) in ranked]
+
+
+def _doc_render(text_lines):
+    """Lines in color: headings, `code` and **bold**; fenced code as it is."""
+    out, fence = [], False
+    for line in text_lines:
+        if line.lstrip().startswith("```"):
+            fence = not fence
+            out.append(line)
+        else:
+            out.append(line if fence else _doc_line(line))
+    return out
+
+
+def _doc_line(line):
+    if re.match(r"#{1,6}\s", line):
+        return _paint(line, "1;36")
+    if COLOR["out"]:
+        line = re.sub(r"`[^`]+`", lambda m: _paint(m.group(0), "36"), line)
+        line = re.sub(r"\*\*([^*]+)\*\*", lambda m: _paint(m.group(1), "1"), line)
+    return line
+
+
+def _doc_page(text_lines):
+    """Print, through less on a terminal when it does not fit; without less,
+    cut it to the screen with a hint."""
+    rows = shutil.get_terminal_size((80, 40)).lines
+    if not sys.stdout.isatty() or len(text_lines) <= rows - 2:
+        print("\n".join(text_lines))
+        return
+    pager = None if WINDOWS else shutil.which("less")
+    if pager:
+        try:
+            subprocess.run([pager, "-R", "-F", "-X"], input="\n".join(text_lines) + "\n",
+                           encoding="utf-8", errors="replace")
+            return
+        except OSError:
+            pass
+    keep = max(rows - 4, 10)
+    print("\n".join(text_lines[:keep]))
+    note(T(f"…（還有 {len(text_lines) - keep} 行；加 --web 在瀏覽器看全文）",
+           f"... ({len(text_lines) - keep} more lines; add --web to read it all in the browser)"))
+
+
+def doc_suggestions(query, lang):
+    """(headings that look like the query, True), or with none alike the
+    manual's chapters and False."""
+    q = query.lower().lstrip("\\")
+    _, heads = doc_sections(docs_file(lang))
+    other = docs_file("zh" if lang == "en" else "en")
+    oheads = doc_sections(other)[1] if other.exists() else []
+    if not _same_shape(heads, oheads):
+        oheads = []
+
+    def ratio(title):
+        title = _plain_heading(title).lower()
+        words = [w for w in re.split(r"[\s、，,（）()：:/]+", title)
+                 if len(w) >= 3 or len(w) == 2 and not w.isascii()] + [title]
+        return max(difflib.SequenceMatcher(None, q, w).ratio() for w in words)
+
+    scored = [(max(ratio(h["title"]), ratio(oheads[k]["title"]) if oheads else 0), k)
+              for k, h in enumerate(heads) if h["level"] >= 2]
+    scored.sort(key=lambda x: -x[0])
+    near = [heads[k] for r, k in scored[:6] if r >= 0.4]
+    # nothing alike: the manual's chapters, to browse from
+    return (near, True) if near else ([h for h in heads if h["level"] == 2], False)
+
+
+def doc_vocabulary():
+    """Words and macro names in either file, to correct a typo."""
+    words = set()
+    for lang in ("zh", "en"):
+        if docs_file(lang).exists():
+            text = docs_file(lang).read_text(errors="replace")
+            words |= {w.lower() for w in re.findall(r"\\?[A-Za-z][A-Za-z@-]{2,}", text)}
+    return words
+
+
+def docs_cheatsheet():
+    """examples/cheatsheet.pdf, or built from cheatsheet.tex into the cache."""
+    for pdf in (CHEATSHEET, REPO / "examples" / "build" / "cheatsheet.pdf"):
+        if pdf.exists():
+            open_file(pdf)
+            ok(T(f"已打開 {pdf}", f"Opened {pdf}"))
+            return
+    tex = CHEATSHEET.with_suffix(".tex")
+    if not tex.exists():
+        die(T("這個版本的模板還沒有速查表（examples/cheatsheet.tex）",
+              "This template version has no cheat sheet yet (examples/cheatsheet.tex)"),
+            T(f"先看參考手冊：{cmd_text('ax docs')}", f"Read the reference instead: {cmd_text('ax docs')}"))
+    out_dir = CACHE / "docs"
+    pdf = out_dir / "cheatsheet.pdf"
+    if not pdf.exists() or pdf.stat().st_mtime < tex.stat().st_mtime:
+        need_tool("latexmk", T("ax doctor 看怎麼裝 TeX", "ax doctor shows how to install TeX"))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        # examples/latexmkrc: XeLaTeX with the templates at the repo root;
+        # -outdir after it puts the output in the cache instead of the repo
+        code, _, secs = run_with_spinner(
+            ["latexmk", "-r", "latexmkrc", f"-outdir={out_dir}", "-halt-on-error",
+             "-interaction=nonstopmode", tex.name], T("編譯速查表", "Building the cheat sheet"),
+            cwd=tex.parent)
+        if code or not pdf.exists():
+            print_error(out_dir / "cheatsheet.log")
+            die(T("速查表編譯失敗", "The cheat sheet did not build"),
+                T(f"{cmd_text('ax doctor')} 檢查 TeX 和字型", f"{cmd_text('ax doctor')} checks TeX and fonts"))
+        ok(T(f"速查表編好了（{elapsed(secs)}）", f"Built the cheat sheet ({elapsed(secs)})"))
+    open_file(pdf)
+    ok(T(f"已打開 {pdf}", f"Opened {pdf}"))
+
+
+def cmd_docs(a):
+    if a.cheatsheet:
+        return docs_cheatsheet()
+    lang = "en" if a.en or UI == "en" else "zh"
+    path = docs_file(lang)
+    url = DOCS_WEB + path.name
+    if not path.exists():
+        die(T(f"找不到 {path}", f"{path} not found"), T(f"線上版：{url}", f"Online: {url}"))
+    query = " ".join(a.topic).strip()
+    if not query:
+        if a.web:
+            webbrowser.open(url)
+            ok(T(f"已在瀏覽器打開 {url}", f"Opened {url} in the browser"))
+        else:
+            open_file(path)
+            ok(T(f"已打開 {path}", f"Opened {path}"))
+        note(T(f"  查一段：{cmd_text('ax docs 主題')}（例如 ax docs 定理）",
+               f"  Look up one section: {cmd_text('ax docs TOPIC')} (e.g. ax docs theorem)"))
+        return
+    lines, heads, ranked = doc_search(query, lang)
+    if not ranked:
+        # a typo: correct each word to one the manual uses, then the whole
+        vocab = doc_vocabulary()
+
+        def close(word):
+            if word in vocab or not word.isascii():
+                return word
+            m = (difflib.get_close_matches(word, vocab, n=1, cutoff=0.8)
+                 or difflib.get_close_matches("\\" + word.lstrip("\\"), vocab, n=1, cutoff=0.8))
+            return m[0] if m else word
+
+        q = query.lower()
+        for guess in (" ".join(close(w) for w in q.split()), close(q)):
+            if guess != q:
+                found = doc_search(guess, lang)
+                if found[2]:
+                    note(T(f"找不到「{query}」，改找「{guess}」", f'No "{query}"; showing "{guess}"'))
+                    query = guess
+                    lines, heads, ranked = found
+                    break
+    if not ranked:
+        fail(T(f"參考手冊裡找不到「{query}」", f'Nothing about "{query}" in the reference'))
+        near, alike = doc_suggestions(query, lang)
+        if near:
+            print(T("你是不是要找：", "Did you mean:") if alike else T("手冊的章節：", "The manual's chapters:"))
+            for h in near:
+                print(f"  {MARK['dot']} {_paint(_plain_heading(h['title']), '1;36')}")
+            first = _plain_heading(near[0]["title"])
+            example = cmd_text(f"ax docs {first}" if " " not in first else f'ax docs "{first}"')
+            note(T(f"  例如 {example}；{cmd_text('ax docs')} 打開整份手冊",
+                   f"  e.g. {example}; {cmd_text('ax docs')} opens the whole manual"))
+        else:
+            note(T(f"  {cmd_text('ax docs')} 打開整份手冊", f"  {cmd_text('ax docs')} opens the whole manual"))
+        sys.exit(1)
+    best_score, best, _, _ = ranked[0]
+    h = heads[best]
+    if a.web:
+        webbrowser.open(f"{url}#{h['anchor']}")
+        ok(T(f"已在瀏覽器打開「{_plain_heading(h['title'])}」",
+             f"Opened \"{_plain_heading(h['title'])}\" in the browser"))
+        note(f"  {url}#{h['anchor']}")
+        return
+    out, shown = [], []
+    if best_score >= 60:  # a heading: the whole section, subsections included
+        out += _doc_render(lines[h["line"]:h["end"]])
+        shown = [best]
+    else:  # the paragraphs and table rows that mention it
+        for score, k, hits, src in ranked[:3]:
+            out.append(_doc_line("#" * heads[k]["level"] + " " + heads[k]["title"]))
+            out.append("")
+            for b in sorted(hits)[:6]:
+                out += _doc_render(src[i] for i in hits[b]) + [""]
+            if len(hits) > 6:
+                out += [_paint(T(f"…（這一節還有 {len(hits) - 6} 處）",
+                                 f"... ({len(hits) - 6} more in this section)"), "2"), ""]
+            shown.append(k)
+    while out and not out[-1].strip():
+        out.pop()
+    shown_query = query if " " not in query else f'"{query}"'
+    out += ["", _paint(f"{path.relative_to(REPO).as_posix()}:{h['line'] + 1}  {MARK['dot']}  " +
+                       T(f"ax docs {shown_query} --web 在瀏覽器看", f"ax docs {shown_query} --web opens it in the browser"),
+                       "2")]
+    inside = lambda k: any(heads[s]["line"] <= heads[k]["line"] < heads[s]["end"] for s in shown)
+    more = [k for _, k, _, _ in ranked if not inside(k)][:5]
+    if more:
+        out.append(_paint(T("也有提到：", "Also mentioned in:"), "2"))
+        out += [_paint(f"  {MARK['dot']} {_plain_heading(heads[k]['title'])}", "2") for k in more]
+    _doc_page(out)
+
+
 # ---------- shell completion ----------
 
 PARSER = None  # set by main(); completion reads each command's options from it
@@ -3426,6 +3813,17 @@ def cmd_selftest(a):
         result(code == 0, T("專案 索引（index=true）", "project index (index=true)"))
         if code:
             print(out)
+        # ax docs: it maps sections between the two manuals by position, so
+        # their headings must line up; and a topic finds its section
+        zh_heads, en_heads = doc_sections(docs_file("zh"))[1], doc_sections(docs_file("en"))[1]
+        r = subprocess.run(ax + ["docs", "theorem"], stdin=subprocess.DEVNULL, capture_output=True,
+                           encoding="utf-8", errors="replace", env={**os.environ, "AX_LANG": "zh"})
+        good = _same_shape(zh_heads, en_heads) and r.returncode == 0 and "### 定理" in r.stdout
+        result(good, T("ax docs（兩種語言的手冊標題對得上）", "ax docs (the two manuals' headings line up)"))
+        if not good:
+            print(T(f"  標題數：中文 {len(zh_heads)}，英文 {len(en_heads)}",
+                    f"  headings: Chinese {len(zh_heads)}, English {len(en_heads)}"))
+            print(r.stdout + r.stderr)
         shutil.rmtree(tmp, ignore_errors=True)
     print()
     if failed:
@@ -3514,10 +3912,13 @@ HELP_LINES = {
                   "rebuild the examples and a project of each kind (after editing templates)"),
     "migrate": T("把舊文件（memoir、CJKutf8）轉成 akizumi 的副本，並列出撞名的巨集",
                  "rewrite a copy of an old document (memoir, CJKutf8) for akizumi; list clashing macros"),
+    "docs": T("查參考手冊：ax docs 定理 在終端機印出那一節（--web 開網頁，--cheatsheet 開速查表）",
+              "look things up in the reference: ax docs theorem prints that section "
+              "(--web: in the browser, --cheatsheet: the cheat sheet)"),
 }
 
-HELP_COMMANDS = T("指令（new、doctor、config、migrate 以外都在專案資料夾或它的子資料夾裡執行）：\n",
-                  "Commands (all but new, doctor, config and migrate run inside a project folder):\n") + \
+HELP_COMMANDS = T("指令（new、doctor、config、migrate、docs 以外都在專案資料夾或它的子資料夾裡執行）：\n",
+                  "Commands (all but new, doctor, config, migrate and docs run inside a project folder):\n") + \
     "\n".join(f"  {c:<12}{HELP_LINES[c]}" for c in PUBLIC_COMMANDS) + "\n\n"
 
 HELP_EXAMPLES = T("""\
@@ -3529,7 +3930,7 @@ HELP_EXAMPLES = T("""\
   cd ode-hw3 && ax watch                  存檔就重編
 
 Tab 補全：在 ~/.zshrc 加 eval "$(ax completion zsh)"（bash 同理；PowerShell 見 ax completion --help）
-說明文件：README.md、docs/reference.md（在模板 repo 裡）
+說明：ax docs 主題（例如 ax docs 定理）
 介面語言：AX_LANG=zh|en，或 config.json 的 "ui"
 """, """\
 Examples:
@@ -3540,14 +3941,136 @@ Examples:
   cd ode-hw3 && ax watch                  rebuild on save
 
 Tab completion: add eval "$(ax completion zsh)" to ~/.zshrc (bash likewise; PowerShell: ax completion --help)
-Docs: README.md, docs/reference.md (in the template repo)
+Docs: ax docs TOPIC (e.g. ax docs theorem)
 Interface language: AX_LANG=zh|en, or "ui" in config.json
 """)
+# Each command's --help: a description (default: its HELP_LINES entry) and
+# a few examples, as (command, Chinese, English).
+CMD_HELP = {
+    "build": (T("編譯一次。成功才更新 PDF；失敗時印出第一個錯誤的檔案、行號和白話提示，保留上一份 PDF。",
+                "Build once. The PDF is updated only on success; on failure ax shows the first error's "
+                "file, line and a plain-language hint, and keeps the last PDF."),
+              [("ax build", "編譯專案的 main.tex", "build the project's main.tex"),
+               ("ax build --chapter 3", "只編第 3 章，輸出 main-ch3.pdf", "only chapter 3, into main-ch3.pdf"),
+               ("ax build appendix.tex", "編譯另一個檔案", "build another file")]),
+    "watch": (T("存檔就重編，每次成功或失敗都會說。", "Rebuild on every save, saying each time whether it worked."),
+              [("ax watch", "在前景監看，Ctrl-C 結束", "watch here; Ctrl-C to stop"),
+               ("ax watch --bg", "在背景監看，輸出寫到 build/watch.log", "watch in the background, output in build/watch.log"),
+               ("ax watch --status", "背景監看在不在跑、上次編譯結果", "is it running, how did the last build go")]),
+    "open": (None,
+             [("ax open", "打開 main.pdf", "open main.pdf"),
+              ("ax open --solutions", "打開 ax both 產生的 main-solutions.pdf", "open main-solutions.pdf from ax both")]),
+    "both": (T("作業、考卷：一次產生題目卷 main.pdf 和解答 main-solutions.pdf。",
+               "Homework and exams: the problems (main.pdf) and the solutions (main-solutions.pdf) in one go."),
+             [("ax both", "兩份 PDF 都編", "build both PDFs"),
+              ("ax open --solutions", "接著打開解答", "then open the solutions")]),
+    "count": (T("數字數：英文字數加中日韓字數，不算指令、數學、程式碼和註解；會跟著 \\input、\\include 走。",
+                "Count English words plus CJK characters, leaving out commands, math, code and comments; "
+                "follows \\input and \\include."),
+              [("ax count", "數整個專案", "the whole project"),
+               ("ax count --limit 3000", "超過 3000 字就提醒", "warn above 3000"),
+               ("ax count chapters/ch1.tex", "只數一個檔案", "one file only")]),
+    "doctor": (T("檢查工具、字型、模板安裝和版本，最後列出有問題的項目和修法。在專案裡還會檢查專案用到的套件和程式。",
+                 "Check tools, fonts, the template install and versions, then list what is wrong and how to fix "
+                 "it. Inside a project it also checks the packages and programs the project uses."),
+               [("ax doctor", "出問題時先跑這個", "run this first when something is wrong")]),
+    "upgrade": (T("把專案換到最新的模板版本，順便更新 latexmkrc 和編輯器設定。",
+                  "Move the project to the newest template version, and refresh latexmkrc and the editor settings."),
+                [("ax upgrade && ax build", "換版本後重編確認", "upgrade, then rebuild to check")]),
+    "freeze": (T("把模板檔複製進專案，之後只靠自己就能編譯，可以交出去或封存。",
+                 "Copy the template files into the project, so it builds on its own: hand it in or archive it."),
+               [("ax freeze", "複製目前版本的 .sty／.cls", "copy this version's .sty / .cls"),
+                ("ax upgrade", "改回版本管理", "go back to versions")]),
+    "pack": (T("打包成 <資料夾名>-overleaf.zip，內含模板檔，可直接上傳 Overleaf。",
+               "Pack <folder>-overleaf.zip with the template files, ready to upload to Overleaf."),
+             [("ax pack", "上傳後在 Menu → Compiler 選 XeLaTeX", "after uploading, set Menu → Compiler to XeLaTeX")]),
+    "config": (T("顯示設定資料夾、config.json、preamble、模板快取各在哪裡，以及介面語言從哪裡來。",
+                 "Show where the config folder, config.json, preambles and the template cache are, "
+                 "and where the interface language comes from."),
+               [("ax config", "看位置", "show the locations"),
+                ("AX_LANG=en ax config", "這一次用英文介面", "English interface, this once")]),
+    "selftest": (T("重編所有範例和 tests/ 的小文件，再建立並編譯每種專案。改模板後用。",
+                   "Rebuild the examples and the small documents in tests/, then create and build a project "
+                   "of each kind. Run it after editing the templates."),
+                 [("ax selftest", "全部", "everything"),
+                  ("ax selftest tests", "只編 tests/", "tests/ only"),
+                  ("ax selftest projects", "只建立並編譯專案", "projects only")]),
+    "migrate": (T("把舊文件（memoir + math-notes、article、CJKutf8）轉成 akizumi 的副本，原檔不動；"
+                  "列出跟 akizumi 撞名的巨集。",
+                  "Rewrite a copy of an old document (memoir + math-notes, article, CJKutf8) for akizumi, "
+                  "leaving the original alone; list macros that clash with akizumi's."),
+                [("ax migrate thesis.tex", "寫出 thesis-akizumi.tex", "writes thesis-akizumi.tex"),
+                 ("ax migrate hw1.tex --kind hw --dry-run", "只列出會改什麼", "only list the changes"),
+                 ("ax migrate main.tex --in-place", "直接改原檔，原檔備份成 main.tex.bak",
+                  "rewrite it in place, keeping main.tex.bak")]),
+    "docs": (T("查參考手冊（docs/reference.md）。給主題就在終端機印出最相關的一節；中英文都能查，"
+               "也可以是選項名稱或巨集。",
+               "Look things up in the reference (docs/reference.en.md). With a topic, the best-matching "
+               "section is printed here; Chinese or English words, option names and macros all work."),
+             [("ax docs", "打開整份手冊", "open the whole manual"),
+              ("ax docs 定理", "印出〈定理、定義、證明〉", 'print "Theorems, definitions, proofs"'),
+              ("ax docs thmcounter --web", "在瀏覽器打開提到它的那一節", "open the section about it in the browser"),
+              ("ax docs --cheatsheet", "打開速查表 PDF", "open the cheat sheet PDF")]),
+}
+
+
+class ExamplesFormatter(argparse.HelpFormatter):
+    """Wraps a one-paragraph description; keeps text with line breaks (the
+    examples) as written."""
+
+    def _fill_text(self, text, width, indent):
+        if "\n" in text:
+            return "".join(indent + line for line in text.splitlines(keepends=True))
+        return super()._fill_text(text, width, indent)
+
+
+def _width(text):
+    """Columns text takes in a terminal: CJK characters take two."""
+    return sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in text)
+
+
+def cmd_help(name):
+    """add_parser keywords for a command's --help."""
+    description, examples = CMD_HELP.get(name, (None, []))
+    # prog: Python before 3.10 would put the top-level usage line in front
+    kw = {"prog": f"ax {name}", "help": HELP_LINES[name], "description": description or HELP_LINES[name],
+          "formatter_class": ExamplesFormatter}
+    if examples:
+        width = max(_width(c) for c, _, _ in examples) + 2
+        kw["epilog"] = T("範例：\n", "Examples:\n") + "\n".join(
+            f"  {c}{' ' * (width - _width(c))}{T(zh, en)}" for c, zh, en in examples)
+    return kw
+
+
+# argparse's own words in the Chinese interface. argparse looks them up
+# through its module-level _() each time it formats help (and when a parser
+# adds -h), so replacing _ translates them; the English interface keeps them.
+# Error messages stay as they are: Parser.error reads them.
+ARGPARSE_ZH = {
+    "usage: ": "用法：",
+    "options": "選項",
+    "optional arguments": "選項",  # Python before 3.10
+    "positional arguments": "參數",
+    "show this help message and exit": "顯示這段說明",
+    "show program's version number and exit": "顯示版本",
+    "%(heading)s:": "%(heading)s：",
+}
+if UI == "zh":
+    _argparse_gettext = argparse._
+    argparse._ = lambda text: ARGPARSE_ZH.get(text) or _argparse_gettext(text)
+
+
 CMD_METAVAR = T("指令", "command")
 
 
 class Parser(argparse.ArgumentParser):
     """argparse with friendlier error messages and typo suggestions."""
+
+    def format_help(self):
+        text = super().format_help()
+        if UI == "zh":  # "選項:" from Pythons whose heading colon is not translatable
+            text = re.sub(r"^(選項|參數)((?:\x1b\[[0-9;]*m)*):", r"\1\2：", text, flags=re.M)
+        return text
 
     def error(self, message):
         m = re.search(r"invalid choice: '([^']*)'", message)
@@ -3567,10 +4090,18 @@ class Parser(argparse.ArgumentParser):
         m = re.search(r"unrecognized arguments: (.*)", message)
         if m:
             word = m.group(1).split()[0]
-            guess = suggest(word, NEW_OPTIONS) if word.startswith("-") else None
+            # argparse reports these from the top parser: the command's own
+            # options are the ones to suggest from
+            prog, options = self.prog, NEW_OPTIONS
+            cmd = next((w for w in sys.argv[1:] if not w.startswith("-")), None)
+            if PARSER is not None and cmd in PUBLIC_COMMANDS:
+                cp = next(x for x in PARSER._actions if isinstance(x, argparse._SubParsersAction)).choices[cmd]
+                prog = cp.prog
+                options = [o for x in cp._actions for o in x.option_strings if o.startswith("--")]
+            guess = suggest(word, options) if word.startswith("-") else None
             die(T(f"看不懂的參數：{m.group(1)}" + (f"，你是不是要打 {guess}？" if guess else ""),
                   f"Unknown argument: {m.group(1)}" + (f"; did you mean {guess}?" if guess else "")),
-                T(f"{self.prog} --help 看可用的參數", f"{self.prog} --help lists the options"))
+                T(f"{prog} --help 看可用的參數", f"{prog} --help lists the options"))
         m = re.search(r"the following arguments are required: (.*)", message)
         if m:
             die(T(f"少了參數：{m.group(1)}", f"Missing argument: {m.group(1)}"),
@@ -3591,7 +4122,7 @@ def main():
     sub = p.add_subparsers(dest="command", required=True, metavar=CMD_METAVAR, help=argparse.SUPPRESS,
                            parser_class=Parser)
 
-    n = sub.add_parser("new", help=HELP_LINES["new"],
+    n = sub.add_parser("new", prog="ax new", help=HELP_LINES["new"],
                        description=T("建立新專案。沒給的種類、資料夾、標題會互動式詢問。",
                                      "Start a new project. Kind, folder and title are asked for "
                                      "when not given."),
@@ -3647,7 +4178,7 @@ def main():
     n.set_defaults(func=cmd_new)
 
     for name, func in (("build", cmd_build), ("watch", cmd_watch), ("both", cmd_both)):
-        c = sub.add_parser(name, help=HELP_LINES[name], description=HELP_LINES[name])
+        c = sub.add_parser(name, **cmd_help(name))
         c.add_argument("file", nargs="?", metavar=T("檔案", "file"),
                        help=T("預設是專案的 main.tex", "default: the project's main.tex"))
         c.set_defaults(func=func)
@@ -3671,12 +4202,12 @@ def main():
             g.add_argument("--log", action="store_true",
                            help=T("即時看背景監看的輸出（Ctrl-C 結束）",
                                   "follow the background watcher's output (Ctrl-C to quit)"))
-    c = sub.add_parser("count", help=HELP_LINES["count"], description=HELP_LINES["count"])
+    c = sub.add_parser("count", **cmd_help("count"))
     c.add_argument("file", nargs="?", metavar=T("檔案", "file"),
                    help=T("預設是專案的 main.tex", "default: the project's main.tex"))
     c.add_argument("--limit", type=int, metavar="N", help=T("字數上限", "word limit"))
     c.set_defaults(func=cmd_count)
-    o = sub.add_parser("open", help=HELP_LINES["open"], description=HELP_LINES["open"])
+    o = sub.add_parser("open", **cmd_help("open"))
     o.add_argument("file", nargs="?", metavar=T("檔案", "file"),
                    help=T("預設是專案的 main.pdf", "default: the project's main.pdf"))
     o.add_argument("--solutions", action="store_true",
@@ -3684,8 +4215,8 @@ def main():
     o.set_defaults(func=cmd_open)
     for name, func in (("doctor", cmd_doctor), ("upgrade", cmd_upgrade), ("freeze", cmd_freeze),
                        ("pack", cmd_pack), ("config", cmd_config)):
-        sub.add_parser(name, help=HELP_LINES[name], description=HELP_LINES[name]).set_defaults(func=func)
-    c = sub.add_parser("completion", help=HELP_LINES["completion"],
+        sub.add_parser(name, **cmd_help(name)).set_defaults(func=func)
+    c = sub.add_parser("completion", prog="ax completion", help=HELP_LINES["completion"],
                        description=T("印出 Tab 補全腳本。\n\n"
                                      "  zsh：       在 ~/.zshrc 加  eval \"$(ax completion zsh)\"\n"
                                      "  bash：      在 ~/.bashrc 加 eval \"$(ax completion bash)\"\n"
@@ -3697,10 +4228,11 @@ def main():
                        formatter_class=argparse.RawDescriptionHelpFormatter)
     c.add_argument("shell", choices=["zsh", "bash", "powershell"])
     c.set_defaults(func=cmd_completion)
-    t = sub.add_parser("selftest", help=HELP_LINES["selftest"], description=HELP_LINES["selftest"])
-    t.add_argument("part", nargs="?", choices=["all", "examples", "tests", "projects"], default="all")
+    t = sub.add_parser("selftest", **cmd_help("selftest"))
+    t.add_argument("part", nargs="?", choices=["all", "examples", "tests", "projects"], default="all",
+                   help=T("預設 all", "default: all"))
     t.set_defaults(func=cmd_selftest)
-    m = sub.add_parser("migrate", help=HELP_LINES["migrate"], description=HELP_LINES["migrate"])
+    m = sub.add_parser("migrate", **cmd_help("migrate"))
     m.add_argument("file", metavar=T("檔案", "file"))
     m.add_argument("-o", "--output", metavar=T("檔案", "file"),
                    help=T("寫到這裡（預設是同資料夾的 檔名-akizumi.tex）",
@@ -3712,6 +4244,18 @@ def main():
     m.add_argument("--dry-run", action="store_true", help=T("只列出會改什麼，不寫檔", "list the changes, write nothing"))
     m.add_argument("--force", action="store_true", help=T("輸出檔已存在也覆寫", "overwrite the output file"))
     m.set_defaults(func=cmd_migrate)
+    d = sub.add_parser("docs", **cmd_help("docs"))
+    d.add_argument("topic", nargs="*", metavar=T("主題", "topic"),
+                   help=T("中文或英文，也可以是選項名稱或巨集（例如 定理、minted、thmcounter、\\cref）",
+                          "Chinese or English words, an option name or a macro "
+                          "(e.g. theorem, minted, thmcounter, \\cref)"))
+    d.add_argument("--en", action="store_true", help=T("看英文版", "the English manual"))
+    d.add_argument("--web", action="store_true",
+                   help=T("在瀏覽器打開 GitHub 上的手冊（有主題就跳到那一節）",
+                          "open the manual on GitHub in the browser (at the section, given a topic)"))
+    d.add_argument("--cheatsheet", action="store_true",
+                   help=T("打開速查表 PDF（examples/cheatsheet.pdf）", "open the cheat sheet PDF (examples/cheatsheet.pdf)"))
+    d.set_defaults(func=cmd_docs)
 
     # internal: latexmkrc asks for the pinned template path; ax watch explains
     # failures and copies the PDF out after successful runs

@@ -81,6 +81,7 @@ cursor ode-hw3
 | `ax count` | 數字數（英文字數加中日韓字數）；`--limit 3000` 超過就提醒 |
 | `ax pack` | 打包上傳 Overleaf（編譯器選 XeLaTeX） |
 | `ax doctor` | 出問題時先跑這個 |
+| `ax docs 定理` | 在終端機查參考手冊的一節（任何資料夾都能用）；只打 `ax docs` 打開整份手冊 |
 
 打錯指令時 `ax` 會猜你想打什麼，例如 `ax biuld` 會問你是不是要 `ax build`。
 

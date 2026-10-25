@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `ax docs TOPIC` prints the matching section of the reference manual in the terminal: Chinese or English words, option names (`thmcounter`) and macros (`\cref`), matched across both languages, with typo correction and a list of similar headings when nothing matches; `--web` opens it on GitHub at that section, `--en` the English manual, `--cheatsheet` the cheat sheet PDF (built into the cache when missing). Plain `ax docs` opens the manual.
+- `ax --help` and each command's `--help` are in Chinese in the Chinese interface (用法、參數、選項), and every command's help has a short description and examples. Unknown options get a suggestion from that command's own options.
 - `ax watch --bg` watches in the background (output in `build/watch.log`); `--status` shows whether it runs and how the last build went, with the first error; `--log` follows its output; `--stop` ends it. `ax build` / `ax both` warn while one runs, and bare `ax` shows it. Works on macOS, Linux and Windows.
 - Japanese and Korean: `lang=ja` and `lang=ko` set the date, captions, contents, section / problem / chapter labels, exam words and fonts (Hiragino, Yu, Noto CJK JP, HaranoAji; Apple SD Gothic Neo, Malgun, Noto CJK KR, Baekmuk). Korean keeps word spaces.
 - `thmnames=native` names theorem-like environments in the main language: 定理 / 證明 in Chinese, 定理 / 証明 in Japanese, 정리 / 증명 in Korean, also in cleveref, `proofof`, the list of theorems and slides. English stays the default.

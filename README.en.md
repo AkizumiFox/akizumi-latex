@@ -81,6 +81,7 @@ In a project folder (or any folder inside it):
 | `ax count` | count English words plus CJK characters; `--limit 3000` warns above it |
 | `ax pack` | zip for Overleaf (set the compiler to XeLaTeX) |
 | `ax doctor` | run this first when something is wrong |
+| `ax docs theorem` | look up a section of the reference in the terminal (works in any folder); plain `ax docs` opens the whole manual |
 
 Mistyped commands get a suggestion: `ax biuld` asks whether you meant `ax build`.
 

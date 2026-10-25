@@ -11,6 +11,8 @@
 %           bib  = <file.bib>[,<file2.bib>]  (loads biblatex + biber; documents only)
 %           paper  = a4 | letter | pad    (pad: 3:4 page for reading on a tablet)
 %           layout = normal | margin      (margin: wide right margin for sidenotes)
+%           byline = false | true  (author and date under the title; default
+%                  false: they go in the first page's header instead)
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{akizumi-core}[2026/10/21 v0.7 Aaron Lin shared style]
 
@@ -21,6 +23,7 @@
 \newif\ifakizumi@bboldx
 \newif\ifakizumi@serif
 \newif\ifakizumi@marginlayout
+\newif\ifakizumi@byline
 \ExplSyntaxOn
 \tl_new:N \l__akizumi_bb_tl
 \clist_new:N \l__akizumi_bib_clist
@@ -46,6 +49,9 @@
     layout   .choices:nn = { normal, margin }
       { \str_if_eq:VnTF \l_keys_choice_tl { margin } { \akizumi@marginlayouttrue } { \akizumi@marginlayoutfalse } },
     layout   .initial:n = normal,
+    byline   .choices:nn = { true, false }
+      { \use:c { akizumi@byline \l_keys_choice_tl } },
+    byline   .default:n = true,
   }
 \ProcessKeyOptions [ akizumi/core ]
 \cs_new:Npn \akizumi@paper { \int_use:N \l__akizumi_paper_int }
@@ -474,19 +480,25 @@
 \newcommand{\notn}[2]{#1 & #2\\}
 
 % ---------- title block (same layout as the title slide) ----------
+% "Aaron Lin · B12345678 · 2026 年 10 月 25 日"
+\newcommand{\akizumi@byline}{%
+  \ifx\@author\@empty\else
+    \@author\ifx\akizumi@id\@empty\else\akizumisep\akizumi@id\fi
+    \ifx\@date\@empty\else\akizumisep\fi
+  \fi
+  \@date}
+% Centred kicker and title. The byline goes under the title with byline=true;
+% otherwise the title page's header carries it (see the akizumi-title style).
 \newcommand{\akizumi@titleblock}{%
-  \begingroup\sffamily\noindent
+  \begingroup\sffamily\centering
   \ifx\akizumi@kicker\@empty\else{\small\bfseries\color{accent}\akizumi@kicker}\par\vspace{0.35em}\fi
-  {\huge\bfseries\@title\par}\vspace{0.6em}
-  {\color{mute}%
-   \ifx\@author\@empty\else
-     \@author\ifx\akizumi@id\@empty\else\akizumisep\akizumi@id\fi
-     \ifx\@date\@empty\else\akizumisep\fi
-   \fi
-   \@date\par}\vspace{1.8em}%
+  {\huge\bfseries\@title\par}%
+  \ifakizumi@byline\vspace{0.6em}{\color{mute}\akizumi@byline\par}\fi
+  \vspace{1.8em}%
   \endgroup}
 \renewcommand{\maketitle}{\akizumi@titleblock\akizumi@titlepagestyle}
-\newcommand{\akizumi@titlepagestyle}{\thispagestyle{plain}}
+\newcommand{\akizumi@titlepagestyle}{%
+  \ifakizumi@byline\thispagestyle{plain}\else\thispagestyle{akizumi-title}\fi}
 
 % ---------- page style (exam has its own header system) ----------
 \@ifclassloaded{exam}{}{%
@@ -495,6 +507,15 @@
     \fancyhf{}%
     \fancyhead[L]{\sffamily\small\color{mute}\nouppercase{\akizumi@headleft}}%
     \fancyhead[R]{\sffamily\small\color{mute}\nouppercase{\akizumi@headright}}%
+    \fancyfoot[C]{\sffamily\scriptsize\color{mute}\thepage\,/\,\pageref*{LastPage}}%
+    \renewcommand{\headrulewidth}{0pt}%
+    \renewcommand{\footrulewidth}{0pt}%
+    \ifakizumi@marginlayout\fancyhfoffset[R]{\dimexpr\marginparwidth+\marginparsep\relax}\fi}
+  % Title page: course left, byline right.
+  \fancypagestyle{akizumi-title}{%
+    \fancyhf{}%
+    \fancyhead[L]{\sffamily\small\color{mute}\akizumi@course}%
+    \fancyhead[R]{\sffamily\small\color{mute}\akizumi@byline}%
     \fancyfoot[C]{\sffamily\scriptsize\color{mute}\thepage\,/\,\pageref*{LastPage}}%
     \renewcommand{\headrulewidth}{0pt}%
     \renewcommand{\footrulewidth}{0pt}%

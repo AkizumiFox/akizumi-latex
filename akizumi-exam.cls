@@ -19,6 +19,8 @@
     bib       .code:n = \PassOptionsToPackage { bib = {#1} } { akizumi-core },
     paper     .code:n = \PassOptionsToPackage { paper = #1 } { akizumi-core },
     layout    .code:n = \PassOptionsToPackage { layout = #1 } { akizumi-core },
+    byline    .code:n = \PassOptionsToPackage { byline = #1 } { akizumi-core },
+    byline    .default:n = true,
     solutions .choices:nn = { true, false }
       { \use:c { akizumi@solutions \l_keys_choice_tl } },
     solutions .default:n = true,
@@ -49,7 +51,9 @@
 
 % ---------- header / footer ----------
 \pagestyle{headandfoot}
-\firstpageheader{}{}{}
+% byline=false (default): course and "author · date" in the first page's header
+\firstpageheader{\ifakizumi@byline\else\sffamily\small\color{mute}\akizumi@course\fi}{}%
+  {\ifakizumi@byline\else\sffamily\small\color{mute}\akizumi@byline\fi}
 \runningheader{\sffamily\small\color{mute}\akizumi@course}{}{\sffamily\small\color{mute}\@title}
 \footer{}{\sffamily\scriptsize\color{mute}\thepage\,/\,\numpages}{}
 

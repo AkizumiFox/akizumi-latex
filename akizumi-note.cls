@@ -16,6 +16,8 @@
     bib     .code:n = \PassOptionsToPackage { bib = {#1} } { akizumi-core },
     paper   .code:n = \PassOptionsToPackage { paper = #1 } { akizumi-core },
     layout  .code:n = \PassOptionsToPackage { layout = #1 } { akizumi-core },
+    byline  .code:n = \PassOptionsToPackage { byline = #1 } { akizumi-core },
+    byline  .default:n = true,
     10pt    .code:n = \tl_set:Nn \l__akizumi_size_tl { 10pt },
     11pt    .code:n = \tl_set:Nn \l__akizumi_size_tl { 11pt },
     12pt    .code:n = \tl_set:Nn \l__akizumi_size_tl { 12pt },

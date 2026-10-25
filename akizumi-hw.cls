@@ -18,6 +18,8 @@
     bib       .code:n = \PassOptionsToPackage { bib = {#1} } { akizumi-core },
     paper     .code:n = \PassOptionsToPackage { paper = #1 } { akizumi-core },
     layout    .code:n = \PassOptionsToPackage { layout = #1 } { akizumi-core },
+    byline    .code:n = \PassOptionsToPackage { byline = #1 } { akizumi-core },
+    byline    .default:n = true,
     solutions .choices:nn = { true, false }
       { \use:c { akizumi@solutions \l_keys_choice_tl } },
     solutions .default:n = true,

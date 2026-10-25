@@ -20,6 +20,8 @@
     bib     .code:n = \PassOptionsToPackage { bib = {#1} } { akizumi-core },
     paper   .code:n = \PassOptionsToPackage { paper = #1 } { akizumi-core },
     layout  .code:n = \PassOptionsToPackage { layout = #1 } { akizumi-core },
+    byline  .code:n = \PassOptionsToPackage { byline = #1 } { akizumi-core },
+    byline  .default:n = true,
     10pt    .code:n = \tl_set:Nn \l__akizumi_size_tl { 10pt },
     11pt    .code:n = \tl_set:Nn \l__akizumi_size_tl { 11pt },
     12pt    .code:n = \tl_set:Nn \l__akizumi_size_tl { 12pt },
@@ -55,10 +57,11 @@
 \renewcommand{\akizumi@headright}{\rightmark}
 
 % ---------- cover page: the usual title block, a third of the way down ----------
+% The cover has no header, so it always shows author and date.
 \renewcommand{\maketitle}{%
   \begin{titlepage}
     \vspace*{0.28\textheight}
-    {\Large\akizumi@titleblock}
+    {\akizumi@bylinetrue\Large\akizumi@titleblock}
   \end{titlepage}}
 
 % ---------- contents of the current chapter: \chaptertoc ----------

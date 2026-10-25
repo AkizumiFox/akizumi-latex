@@ -476,6 +476,8 @@ def cmd_new(a):
                 setattr(a, key, value)
         elif key in ("bib", "progress", "git") and value and not getattr(a, key):
             setattr(a, key, True)
+        elif key == "byline":
+            a.byline = bool(value)
     if a.dir is None:
         if not interactive:
             die("ax new 需要資料夾名稱", f"例如 ax new {a.kind} my-{a.kind}")
@@ -512,6 +514,8 @@ def cmd_new(a):
             value = getattr(a, key)
             if value:
                 opts.append(f"{key}={value}")
+        if getattr(a, "byline", False) and a.kind != "book":
+            opts.append("byline")
         if a.bib:
             opts.append("bib=refs.bib")
 

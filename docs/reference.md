@@ -21,7 +21,7 @@
 | `--pin v0.7` | 指定模板版本；預設是最新的 tag。`--pin latest` 表示永遠用安裝的最新檔案（改模板時測試用） |
 | `--force` | 資料夾已存在且不是空的也照樣建立 |
 
-`config.json` 的 `defaults` 可以替每種文件設預設選項，命令列給的優先。
+`config.json` 的 `defaults` 可以替每種文件設預設選項，命令列給的優先。例如 `"hw": {"byline": true}` 讓新作業把作者和日期印在標題下方。
 
 每個新專案的內容：
 
@@ -226,6 +226,7 @@ TikZ 圖可以用跟簡報一致的樣式：
 | `bb` | `light` `regular` `ams` | `light` | 黑板粗體的粗細；`ams` 是傳統 AMS 字型（只有大寫） |
 | `paper` | `a4` `letter` `pad` | `a4` | 紙張；`pad` 是 3:4 的平板閱讀版面 |
 | `layout` | `normal` `margin` | `normal` | `margin` 留寬邊欄放 `\sidenote`（講義、書） |
+| `byline` | `false` `true` | `false` | 標題下方要不要印「作者 · 學號 · 日期」。預設不印，放在第一頁頁首右邊（左邊是課名）。書的封面一律印 |
 | `bib` | 檔名 | | 載入參考文獻，例如 `bib=refs.bib` |
 | `solutions` | `true` `false` | 作業 `true`，考卷 `false` | 是否印出解答 |
 | `10pt` `11pt` `12pt` | | `11pt` | 字級 |

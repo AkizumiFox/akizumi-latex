@@ -1,0 +1,48 @@
+% !TEX program = xelatex
+% akizumi-compat: an old body compiles unchanged. CJKutf8 / CJKspace are
+% ignored, CJK / CJK* do nothing, algpseudocode gives way to algpseudocodex
+% (algorithmic keeps working, \algorithmiccomment can be redefined), and
+% `li` is an enumerate with enumitem options.
+\documentclass[lang=zh]{akizumi-hw}
+\usepackage{CJKutf8}
+\usepackage{CJKspace}
+\usepackage[noend]{algpseudocode}
+\algrenewcommand\algorithmiccomment[1]{\hspace{1.2em}{\footnotesize\color{mute}\textsf{$\triangleright$~#1}}}
+\def\coursename{\begin{CJK*}{UTF8}{bsmi}演算法\end{CJK*}}
+\akizumisetup{course=\coursename, number=2}
+
+\makeatletter
+\newcommand{\checkcompat}{%
+  \@ifpackageloaded{CJKutf8}{\PackageError{test}{CJKutf8 was loaded}{}}{}%
+  \@ifpackageloaded{algpseudocode}{\PackageError{test}{algpseudocode was loaded}{}}{}%
+  \@ifpackageloaded{algpseudocodex}{}{\PackageError{test}{algpseudocodex missing}{}}}
+\makeatother
+
+\begin{document}
+\checkcompat
+\begin{CJK*}{UTF8}{bsmi}
+\maketitle
+
+\begin{problem}[二分搜尋]
+在排序好的陣列裡找 $x$。
+\begin{li}[label=(\roman*)]
+  \item 寫出演算法。
+  \item 分析時間複雜度。
+\end{li}
+\begin{algorithm}[h]
+  \caption{Binary search}\label{alg:bs}
+  \begin{algorithmic}[1]
+    \Require sorted $a_1, \dots, a_n$, target $x$
+    \State $\ell \gets 1$, $r \gets n$ \Comment{search $[\ell, r]$}
+    \While{$\ell \le r$}
+      \State $m \gets \lfloor (\ell + r)/2 \rfloor$
+      \If{$a_m = x$} \State \Return $m$ \EndIf
+    \EndWhile
+  \end{algorithmic}
+\end{algorithm}
+\begin{solution}
+見\cref{alg:bs}；\begin{CJK}{UTF8}{bkai}每一步範圍減半\end{CJK}，共 $O(\log n)$ 步。
+\end{solution}
+\end{problem}
+\end{CJK*}
+\end{document}

@@ -1,0 +1,42 @@
+\documentclass[12pt,letterpaper,oneside,openany,extrafontsizes]{memoir}
+% Input for `ax migrate` in `ax selftest`: an old memoir + math-notes
+% homework, the shape of the course files it was written for. Not compiled
+% as it is (memoir, CJKutf8).
+
+\usepackage{CJKutf8}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,siunitx}
+
+\def \coursename    {\begin{CJK*}{UTF8}{bsmi}普通物理\end{CJK*}}
+\def \coursecode    {}
+\def \courseterm    {}
+\def \authorname    {Tzu-You Lin}
+\def \authorID      {B10303083}
+\def \coverpagesize {1}
+\def \headingright  {\coursename\ -- Assignment \arabic{chapter}}
+
+\usepackage[nocode]{math-notes}
+\newcommand{\R}{\mathbb{R}}
+
+\begin{document}
+\begin{CJK*}{UTF8}{bsmi}
+\setcounter{chapter}{2}
+\chapter{Homework 3}
+
+Homework done by \authorname.
+
+\section*{Problem 1: Units}
+A speed of \SI{3}{m/s} in $\R$.
+\newpage
+
+\section*{Problem 3}
+\begin{li}[label=(\alph*)]
+  \item 第一小題。
+  \item 第二小題。
+\end{li}
+
+\section*{第四題}
+最後一題。
+
+\end{CJK*}
+\end{document}

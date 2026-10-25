@@ -740,7 +740,7 @@ $A\cup B=[-2,3]$。
 
 ## ax 指令細節
 
-除了 `new`、`doctor`、`config`、`completion`、`migrate`，其他指令都在專案資料夾裡執行；在它的子資料夾（例如 `figures/`）裡也可以，`ax` 會像 git 一樣往上找 `.ax.json`。
+除了 `new`、`doctor`、`config`、`completion`、`migrate`、`docs`，其他指令都在專案資料夾裡執行；在它的子資料夾（例如 `figures/`）裡也可以，`ax` 會像 git 一樣往上找 `.ax.json`。
 
 | 指令 | 作用 |
 |---|---|
@@ -762,6 +762,7 @@ $A\cup B=[-2,3]$。
 | `ax completion zsh\|bash\|powershell` | 印出 Tab 補全腳本；裝法見 `ax completion --help` |
 | `ax migrate 檔案.tex` | 把舊文件轉成 akizumi 的副本 `檔案-akizumi.tex`，原檔不動；列出跟 akizumi 撞名的巨集（見〈從舊文件搬過來〉） |
 | `ax selftest` | 重編所有範例、建立並編譯每種專案（改模板後用，見〈維護這套模板〉） |
+| `ax docs 主題` | 在這份手冊裡找主題，把最相關的一節印在終端機（標題、內文、表格）。中英文都能查，也可以是選項或巨集：`ax docs 定理`、`ax docs theorem`、`ax docs thmcounter`、`ax docs '\cref'`；打錯字會自動更正，找不到時列出相近的標題。`--web` 在瀏覽器打開 GitHub 上的手冊並跳到那一節，`--en` 看英文版，`--cheatsheet` 打開速查表 PDF。只打 `ax docs` 用系統預設的程式打開這份檔案 |
 | `ax --version` | 目前最新的模板版本 |
 
 `ax build` 失敗時的樣子：

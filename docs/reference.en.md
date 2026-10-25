@@ -739,7 +739,7 @@ Slides also take `progress` (progress bar along the bottom); `tikz` and `plots` 
 
 ## ax commands in detail
 
-Except `new`, `doctor`, `config`, `completion` and `migrate`, commands run inside a project folder; a subfolder such as `figures/` works too, since `ax` looks upward for `.ax.json` the way git does.
+Except `new`, `doctor`, `config`, `completion`, `migrate` and `docs`, commands run inside a project folder; a subfolder such as `figures/` works too, since `ax` looks upward for `.ax.json` the way git does.
 
 `ax` speaks Chinese or English. It follows the system language; `"ui": "en"` or `"ui": "zh"` in `config.json`, or the environment variable `AX_LANG`, overrides it.
 
@@ -763,6 +763,7 @@ Except `new`, `doctor`, `config`, `completion` and `migrate`, commands run insid
 | `ax completion zsh\|bash\|powershell` | Prints a tab-completion script; see `ax completion --help` for setup |
 | `ax migrate FILE.tex` | Rewrite an old document for akizumi as a copy, `FILE-akizumi.tex`, leaving the original alone; list macros that clash with akizumi's (see [Moving old documents over](#moving-old-documents-over)) |
 | `ax selftest` | Rebuilds every example and creates and builds every kind of project (after changing the templates; see [Maintaining the templates](#maintaining-the-templates)) |
+| `ax docs TOPIC` | Finds the topic in this manual and prints the best-matching section in the terminal (heading, text, tables). Chinese or English words, option names and macros all work: `ax docs theorem`, `ax docs 定理`, `ax docs thmcounter`, `ax docs '\cref'`; typos are corrected, and when nothing matches it lists similar headings. `--web` opens the manual on GitHub at that section, `--en` picks the English manual from a Chinese interface, `--cheatsheet` opens the cheat sheet PDF. Plain `ax docs` opens this file with the system's default program |
 | `ax --version` | Newest template version |
 
 A failed `ax build` looks like this:

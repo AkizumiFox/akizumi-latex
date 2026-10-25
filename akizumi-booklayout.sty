@@ -1,0 +1,218 @@
+% akizumi-booklayout.sty -- book layout for akizumi-book (loaded by the class).
+%   twoside           mirrored headers: chapter on even pages, section on odd
+%   openright         chapters and parts start on odd pages (implies twoside)
+%   partreset         chapter numbers restart in each \part
+%   chaptername=Lecture   "Lecture 3"; a * marks the number: {第 * 講}
+%   \chapter[sub=Vector Spaces]{向量空間}  second-language subtitle
+%   \chapter[short=Intro, sub=...]{...}   short title for contents and header
+%   \part[sub=...]{...}                   styled part page
+%   \subtitle{...}, \akizumisetup{subtitle=, institution=, term=}  cover fields
+%   \preface[title]   unnumbered chapter in the contents ("Preface" / 序言)
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-booklayout}[2026/10/25 v0.8 Aaron Lin book layout]
+
+\akizumi@s{preface}{Preface}{序言}{まえがき}{머리말}
+
+% ---------- twoside: mirrored running headers, blank versos stay empty ----------
+\if@twoside
+  \fancypagestyle{akizumi}{%
+    \fancyhf{}%
+    \fancyhead[LE]{\sffamily\small\color{mute}\nouppercase{\akizumi@headleft}}%
+    \fancyhead[RO]{\sffamily\small\color{mute}\nouppercase{\akizumi@headright}}%
+    \fancyfoot[C]{\sffamily\scriptsize\color{mute}\thepage\,/\,\pageref*{LastPage}}%
+    \renewcommand{\headrulewidth}{0pt}%
+    \renewcommand{\footrulewidth}{0pt}%
+    \ifakizumi@marginlayout\fancyhfoffset[RO,LE]{\dimexpr\marginparwidth+\marginparsep\relax}\fi}
+  \pagestyle{akizumi}
+  \renewcommand{\cleardoublepage}{\clearpage
+    \ifodd\c@page\else\hbox{}\thispagestyle{empty}\newpage\fi}
+\fi
+
+% ---------- chapter label: chaptername=Lecture or {第 * 講} ----------
+\ExplSyntaxOn
+\cs_new_protected:Npn \__akizumi_chapname_split:w #1 * #2 \q_stop
+  { \cs_gset:Npn \akizumi@chn@b {#1} \cs_gset:Npn \akizumi@chn@a {#2} }
+\tl_if_exist:NF \g_akizumi_chaptername_tl { \tl_new:N \g_akizumi_chaptername_tl }
+\tl_if_empty:NF \g_akizumi_chaptername_tl
+  {
+    \tl_if_in:NnTF \g_akizumi_chaptername_tl { * }
+      { \exp_last_unbraced:NV \__akizumi_chapname_split:w \g_akizumi_chaptername_tl \q_stop }
+      {
+        \cs_gset:Npx \akizumi@chn@b { \exp_not:V \g_akizumi_chaptername_tl \exp_not:N \nobreakspace }
+        \cs_gset:Npn \akizumi@chn@a { }
+        \cs_set:Npx \chaptername { \exp_not:V \g_akizumi_chaptername_tl }
+      }
+    \cs_set:Npn \akizumi@chapterlabel
+      {
+        \ifakizumi@inappendix
+          \ifakizumi@cjk \akizumi@num{appendix}{\thechapter}
+          \else \appendixname \nobreakspace \thechapter \fi
+        \else \akizumi@chn@b \thechapter \akizumi@chn@a \fi
+      }
+    \crefformat{chapter}{#2\akizumi@chn@b#1\akizumi@chn@a#3}
+    \Crefformat{chapter}{#2\akizumi@chn@b#1\akizumi@chn@a#3}
+  }
+\ExplSyntaxOff
+
+% ---------- parts: centred page, muted "Part II" over the title ----------
+% (\titleclass redefines \part, so this comes before the wrapper below)
+\ifakizumi@cjk
+  \renewcommand{\thepart}{\arabic{part}}
+  \crefformat{part}{#2\akizumi@num{part}{#1}#3}
+\fi
+\titleclass{\part}{page}
+\titleformat{\part}[display]{\centering\sffamily\bfseries}
+  {\color{mute}\Large\akizumi@num{part}{\thepart}}{0.6em}{\Huge}[\akizumi@printsub]
+\titleformat{name=\part,numberless}[display]{\centering\sffamily\bfseries}
+  {}{0pt}{\Huge}[\akizumi@printsub]
+\titlespacing*{\part}{0pt}{0.3\textheight}{0pt}
+% ---------- subtitles and short titles: \chapter[sub=..., short=...]{...} ----------
+% An optional argument without these keys is the usual short title.
+\newcommand{\akizumi@sub}{}
+\newcommand{\akizumi@printsub}{%
+  \ifx\akizumi@sub\@empty\else
+    \par\vspace{0.45em}{\normalfont\sffamily\Large\color{mute}\akizumi@sub\par}%
+    \gdef\akizumi@sub{}%
+  \fi}
+\ExplSyntaxOn
+\bool_new:N \l__akizumi_subkeys_bool
+\tl_new:N \l__akizumi_short_tl
+\keys_define:nn { akizumi/heading }
+  {
+    sub   .code:n = \gdef\akizumi@sub{#1} \bool_set_true:N \l__akizumi_subkeys_bool,
+    short .code:n = \tl_set:Nn \l__akizumi_short_tl {#1} \bool_set_true:N \l__akizumi_subkeys_bool,
+  }
+\cs_new:Npn \__akizumi_short:Nnn #1#2#3 { #1 [#2] {#3} }
+% #1 original command, #2 star, #3 optional, #4 title
+\cs_new_protected:Npn \__akizumi_heading:Nnnn #1#2#3#4
+  {
+    \gdef\akizumi@sub{}
+    \tl_clear:N \l__akizumi_short_tl
+    \bool_set_false:N \l__akizumi_subkeys_bool
+    \IfValueT {#3}
+      {
+        \tl_if_in:nnT {#3} { = }
+          { \keys_set_known:nn { akizumi/heading } {#3} }
+        \bool_if:NF \l__akizumi_subkeys_bool { \tl_set:Nn \l__akizumi_short_tl {#3} }
+      }
+    \IfBooleanTF {#2} { #1 * {#4} }
+      {
+        \tl_if_empty:NTF \l__akizumi_short_tl { #1 {#4} }
+          { \exp_args:NNo \__akizumi_short:Nnn #1 \l__akizumi_short_tl {#4} }
+      }
+  }
+\NewCommandCopy \akizumi@origchapter \chapter
+\NewCommandCopy \akizumi@origpart \part
+\RenewDocumentCommand \chapter { s o m }
+  { \__akizumi_heading:Nnnn \akizumi@origchapter {#1} {#2} {#3} }
+\RenewDocumentCommand \part { s o m }
+  { \__akizumi_heading:Nnnn \akizumi@origpart {#1} {#2} {#3} }
+\ExplSyntaxOff
+\titleformat{\chapter}[display]{\sffamily\bfseries}
+  {\color{mute}\large\akizumi@chapterlabel}{0.5em}{\Huge}[\akizumi@printsub]
+\titleformat{name=\chapter,numberless}[display]{\sffamily\bfseries}
+  {}{0pt}{\Huge}[\akizumi@printsub]
+
+\ExplSyntaxOn
+\bool_if_exist:NT \g_akizumi_partreset_bool
+  {
+    \bool_if:NT \g_akizumi_partreset_bool
+      {
+        \@addtoreset{chapter}{part}
+        \renewcommand{\theHchapter}{\arabic{part}.\arabic{chapter}}
+      }
+  }
+\ExplSyntaxOff
+
+% ---------- run-in \paragraph and \subparagraph in Lato ----------
+\titleformat{\paragraph}[runin]{\sffamily\normalsize\bfseries}{\theparagraph}{0.5em}{}
+\titleformat{\subparagraph}[runin]{\sffamily\normalsize\bfseries\color{mute}}{\thesubparagraph}{0.5em}{}
+\titlespacing*{\paragraph}{0pt}{0.9em plus 0.3em minus 0.1em}{0.8em}
+\titlespacing*{\subparagraph}{0pt}{0.7em plus 0.2em minus 0.1em}{0.8em}
+
+% ---------- cover: subtitle, institution, term ----------
+\providecommand{\akizumi@subtitle}{}
+\providecommand{\akizumi@institution}{}
+\providecommand{\akizumi@term}{}
+\ExplSyntaxOn
+\keys_define:nn { akizumi/meta }
+  {
+    subtitle    .code:n = \gdef\akizumi@subtitle{#1},
+    institution .code:n = \gdef\akizumi@institution{#1},
+    term        .code:n = \gdef\akizumi@term{#1},
+  }
+\ExplSyntaxOff
+\providecommand{\subtitle}[1]{\gdef\akizumi@subtitle{#1}}
+\let\akizumi@plaincover\maketitle
+\renewcommand{\maketitle}{%
+  \ifx\akizumi@subtitle\@empty\ifx\akizumi@institution\@empty\ifx\akizumi@term\@empty
+    \def\akizumi@next{\akizumi@plaincover}\else\def\akizumi@next{\akizumi@fullcover}\fi
+    \else\def\akizumi@next{\akizumi@fullcover}\fi
+    \else\def\akizumi@next{\akizumi@fullcover}\fi
+  \akizumi@next}
+\newcommand{\akizumi@fullcover}{%
+  \begin{titlepage}
+    \vspace*{0.28\textheight}
+    {\akizumi@bylinetrue\Large
+     \ifx\akizumi@subtitle\@empty\else
+       \let\akizumi@maintitle\@title
+       \def\@title{\akizumi@maintitle\par\vspace{0.4em}%
+         {\mdseries\LARGE\color{mute}\akizumi@subtitle\par}}%
+     \fi
+     \akizumi@titleblock}
+    \vfill
+    {\centering\sffamily
+     \ifx\akizumi@institution\@empty\else{\large\bfseries\akizumi@institution\par}\fi
+     \ifx\akizumi@term\@empty\else\vspace{0.3em}{\color{mute}\akizumi@term\par}\fi}
+  \end{titlepage}}
+
+% ---------- \preface[title]: unnumbered chapter listed in the contents ----------
+\newcommand{\preface}[1][\akizumi@str{preface}]{%
+  \chapter*{#1}%
+  \phantomsection\addcontentsline{toc}{chapter}{#1}%
+  \if@twoside\markboth{#1}{#1}\else\markboth{#1}{}\fi}
+
+% ---------- contents: number widths grow to fit (13.10, 12.10.4) ----------
+% Each run records the widest section / subsection / subsubsection number in
+% the .aux; the next run widens that column only if the number would crowd
+% the title, so books with one-digit numbers keep the class's widths.
+\newdimen\akizumi@tocmax@section
+\newdimen\akizumi@tocmax@subsection
+\newdimen\akizumi@tocmax@subsubsection
+\def\akizumi@tocrec@section{0pt}
+\def\akizumi@tocrec@subsection{0pt}
+\def\akizumi@tocrec@subsubsection{0pt}
+\newcommand{\akizumi@toclevel}{}
+% width of column #1: the class's #2, or number + 0.7em once the gap after
+% the widest number would drop under 0.4em
+\newcommand{\akizumi@tocw}[2]{%
+  \dimexpr\ifdim\dimexpr\csname akizumi@tocrec@#1\endcsname+0.4em\relax>#2
+    \csname akizumi@tocrec@#1\endcsname+0.7em\else#2\fi\relax}
+\renewcommand*{\l@section}{\def\akizumi@toclevel{section}%
+  \@dottedtocline{1}{1.5em}{\akizumi@tocw{section}{2.3em}}}
+\renewcommand*{\l@subsection}{\def\akizumi@toclevel{subsection}%
+  \@dottedtocline{2}{\dimexpr1.5em+\akizumi@tocw{section}{2.3em}\relax}%
+    {\akizumi@tocw{subsection}{3.2em}}}
+\renewcommand*{\l@subsubsection}{\def\akizumi@toclevel{subsubsection}%
+  \@dottedtocline{3}{\dimexpr1.5em+\akizumi@tocw{section}{2.3em}%
+    +\akizumi@tocw{subsection}{3.2em}\relax}{\akizumi@tocw{subsubsection}{4.1em}}}
+\let\akizumi@l@chapter\l@chapter
+\renewcommand*{\l@chapter}{\def\akizumi@toclevel{}\akizumi@l@chapter}
+\let\akizumi@l@part\l@part
+\renewcommand*{\l@part}{\def\akizumi@toclevel{}\akizumi@l@part}
+\let\akizumi@numberline\numberline
+\renewcommand*{\numberline}[1]{%
+  \ifx\akizumi@toclevel\@empty\else
+    \settowidth{\dimen@}{#1}%
+    \ifdim\dimen@>\csname akizumi@tocmax@\akizumi@toclevel\endcsname
+      \global\csname akizumi@tocmax@\akizumi@toclevel\endcsname\dimen@
+    \fi
+  \fi
+  \akizumi@numberline{#1}}
+\AtEndDocument{\if@filesw
+  \immediate\write\@auxout{\gdef\string\akizumi@tocrec@section{\the\akizumi@tocmax@section}}%
+  \immediate\write\@auxout{\gdef\string\akizumi@tocrec@subsection{\the\akizumi@tocmax@subsection}}%
+  \immediate\write\@auxout{\gdef\string\akizumi@tocrec@subsubsection{\the\akizumi@tocmax@subsubsection}}%
+  \fi}
+
+\endinput

@@ -1,0 +1,24 @@
+% !TEX program = xelatex
+% book layout in Chinese: chaptername with a * template, part labels, \preface
+\documentclass[lang=zh, twoside, chaptername={第 * 講}]{akizumi-book}
+\title{程式設計}
+\akizumisetup{subtitle={Programming in C}, term={2026 冬季}}
+\author{Aaron Lin}
+
+\begin{document}
+\frontmatter
+\maketitle
+\preface
+前言內容。
+\tableofcontents
+
+\mainmatter
+\part{基礎}
+\chapter[sub=Basic Operations]{基本運算}\label{ch:basic}
+\section{變數}
+見\cref{ch:basic}。
+\paragraph{小標} 段落標題。
+
+\appendix
+\chapter{附錄內容}
+\end{document}

@@ -5,6 +5,8 @@
 %   \frontmatter \maketitle \tableofcontents
 %   \mainmatter \chapter{Introduction} \chaptertoc ...
 %   \appendix \chapter{Proofs} ...  \backmatter \printbibliography
+% Layout options: twoside, openright, partreset, chaptername=Lecture (see
+% akizumi-booklayout.sty).
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesClass{akizumi-book}[2026/10/25 v0.8 Aaron Lin book]
 
@@ -28,8 +30,22 @@
     12pt    .code:n = \tl_set:Nn \l__akizumi_size_tl { 12pt },
     unknown .code:n = \use:x { \exp_not:N \PassOptionsToClass { \l_keys_key_str } { book } },
   }
+% ---- book layout options (implemented in akizumi-booklayout.sty) ----
+\tl_new:N \l__akizumi_sides_tl
+\tl_set:Nn \l__akizumi_sides_tl { oneside, openany }
+\keys_define:nn { akizumi/book }
+  {
+    oneside     .code:n = \tl_set:Nn \l__akizumi_sides_tl { oneside, openany },
+    twoside     .code:n = \tl_set:Nn \l__akizumi_sides_tl { twoside, openany },
+    openright   .code:n = \tl_set:Nn \l__akizumi_sides_tl { twoside, openright },
+    openany     .code:n = \tl_replace_once:Nnn \l__akizumi_sides_tl { openright } { openany },
+    partreset   .bool_gset:N = \g_akizumi_partreset_bool,
+    partreset   .default:n = true,
+    chaptername .tl_gset:N = \g_akizumi_chaptername_tl,
+  }
+% ---- end book layout options ----
 \ProcessKeyOptions [ akizumi/book ]
-\use:x { \exp_not:N \LoadClass [ a4paper, oneside, openany, \l__akizumi_size_tl ] { book } }
+\use:x { \exp_not:N \LoadClass [ a4paper, \l__akizumi_sides_tl, \l__akizumi_size_tl ] { book } }
 \ExplSyntaxOff
 
 \RequirePackage{akizumi-core}
@@ -76,5 +92,9 @@
     \localtableofcontents
   \endgroup
   \vspace{1em}}
+
+% twoside / openright, \part pages, chapter subtitles, chaptername, cover
+% fields, run-in paragraphs, contents number widths, \preface
+\RequirePackage{akizumi-booklayout}
 
 \endinput

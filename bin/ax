@@ -133,7 +133,7 @@ KIND_HELP = {
                "paper body for a venue template: only the math macros (pdfLaTeX)"),
 }
 # commands shown to people; the rest are called by latexmk
-PUBLIC_COMMANDS = ["new", "build", "watch", "open", "both", "doctor", "upgrade",
+PUBLIC_COMMANDS = ["new", "build", "watch", "open", "both", "count", "doctor", "upgrade",
                    "freeze", "pack", "config", "completion", "selftest"]
 NEW_OPTIONS = ["--title", "--author", "--course", "--number", "--due", "--id", "--lang", "--thmnames",
                "--text", "--paper", "--layout", "--bib", "--progress", "--pin", "--git",
@@ -150,10 +150,16 @@ push @extra_xelatex_options, '-synctex=1';
 push @extra_pdflatex_options, '-synctex=1';
 
 # Template version pinned in .ax.json, unpacked in ax's cache.
-my $ax_pin = '';
+my ($ax_pin, $ax_json) = ('', '');
 if (open(my $fh, '<', '.ax.json')) {
-  local $/; my $json = <$fh>; close $fh;
-  ($ax_pin) = $json =~ /"template"\s*:\s*"([^"]+)"/;
+  local $/; $ax_json = <$fh>; close $fh;
+  ($ax_pin) = $ax_json =~ /"template"\s*:\s*"([^"]+)"/;
+}
+# "shell_escape": true in .ax.json lets LaTeX run programs (minted, svg, ...).
+if ($ax_json =~ /"shell_escape"\s*:\s*true/) {
+  push @extra_xelatex_options, '-shell-escape';
+  push @extra_pdflatex_options, '-shell-escape';
+  push @extra_lualatex_options, '-shell-escape';
 }
 if ($ax_pin && $ax_pin !~ /^(latest|frozen)$/) {
   my $cache = $^O eq 'darwin'  ? "$ENV{HOME}/Library/Caches/ax"
@@ -799,6 +805,7 @@ def latexmk(main, label, jobname=None, pretex=None, clean_first=False):
         base.append(f"-jobname={jobname}")
     if pretex:
         base.append(f"-usepretex={pretex}")
+    base += latexmk_flags()
     if clean_first:
         subprocess.run(base[:1] + ["-C"] + base[4:] + [str(main)], capture_output=True)
     return run_with_spinner(base + [str(main)], label)
@@ -865,7 +872,510 @@ def cmd_copypdf(a):
 def cmd_build(a):
     main = main_file(a.file)
     warn_if_watching()
+    run_prebuild(a)
+    if a.chapter:
+        sys.exit(0 if build_chapters(main, a.chapter) else 1)
     sys.exit(0 if safe_build(main) else 1)
+
+
+# ---------- build pipeline: prebuild, shell_escape, --chapter, ax count ----------
+# .ax.json may hold
+#   "prebuild": ["python make_figures.py", "stata -b do main.do"]
+#       run in the project folder before ax build / both / watch, in order;
+#       the first failure stops the build and the PDF stays as it was. An item
+#       may also be a list (program and arguments, no shell).
+#   "shell_escape": true
+#       lets LaTeX run programs (minted, svg, texdoc, ...). latexmk_flags()
+#       passes it to every latexmk ax starts; the latexmkrc ax writes reads it
+#       too, so editors that call latexmk directly get the same.
+
+SHELL_BUILTINS = {"cd", "echo", "set", "export", "test", "[", "true", "false", "exit",
+                  "source", ".", "call", "if", "for", "env"}
+
+
+def latexmk_flags(cfg=None):
+    """latexmk options that .ax.json asks for; shared by build, both and watch."""
+    cfg = project_config() if cfg is None else cfg
+    return ["-shell-escape"] if cfg.get("shell_escape") is True else []
+
+
+def refresh_latexmkrc(cfg):
+    """A latexmkrc written by an older ax does not read "shell_escape"; rewrite
+    it (it is ax's own file) so editors build like ax build does."""
+    rc = Path("latexmkrc")
+    if cfg.get("shell_escape") is True and rc.exists():
+        text = rc.read_text()
+        if text.startswith("# Written by ax") and "shell_escape" not in text:
+            rc.write_text(LATEXMKRC.replace("@PDF_MODE@", "1" if cfg.get("kind") == "paper" else "5"))
+            note(T('  已更新 latexmkrc，讓編輯器也照 "shell_escape" 編譯',
+                   '  Updated latexmkrc so editors also follow "shell_escape"'))
+
+
+def prebuild_steps(cfg):
+    steps = cfg.get("prebuild") or []
+    if isinstance(steps, str):
+        steps = [steps]
+    if not isinstance(steps, list) or not all(
+            isinstance(s, str) or (isinstance(s, list) and s) for s in steps):
+        die(T('.ax.json 的 "prebuild" 要是指令清單', '"prebuild" in .ax.json must be a list of commands'),
+            T('例如 "prebuild": ["python make_figures.py"]', 'For example "prebuild": ["python make_figures.py"]'))
+    return steps
+
+
+def step_text(step):
+    return step if isinstance(step, str) else " ".join(str(s) for s in step)
+
+
+def step_programs(step):
+    """The programs a prebuild step starts, for ax doctor (best effort)."""
+    import shlex
+    if isinstance(step, list):
+        return [str(step[0])]
+    progs = []
+    for part in re.split(r"&&|\|\||[;|]", step):
+        try:
+            words = shlex.split(part, posix=not WINDOWS)
+        except ValueError:
+            continue
+        for w in words:
+            if "=" in w and not w.startswith(("-", "/", ".", '"')):
+                continue  # FOO=1 python ...
+            w = w.strip('"')
+            if w not in SHELL_BUILTINS and w not in progs:
+                progs.append(w)
+            break
+    return progs
+
+
+def run_prebuild(a=None):
+    """Run .ax.json "prebuild" in the project folder; exit on the first failure.
+    Also keeps the latexmkrc in step with "shell_escape"."""
+    cfg = project_config()
+    refresh_latexmkrc(cfg)
+    steps = prebuild_steps(cfg)
+    if steps and getattr(a, "no_prebuild", False):
+        note(T(f"  略過 {len(steps)} 個前置步驟（--no-prebuild）",
+               f"  Skipped {len(steps)} prebuild step(s) (--no-prebuild)"))
+        return
+    for step in steps:
+        shown = step_text(step)
+        if isinstance(step, list):
+            cmd = [str(s) for s in step]
+        elif WINDOWS:
+            cmd = f'"{os.environ.get("COMSPEC", "cmd.exe")}" /d /s /c "{step}"'
+        else:
+            cmd = ["/bin/sh", "-c", step]
+        try:
+            # no time limit: scripts that make figures or run Stata may be slow
+            code, out, secs = run_with_spinner(cmd, T(f"前置步驟 {shown}", f"Prebuild {shown}"),
+                                               timeout=float("inf"))
+        except OSError as e:
+            code, out, secs = 127, str(e), 0
+        if code == 0:
+            ok(T(f"前置步驟 {shown}（{elapsed(secs)}）", f"Prebuild {shown} ({elapsed(secs)})"))
+            continue
+        fail(T(f"前置步驟失敗（結束碼 {code}）：{shown}", f"Prebuild step failed (exit code {code}): {shown}"))
+        for line in out.rstrip().splitlines()[-12:]:
+            print(f"    {line}", file=sys.stderr)
+        if code in (127, 9009):
+            note(T("  提示：找不到這個程式；檢查拼字或 PATH，ax doctor 會列出前置步驟要的程式",
+                   "  Hint: the program was not found; check the spelling or PATH. "
+                   "ax doctor lists the programs prebuild needs"), err=True)
+        note(T("  沒有編譯，PDF 保留上一份。步驟寫在 .ax.json 的 \"prebuild\"；"
+               "ax build --no-prebuild 可以先跳過",
+               "  Nothing was compiled; the PDF stays as it was. The steps are \"prebuild\" "
+               "in .ax.json; ax build --no-prebuild skips them"), err=True)
+        sys.exit(1)
+
+
+# --- ax build --chapter N: one chapter of a book, with its real number ---
+# Chapters must be \include'd. \includeonly{...} is given on latexmk's command
+# line under the job name main-chN, so main.pdf is left alone; the .aux files
+# of the other chapters (from the last full build) keep chapter and page
+# numbers and cross-references right.
+
+CHAPTER_TOKEN = re.compile(r"\\(frontmatter|mainmatter|backmatter|appendix)(?![A-Za-z])"
+                           r"|\\chapter(\*?)\s*[\[{]"
+                           r"|\\(input|include|subfile)\s*\{([^}]+)\}"
+                           r"|\\chapterdir\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}")
+
+
+def strip_tex_comments(text):
+    return re.sub(r"(?<!\\)%.*", "", text)
+
+
+def tex_body(text):
+    """The part between \\begin{document} and \\end{document}, if there is one."""
+    m = re.search(r"\\begin\s*\{document\}", text)
+    if m:
+        text = text[m.end():]
+    m = re.search(r"\\end\s*\{document\}", text)
+    return text[:m.start()] if m else text
+
+
+def find_tex(name, dirs):
+    for d in dirs:
+        for candidate in (d / name, d / f"{name}.tex"):
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def chapter_map(main):
+    """The \\include'd files of main in order, as [name, labels], where labels
+    are the numbers (or appendix letters) of the \\chapter commands inside,
+    counted the way LaTeX numbers them; plus the labels of chapters written in
+    main.tex itself or in \\input files, which cannot be built alone."""
+    entries, inline = [], []
+    state = {"numbered": True, "appendix": False, "n": 0, "letter": 0, "dirs": [main.parent]}
+
+    def walk(path, entry, depth):
+        try:
+            text = strip_tex_comments(Path(path).read_text(errors="replace"))
+        except OSError:
+            return
+        if depth == 0 or "\\begin{document}" in text:
+            text = tex_body(text)
+        for m in CHAPTER_TOKEN.finditer(text):
+            if m.group(1):
+                if m.group(1) == "appendix":
+                    state["appendix"] = True
+                else:  # \frontmatter and \backmatter chapters get no number
+                    state["numbered"] = m.group(1) == "mainmatter"
+            elif m.group(5) is not None:
+                d = m.group(5).strip().rstrip("/")
+                state["dirs"] = [main.parent / d, main.parent] if d else [main.parent]
+            elif m.group(3):
+                name = m.group(4).strip()
+                found = find_tex(name, state["dirs"])
+                if m.group(3) == "include" and entry is None:
+                    e = [name, []]
+                    entries.append(e)
+                    if found and depth < 8:
+                        walk(found, e, depth + 1)
+                elif found and depth < 8:
+                    walk(found, entry, depth + 1)
+            elif m.group(2) == "" and state["numbered"]:
+                if state["appendix"]:
+                    state["letter"] += 1
+                    label = chr(ord("A") + state["letter"] - 1)
+                else:
+                    state["n"] += 1
+                    label = str(state["n"])
+                (entry[1] if entry is not None else inline).append(label)
+
+    walk(main, None, 0)
+    return entries, inline
+
+
+def pick_chapters(main, tokens):
+    entries, inline = chapter_map(main)
+    if not entries:
+        die(T(f"{main} 裡沒有用 \\include{{...}} 載入的章", f"{main} has no chapters loaded with \\include{{...}}"),
+            T("--chapter 只能編譯用 \\include 載入的章：把 \\input{chapters/x} 改成 \\include{chapters/x}",
+              "--chapter builds only \\include'd chapters: change \\input{chapters/x} to \\include{chapters/x}"))
+    listing = T("、", ", ").join(
+        f"{'/'.join(e[1]) or '-'} {e[0]}" for e in entries)
+    chosen = []
+    for token in (t.strip() for raw in tokens for t in raw.split(",")):
+        if not token:
+            continue
+        label = token.upper() if re.fullmatch(r"[A-Za-z]", token) else token.lstrip("0") or "0"
+        numeric = bool(re.fullmatch(r"\d+|[A-Za-z]", token))
+        hits = [e for e in entries if label in e[1]] if numeric else []
+        if not numeric:
+            plain = token[:-4] if token.endswith(".tex") else token
+            hits = [e for e in entries if e[0] == plain or plain in Path(e[0]).parts]
+            hits = hits or [e for e in entries if plain.lower() in e[0].lower()]
+        if not hits and label in inline:
+            die(T(f"第 {token} 章直接寫在 {main} 或 \\input 的檔案裡，沒辦法單獨編譯",
+                  f"Chapter {token} is written in {main} or an \\input file and cannot be built alone"),
+                T("把它移到自己的檔案，用 \\include 載入", "Move it into a file of its own and \\include it"))
+        if len(hits) != 1:
+            die(T(f"找不到第 {token} 章" if not hits else f"「{token}」對到不只一章",
+                  f"No chapter {token}" if not hits else f'"{token}" matches more than one chapter'),
+                T(f"\\include 的章：{listing}", f"\\include'd chapters: {listing}"))
+        if hits[0] not in chosen:
+            chosen.append(hits[0])
+    if not chosen:
+        die(T("--chapter 沒有給章號", "--chapter needs a chapter number"))
+    return entries, chosen
+
+
+WATCH_CHAPTER = []  # latexmk options for ax watch --chapter
+
+
+def chapter_job(main, tokens):
+    """(job name, pretex, label) for building the chosen chapters alone."""
+    entries, chosen = pick_chapters(main, tokens)
+    tags = [e[1][0] if e[1] else re.sub(r"[^\w-]+", "_", Path(e[0]).parent.name or Path(e[0]).name)
+            for e in chosen]
+    job = f"{main.stem}-ch{'-'.join(tags)}"
+    build = Path("build")
+    build.mkdir(exist_ok=True)
+    others = [e for e in entries if e not in chosen]
+    if any(not (build / f"{e[0]}.aux").exists() for e in others):
+        warn(T("還沒有完整編譯過：其他章的章號、頁碼和交叉引用可能不對；先跑一次 ax build",
+               "No full build yet: numbers and cross-references from other chapters may be "
+               "wrong; run ax build once first"))
+    # Start from the full build's aux: saves a LaTeX run and keeps references.
+    if (build / f"{main.stem}.aux").exists() and not (build / f"{job}.aux").exists():
+        shutil.copyfile(build / f"{main.stem}.aux", build / f"{job}.aux")
+    names = ",".join(e[0] for e in chosen)
+    what = T("、".join(tags), ", ".join(tags))
+    return job, f"\\includeonly{{{names}}}", T(f"編譯第 {what} 章", f"Building chapter {what}")
+
+
+def build_chapters(main, tokens):
+    job, pretex, label = chapter_job(main, tokens)
+    return safe_build(main, jobname=job, pretex=pretex, label=label)
+
+
+# --- ax count: English words and CJK characters in the text ---
+
+CJK_CHAR = re.compile("[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
+                      "\uac00-\ud7af\U00020000-\U0003134f]")
+WORD_RE = re.compile(r"[^\W_]+(?:['\u2019-][^\W_]+)*")
+SKIP_ENVS = ("equation|align|gather|multline|flalign|alignat|eqnarray|math|displaymath|"
+             "verbatim|Verbatim|lstlisting|minted|codeblock|comment|tikzpicture|tikzcd|"
+             "algorithmic|thebibliography|filecontents")
+# commands whose arguments are not prose: name -> how many {...} to drop
+DROP_ARGS = {
+    "label": 1, "ref": 1, "eqref": 1, "cref": 1, "Cref": 1, "pageref": 1, "cpageref": 1,
+    "autoref": 1, "nameref": 1, "cite": 1, "citep": 1, "citet": 1, "parencite": 1,
+    "textcite": 1, "autocite": 1, "footcite": 1, "nocite": 1, "includegraphics": 1,
+    "includesvg": 1, "inputcode": 1, "lstinputlisting": 1, "input": 1, "include": 1,
+    "subfile": 1, "includeonly": 1, "usepackage": 1, "RequirePackage": 1, "documentclass": 1,
+    "begin": 1, "end": 1, "bibliography": 1, "bibliographystyle": 1, "addbibresource": 1,
+    "printbibliography": 0, "url": 1, "href": 1, "hspace": 1, "vspace": 1, "setlength": 2,
+    "setcounter": 2, "addtocounter": 2, "chapterdir": 1, "graphicspath": 1, "newcommand": 2,
+    "renewcommand": 2, "providecommand": 2, "DeclareMathOperator": 2, "akizumisetup": 1,
+    "hypersetup": 1, "color": 1, "textcolor": 1, "colorbox": 1, "code": 1, "path": 1,
+    "typeout": 1, "pagestyle": 1, "thispagestyle": 1, "bibitem": 1, "newtheorem": 2,
+    "numberwithin": 2, "captionsetup": 1, "tikzset": 1, "pgfplotsset": 1, "lstset": 1,
+    "SI": 2, "si": 1, "num": 1,
+}
+
+
+def _drop_command(text, name, nargs):
+    """Remove every \\name[*][opt]{arg}... (nargs brace groups, nested braces ok)."""
+    pat = re.compile(r"\\" + re.escape(name) + r"(?![A-Za-z@])\*?")
+    out, pos = [], 0
+    for m in pat.finditer(text):
+        if m.start() < pos:
+            continue
+        out.append(text[pos:m.start()])
+        i, taken = m.end(), 0
+        while i < len(text):
+            j = i
+            while j < len(text) and text[j] in " \t\n":
+                j += 1
+            if j < len(text) and text[j] == "[":
+                close = text.find("]", j)
+                if close < 0:
+                    break
+                i = close + 1
+                continue
+            if taken < nargs and j < len(text) and text[j] == "{":
+                depth, k = 0, j
+                while k < len(text):
+                    if text[k] == "\\":
+                        k += 2
+                        continue
+                    depth += {"{": 1, "}": -1}.get(text[k], 0)
+                    k += 1
+                    if depth == 0:
+                        break
+                i, taken = k, taken + 1
+                continue
+            break
+        out.append(" ")
+        pos = i
+    out.append(text[pos:])
+    return "".join(out)
+
+
+def count_words(text):
+    """(English words, CJK characters) in a piece of LaTeX, leaving out
+    commands, math, code, labels and references."""
+    text = strip_tex_comments(text)
+    text = re.sub(r"\\verb\*?([^A-Za-z\s])(.*?)\1", " ", text)
+    text = re.sub(r"\\begin\s*\{(?P<env>(?:%s)\*?)\}.*?\\end\s*\{(?P=env)\}" % SKIP_ENVS, " ", text, flags=re.S)
+    text = re.sub(r"\\[$%&#_{}]", " ", text)  # escaped specials are not math or groups
+    text = re.sub(r"\$\$.*?\$\$|\\\[.*?\\\]|\\\(.*?\\\)|\$.*?\$", " ", text, flags=re.S)
+    for name, nargs in DROP_ARGS.items():
+        if "\\" + name in text:
+            text = _drop_command(text, name, nargs)
+    text = re.sub(r"\\[A-Za-z@]+\*?(\s*\[[^\]]*\])?", " ", text)
+    text = re.sub(r"\\.|[{}~^&#_]", " ", text)
+    cjk = len(CJK_CHAR.findall(text))
+    words = len(WORD_RE.findall(CJK_CHAR.sub(" ", text)))
+    return words, cjk
+
+
+def count_files(main):
+    """[(file, words, cjk)] for main's body and every file it \\input's,
+    \\include's or \\subfile's, in order."""
+    rows, seen = [], set()
+    dirs = [main.parent]
+
+    def visit(path, depth):
+        key = path.resolve()
+        if key in seen or depth > 8:
+            return
+        seen.add(key)
+        text = path.read_text(errors="replace")
+        if depth == 0 or "\\begin{document}" in text:
+            text = tex_body(text)
+        text = strip_tex_comments(text)
+        rows.append((path, *count_words(text)))
+        for m in CHAPTER_TOKEN.finditer(text):
+            if m.group(5) is not None:
+                d = m.group(5).strip().rstrip("/")
+                dirs[:] = [main.parent / d, main.parent] if d else [main.parent]
+            elif m.group(3):
+                found = find_tex(m.group(4).strip(), dirs + [path.parent])
+                if found:
+                    visit(found, depth + 1)
+
+    visit(main, 0)
+    return rows
+
+
+def cmd_count(a):
+    main = main_file(a.file)
+    rows = count_files(main)
+    words = sum(r[1] for r in rows)
+    cjk = sum(r[2] for r in rows)
+    total = words + cjk
+    if len(rows) > 1:
+        width = min(48, max(len(str(r[0])) for r in rows))
+        head = lambda t: " " * (8 - len(t) - len(CJK_CHAR.findall(t))) + t  # CJK is double width
+        print(f"  {'':<{width}}  {head(T('英文字', 'words'))}  {head(T('中日韓字', 'CJK'))}")
+        for path, w, c in rows:
+            print(f"  {str(path):<{width}}  {w:>8,}  {c:>8,}")
+        print()
+    ok(T(f"英文 {words:,} 字、中日韓 {cjk:,} 字，共 {total:,}",
+         f"{words:,} English words + {cjk:,} CJK characters = {total:,}"))
+    note(T("  不算指令、數學、程式碼、\\label／\\ref／\\cite 和註解",
+           "  Commands, math, code, \\label / \\ref / \\cite and comments are not counted"))
+    if a.limit is not None:
+        if total > a.limit:
+            warn(T(f"超過上限 {a.limit:,}：多了 {total - a.limit:,}",
+                   f"Over the limit of {a.limit:,} by {total - a.limit:,}"))
+        else:
+            ok(T(f"在上限 {a.limit:,} 以內，還剩 {a.limit - total:,}",
+                 f"Within the limit of {a.limit:,}; {a.limit - total:,} to spare"))
+
+
+# --- ax doctor: what this project's build needs ---
+
+def doctor_build_checks(cfg, report, optional):
+    missing = T("找不到", "not found")
+    for step in prebuild_steps(cfg):
+        for prog in step_programs(step):
+            where = shutil.which(prog)
+            report(bool(where), T(f"前置步驟用的 {prog}", f"{prog} (used by prebuild)"), where or missing,
+                   T('安裝它或把它加進 PATH；步驟寫在 .ax.json 的 "prebuild"',
+                     'Install it or add it to PATH; the steps are "prebuild" in .ax.json'))
+    sources = []
+    for p in Path(".").rglob("*"):
+        if p.suffix in (".tex", ".sty", ".cls") and not {"build", ".git"} & set(p.parts):
+            try:
+                sources.append((p, strip_tex_comments(p.read_text(errors="replace"))))
+            except OSError:
+                pass
+    text = "\n".join(t for _, t in sources)
+    shell = cfg.get("shell_escape") is True
+    if shell:
+        optional(True, "shell_escape", T("LaTeX 可以執行外部程式", "LaTeX may run programs"))
+    if "\\includesvg" in text or re.search(r"\\usepackage\s*(\[[^\]]*\])?\s*\{[^}]*\bsvg\b", text):
+        where = shutil.which("inkscape")
+        detail = where or missing
+        if not where and MACOS and Path("/Applications/Inkscape.app").exists():
+            detail = T("裝了但不在 PATH 上：ln -s /Applications/Inkscape.app/Contents/MacOS/inkscape ~/bin/",
+                       "installed but not on PATH: ln -s /Applications/Inkscape.app/Contents/MacOS/inkscape ~/bin/")
+        report(bool(where), T("inkscape（svg 圖）", "inkscape (svg figures)"), detail,
+               T("安裝 Inkscape（https://inkscape.org）並放到 PATH；svg 套件靠它把 .svg 轉成 PDF",
+                 "Install Inkscape (https://inkscape.org) and put it on PATH; the svg package "
+                 "converts .svg to PDF with it"))
+        if not shell:
+            optional(False, T("svg 套件要 shell_escape 才能轉檔", "the svg package needs shell_escape to convert"),
+                     T('在 .ax.json 加 "shell_escape": true', 'add "shell_escape": true to .ax.json'))
+    # packages outside TeX Live (stata.sty, a venue's style) must sit in the project
+    names = set()
+    for group in re.findall(r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}", text):
+        names |= {n.strip() for n in group.split(",") if re.fullmatch(r"[\w.-]+", n.strip())}
+    names = {n for n in names if not n.startswith(("akizumi", "aaron", "beamertheme"))}
+    names -= {p.stem for p, _ in sources if p.suffix == ".sty"}
+    if names and shutil.which("kpsewhich"):
+        try:
+            out = subprocess.run(["kpsewhich", *sorted(f"{n}.sty" for n in names)],
+                                 capture_output=True, text=True, timeout=60).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            out = None
+        if out is not None:
+            found = {Path(line.strip()).stem for line in out.splitlines() if line.strip()}
+            lost = sorted(names - found)
+            report(not lost, T("專案用到的套件", "Packages the project uses"),
+                   ", ".join(f"{n}.sty" for n in lost) if lost else
+                   T(f"{len(names)} 個都找得到", f"all {len(names)} found"),
+                   T("不在 TeX Live 裡的套件（例如 stata.sty）放進專案資料夾；其他用 tlmgr install 安裝",
+                     "Put packages that are not in TeX Live (stata.sty, say) in the project folder; "
+                     "install the others with tlmgr install"))
+
+
+# --- ax selftest: the build pipeline ---
+
+def selftest_build(ax, tmp, result):
+    sample = (r"Hello world, it's 2026. 你好世界 $x+y$ \cite{k} \textbf{bold}"
+              "\n\\begin{equation}a = b\\end{equation} % not counted\n")
+    result(count_words(sample) == (5, 4), T("ax count 字數", "ax count words"))
+    d = tmp / "t-build"
+    run = lambda *args: subprocess.run(ax + list(args), cwd=d, stdin=subprocess.DEVNULL,
+                                       capture_output=True, encoding="utf-8", errors="replace")
+    r = subprocess.run(ax + ["new", "book", str(d), "--title", "Test", "--no-preamble", "--pin", "latest"],
+                       stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace")
+    if r.returncode:
+        result(False, T("專案 prebuild／shell_escape／--chapter", "project prebuild / shell_escape / --chapter"))
+        print(r.stdout + r.stderr)
+        return
+    (d / "chapters").mkdir()
+    (d / "chapters" / "two.tex").write_text(
+        "\\chapter{Second}\\typeout{AXCHAPTER=\\thechapter}\n\\input{gen}\n"
+        "\\typeout{AXSHELL=\\the\\shellescape}\n")
+    main_tex = d / "main.tex"
+    main_tex.write_text(main_tex.read_text().replace(
+        "\\section{Motivation}\n", "\\section{Motivation}\n\n\\include{chapters/two}\n"))
+    cfg = json.loads((d / PROJECT_CONFIG).read_text())
+    py = f'"{sys.executable}"'
+    cfg.update(prebuild=[py + ' -c "open(\'gen.tex\', \'w\').write(\'Generated text.\')"'],
+               shell_escape=True)
+    (d / PROJECT_CONFIG).write_text(json.dumps(cfg, indent=2) + "\n")
+    r = run("build")
+    log = (d / "build" / "main.log").read_text(errors="replace") if (d / "build" / "main.log").exists() else ""
+    good = r.returncode == 0 and (d / "gen.tex").exists() and "AXSHELL=1" in log
+    result(good, T("專案 prebuild + shell_escape", "project prebuild + shell_escape"))
+    if not good:
+        print(r.stdout + r.stderr)
+    r = run("build", "--chapter", "2")
+    log = d / "build" / "main-ch2.log"
+    good = (r.returncode == 0 and (d / "main-ch2.pdf").exists() and log.exists()
+            and "AXCHAPTER=2" in log.read_text(errors="replace"))
+    result(good, T("專案 build --chapter 2（保留章號）", "project build --chapter 2 (real number)"))
+    if not good:
+        print(r.stdout + r.stderr)
+    r = run("count", "--limit", "1")
+    result(r.returncode == 0 and "1" in r.stdout, T("專案 ax count", "project ax count"))
+    cfg["prebuild"] = [py + ' -c "import sys; sys.exit(3)"']
+    (d / PROJECT_CONFIG).write_text(json.dumps(cfg, indent=2) + "\n")
+    before = (d / "main.pdf").stat().st_mtime if (d / "main.pdf").exists() else None
+    r = run("build")
+    after = (d / "main.pdf").stat().st_mtime if (d / "main.pdf").exists() else None
+    good = r.returncode == 1 and before is not None and before == after and "3" in r.stderr
+    result(good, T("專案 prebuild 失敗時停止", "project prebuild failure stops the build"))
+    if not good:
+        print(r.stdout + r.stderr)
 
 
 # ---------- ax watch, in the foreground or the background ----------
@@ -896,6 +1406,7 @@ def watch_cmd(main, background=False):
         # PDF as out_dir + job name
         cmd.append("-view=none")
         pdf = "%Z%R.pdf"
+    cmd += latexmk_flags() + WATCH_CHAPTER  # .ax.json; ax watch --chapter
     return cmd + ["-e", f"$success_cmd = q({AX_CMD} copypdf {pdf} %R.pdf);",
                   "-e", f"$failure_cmd = q({AX_CMD} explain %R);", str(main)]
 
@@ -1092,6 +1603,11 @@ def cmd_watch(a):
         sys.exit(watch_status() if a.status else watch_stop() if a.stop else watch_follow())
     main = main_file(a.file)
     need_tool("latexmk", T("請先安裝 TeX Live，再執行 ax doctor", "Install TeX Live, then run ax doctor"))
+    if not watcher():
+        run_prebuild(a)  # once, before watching; not on every save
+    if a.chapter:
+        job, pretex, _ = chapter_job(main, a.chapter)
+        WATCH_CHAPTER[:] = [f"-jobname={job}", f"-usepretex={pretex}"]
     if a.bg:
         watch_background(main)
         return
@@ -1116,6 +1632,7 @@ def cmd_both(a):
         die(T(f"ax both 只用在作業和考卷；這個專案是{KIND_NAME.get(kind, kind)}",
               f"ax both is for homework and exams; this project is {KIND_NAME.get(kind, kind)}"))
     warn_if_watching()
+    run_prebuild(a)
     ok1 = safe_build(main, pretex=r"\def\akizumisolutions{false}",
                      label=T("編譯題目卷", "Building the problems"))
     ok2 = safe_build(main, jobname=f"{main.stem}-solutions",
@@ -1347,6 +1864,7 @@ def cmd_doctor(a):
             if tags and pin not in ("latest", tags[0]):
                 optional(False, T(f"有新版模板 {tags[0]}", f"Newer template {tags[0]}"),
                          T("想用新外觀就跑 ax upgrade", "run ax upgrade for the new look"))
+        doctor_build_checks(cfg, report, optional)  # prebuild programs, inkscape, packages
 
     print()
     if problems:
@@ -1395,7 +1913,7 @@ _ax() {{
   elif [[ $words[2] == new && CURRENT == 3 ]]; then compadd -- {kinds}
   elif [[ $words[2] == new ]]; then compadd -- {opts}
   elif [[ $words[2] == watch ]]; then compadd -- --bg --status --stop --log; _files -g '*.tex'
-  elif [[ $words[2] == (build|both|open) ]]; then _files -g '*.tex'
+  elif [[ $words[2] == (build|both|open|count) ]]; then _files -g '*.tex'
   elif [[ $words[2] == completion ]]; then compadd -- zsh bash powershell
   elif [[ $words[2] == selftest ]]; then compadd -- all examples projects
   fi
@@ -1522,6 +2040,7 @@ def cmd_selftest(a):
             selftest_watch(ax, tmp / "t-hw", result)
         else:
             result(False, T("專案 both（作業專案沒有建立成功）", "project both (the homework project was not created)"))
+        selftest_build(ax, tmp, result)  # prebuild, shell_escape, --chapter, count
         # references: biber runs and the citation resolves
         d = tmp / "t-bib"
         r = subprocess.run(ax + ["new", "note", str(d), "--title", "Test", "--bib", "--no-preamble",
@@ -1631,6 +2150,9 @@ HELP_LINES = {
     "watch": T("存檔就重編", "rebuild on every save"),
     "open": T("打開 PDF（--solutions 打開解答）", "open the PDF (--solutions: the solutions)"),
     "both": T("作業／考卷：題目卷和解答各一份", "homework / exam: problems and solutions as two PDFs"),
+    "count": T("數字數：英文字數加中日韓字數，不算指令和數學（--limit N 超過就提醒）",
+               "count English words and CJK characters, leaving out commands and math "
+               "(--limit N warns above N)"),
     "doctor": T("檢查工具、字型、模板版本", "check tools, fonts and template versions"),
     "upgrade": T("改用最新的模板版本", "move to the newest template version"),
     "freeze": T("把模板檔複製進專案，從此不依賴模板 repo",
@@ -1761,6 +2283,14 @@ def main():
         c.add_argument("file", nargs="?", metavar=T("檔案", "file"),
                        help=T("預設是專案的 main.tex", "default: the project's main.tex"))
         c.set_defaults(func=func)
+        c.add_argument("--no-prebuild", action="store_true",
+                       help=T('跳過 .ax.json 的 "prebuild" 步驟', 'skip the "prebuild" steps in .ax.json'))
+        if name != "both":
+            c.add_argument("--chapter", action="append", metavar="N",
+                           help=T("只編第 N 章（章要用 \\include 載入；可寫 3,5 或資料夾名），"
+                                  "輸出 main-chN.pdf，章號照舊",
+                                  "build only chapter N (chapters must be \\include'd; 3,5 or a "
+                                  "folder name also work) into main-chN.pdf, keeping its number"))
         if name == "watch":
             g = c.add_mutually_exclusive_group()
             g.add_argument("--bg", action="store_true",
@@ -1773,6 +2303,11 @@ def main():
             g.add_argument("--log", action="store_true",
                            help=T("即時看背景監看的輸出（Ctrl-C 結束）",
                                   "follow the background watcher's output (Ctrl-C to quit)"))
+    c = sub.add_parser("count", help=HELP_LINES["count"], description=HELP_LINES["count"])
+    c.add_argument("file", nargs="?", metavar=T("檔案", "file"),
+                   help=T("預設是專案的 main.tex", "default: the project's main.tex"))
+    c.add_argument("--limit", type=int, metavar="N", help=T("字數上限", "word limit"))
+    c.set_defaults(func=cmd_count)
     o = sub.add_parser("open", help=HELP_LINES["open"], description=HELP_LINES["open"])
     o.add_argument("file", nargs="?", metavar=T("檔案", "file"),
                    help=T("預設是專案的 main.pdf", "default: the project's main.pdf"))

@@ -596,9 +596,12 @@ def cmd_new(a):
         note("  已加入你的 " + "、".join(used_preambles))
     print("\n下一步：")
     print(f"  {cmd_text(f'cd {target}')}")
-    print(f"  {cmd_text('ax watch'):<24} 存檔就重編，PDF 自動更新")
+    # Cursor compiles on save, so ax watch is only the alternative to it
     if shutil.which("cursor"):
-        print(f"  {cmd_text('cursor .'):<24} 用 Cursor 開啟，{'Cmd+Option+V' if MACOS else 'Ctrl+Alt+V'} 看 PDF")
+        print(f"  {cmd_text('cursor .'):<24} 用 Cursor 開啟，{'Cmd+Option+V' if MACOS else 'Ctrl+Alt+V'} 看 PDF，存檔就重編")
+        print(f"  {cmd_text('ax watch'):<24} 不用 Cursor 時：存檔就重編，PDF 自動更新")
+    else:
+        print(f"  {cmd_text('ax watch'):<24} 存檔就重編，PDF 自動更新")
     if a.kind in ("hw", "exam"):
         print(f"  {cmd_text('ax both'):<24} 題目卷和解答各一份")
 

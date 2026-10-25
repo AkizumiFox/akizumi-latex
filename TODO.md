@@ -16,6 +16,5 @@
 ## 等需要時再做
 
 - [ ] 本機更新 biber（`tlmgr update biber`，2.22 起修好 lipo 問題），之後刪掉 `~/bin/biber`
-
 - [ ] 參考文獻顯示在邊欄（kaobook 的做法，配合 `layout=margin`）
 - [ ] 把已固定在 v0.6 以前的專案升級（更新 TeX Live 到 2026-06 核心之後，作業、講義、考卷、書需要 `ax upgrade`）

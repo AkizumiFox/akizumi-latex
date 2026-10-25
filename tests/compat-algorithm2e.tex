@@ -1,0 +1,21 @@
+% !TEX program = xelatex
+% akizumi-compat: algorithm2e loads next to algorithm.sty; its body goes in
+% \begin{algorithm} as before (redirected to algorithm2e's own environment).
+\documentclass{akizumi-note}
+\usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+\title{algorithm2e}
+
+\begin{document}
+\maketitle
+\Cref{alg:gd} is written with algorithm2e.
+
+\begin{algorithm}[h]
+  \caption{Gradient descent}\label{alg:gd}
+  \KwIn{$x_0$, step size $\eta$}
+  \KwOut{$x_T$}
+  \For{$t \gets 0$ \KwTo $T-1$}{
+    $x_{t+1} \gets x_t - \eta \nabla f(x_t)$\;
+  }
+  \eIf{$f(x_T) < f(x_0)$}{\Return{$x_T$}\;}{\Return{$x_0$}\;}
+\end{algorithm}
+\end{document}

@@ -1,0 +1,127 @@
+% akizumi-compat.sty -- old document bodies compile unchanged, and a course
+% folder can share one preamble. Loaded by akizumi-core.
+%
+% Options (class options reach it as global options):
+%   legacy = true | false          (default true)
+%     CJK / CJK* environments do nothing (xeCJK already sets CJK text);
+%     \usepackage{CJK|CJKutf8|CJKspace|CJKpunct} and, in documents,
+%     {algpseudocode} are ignored (algpseudocodex is loaded, so algorithmic
+%     and \algrenewcommand\algorithmiccomment keep working); algorithm2e
+%     loads with algo2e, and \begin{algorithm} becomes its algorithm2e;
+%     a `li` list (enumerate with enumitem options) when nothing defines one.
+%     One warning per kind of thing ignored.
+%   sharedpreamble = true | false  (default true)
+%     The nearest .akizumi/preamble.tex in the document's folder or up to
+%     eight folders above it is read right after the class (or after the
+%     theme / akizumi-core when loaded with \usetheme / \usepackage), so the
+%     document's own preamble can still override it.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-compat}[2026/10/25 v0.8 Aaron Lin compatibility layer]
+
+\newif\ifakizumi@legacy
+\newif\ifakizumi@sharedpreamble
+\newif\ifakizumi@algtwoe
+\ExplSyntaxOn
+\keys_define:nn { akizumi/compat }
+  {
+    legacy         .choices:nn = { true, false } { \use:c { akizumi@legacy \l_keys_choice_tl } },
+    legacy         .default:n  = true,
+    legacy         .initial:n  = true,
+    sharedpreamble .choices:nn = { true, false } { \use:c { akizumi@sharedpreamble \l_keys_choice_tl } },
+    sharedpreamble .default:n  = true,
+    sharedpreamble .initial:n  = true,
+  }
+\ProcessKeyOptions [ akizumi/compat ]
+% The classes hand unknown keys to article / book without their values, which
+% then counts them as unused: they are ours.
+\clist_map_inline:nn { legacy, sharedpreamble }
+  {
+    \clist_remove_all:Nn \@unusedoptionlist {#1}
+    \exp_args:NNe \clist_remove_all:Nn \@unusedoptionlist { \tl_to_str:n {#1} }
+  }
+\ExplSyntaxOff
+
+% \akizumi@compatwarn{tag}{message}: once per tag.
+\newcommand{\akizumi@compatwarn}[2]{%
+  \@ifundefined{akizumi@cw@#1}{%
+    \global\@namedef{akizumi@cw@#1}{}\PackageWarning{akizumi-compat}{#2}}{}}
+
+\ifakizumi@legacy
+  % ---------- CJK package ----------
+  \@for\akizumi@p:={CJK,CJKutf8,CJKspace,CJKpunct}\do{%
+    \expandafter\disable@package@load\expandafter{\akizumi@p}{%
+      \akizumi@compatwarn{cjkpkg}{Ignoring \string\usepackage{CJK...}:\MessageBreak
+        xeCJK already sets Chinese, Japanese and Korean}}}
+  \@ifundefined{CJK}{%
+    \NewDocumentEnvironment{CJK}{o m m}{\akizumi@cjkenvwarn}{}%
+    \NewDocumentEnvironment{CJK*}{o m m}{\akizumi@cjkenvwarn}{}}{}
+  \newcommand{\akizumi@cjkenvwarn}{%
+    \akizumi@compatwarn{cjkenv}{CJK environments are ignored:\MessageBreak
+      xeCJK sets CJK text without them}}
+  \@ifclassloaded{beamer}{}{%
+    % ---------- algorithms ----------
+    \disable@package@load{algpseudocode}{%
+      \akizumi@compatwarn{algpseudocode}{Ignoring \string\usepackage{algpseudocode}:\MessageBreak
+        algpseudocodex is loaded and takes the same commands}}
+    % algorithm2e's own environment is algorithm, which algorithm.sty
+    % already defines: load it as algorithm2e and point algorithm there,
+    % unless the document asked for algo2e itself.
+    \AddToHook{package/algorithm2e/before}{%
+      \@expandtwoargs\in@{,algo2e,}{,\csname opt@algorithm2e.sty\endcsname,}%
+      \ifin@\else
+        \global\akizumi@algtwoetrue
+        \expandafter\xdef\csname opt@algorithm2e.sty\endcsname{%
+          \csname opt@algorithm2e.sty\endcsname,algo2e}%
+      \fi}
+    \AddToHook{package/algorithm2e/after}{%
+      \ifakizumi@algtwoe
+        \akizumi@compatwarn{algorithm2e}{algorithm2e: \string\begin{algorithm} now\MessageBreak
+          starts an algorithm2e block}%
+        \expandafter\let\expandafter\algorithm\csname algorithm2e\endcsname
+        \expandafter\let\expandafter\endalgorithm\csname endalgorithm2e\endcsname
+        \expandafter\let\csname algorithm*\expandafter\endcsname\csname algorithm2e*\endcsname
+        \expandafter\let\csname endalgorithm*\expandafter\endcsname\csname endalgorithm2e*\endcsname
+        \let\listofalgorithms\listofalgorithmes
+      \fi
+      \renewcommand{\algorithmcfname}{\akizumi@str{algorithm}}%
+      \ifakizumi@cjk\crefname{algocf}{\akizumi@str{algorithm}}{\akizumi@str{algorithm}}%
+      \else\crefname{algocf}{Algorithm}{Algorithms}\fi}
+    % li: the list old course preambles defined (\begin{li}[label=(\alph*)])
+    \AtBeginDocument{\@ifundefined{li}{%
+      \newenvironment{li}[1][]{\begin{enumerate}[#1]}{\end{enumerate}}}{}}}
+\fi
+
+% ---------- shared preamble: the nearest .akizumi/preamble.tex upwards ----------
+\ifakizumi@sharedpreamble
+  \def\akizumi@sharedpreamble{}
+  \begingroup
+    \def\akizumi@up{./}%
+    \@tempcnta\z@
+    \loop
+      \IfFileExists{\akizumi@up.akizumi/preamble.tex}
+        {\xdef\akizumi@sharedpreamble{\akizumi@up.akizumi/preamble.tex}\@tempcnta=9 }{}%
+      \edef\akizumi@up{\akizumi@up../}%
+      \advance\@tempcnta\@ne
+    \ifnum\@tempcnta<9 \repeat
+  \endgroup
+  \ifx\akizumi@sharedpreamble\@empty\else
+    \def\akizumi@inputshared{%
+      \typeout{akizumi-compat: shared preamble \akizumi@sharedpreamble}%
+      \makeatother\input{\akizumi@sharedpreamble}}
+    % Inside a class: after it ends. Else after the theme or akizumi-core.
+    \ExplSyntaxOn
+    \bool_set_false:N \l_tmpa_bool
+    \tl_map_inline:Nn \@currnamestack
+      { \str_if_eq:nnT {#1} { cls } { \bool_set_true:N \l_tmpa_bool } }
+    \bool_if:NTF \l_tmpa_bool
+      { \AddToHook { class/after } { \akizumi@inputshared } }
+      {
+        \@ifpackageloaded { beamerthemeAkizumi }
+          { \AddToHook { package/beamerthemeAkizumi/after } { \akizumi@inputshared } }
+          { \AddToHook { package/akizumi-core/after } { \akizumi@inputshared } }
+      }
+    \ExplSyntaxOff
+  \fi
+\fi
+
+\endinput

@@ -5,7 +5,7 @@
 ## 待決定
 
 - [ ] 簡報頁標題下的細線要不要拿掉（文件裡的灰線已經全部拿掉了）
-- [ ] 要不要公開 repo：公開前決定 README／範例裡的真名，以及 commit 裡的 email 要不要換成 GitHub noreply
+- [x] 公開 repo（2026-10-25；commit email 已換成 GitHub noreply，真名保留）
 
 ## 待驗證
 

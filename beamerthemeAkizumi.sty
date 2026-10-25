@@ -2,6 +2,7 @@
 % muted bullets, page counter bottom right, automatic section pages.
 %   \documentclass[aspectratio=169,11pt]{beamer}
 %   \usetheme[lang=zh]{Akizumi}
+%   \usetheme[tikz=full, plots]{Akizumi}
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{beamerthemeAkizumi}[2026/10/25 v0.8 Aaron Lin beamer theme]
 
@@ -15,6 +16,10 @@
     bb   .code:n = \PassOptionsToPackage { bb = #1 } { akizumi-core },
     code .code:n = \PassOptionsToPackage { code = #1 } { akizumi-code },
     verbatim .code:n = \PassOptionsToPackage { verbatim = #1 } { akizumi-code },
+    tikz .code:n = \PassOptionsToPackage { tikz = #1 } { akizumi-tikz },
+    tikz .default:n = full,
+    plots .code:n = \PassOptionsToPackage { plots = #1 } { akizumi-tikz },
+    plots .default:n = true,
     progress .bool_set:N = \l__akizumi_progress_bool,
     progress .default:n  = true,
   }

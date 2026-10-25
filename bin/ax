@@ -232,7 +232,7 @@ def run_with_spinner(cmd, label, cwd=None, timeout=TIMEOUT):
     """Run cmd, showing 'label … 3.2 s' on a terminal while it works."""
     start = time.time()
     proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            stdin=subprocess.DEVNULL, text=True, errors="replace")
+                            stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
     spin = sys.stderr.isatty()
     frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if _unicode_ok(sys.stderr) else "|/-\\"
     i = 0
@@ -473,7 +473,7 @@ def cmd_new(a):
     lang = a.lang or user.get("lang", "en")
     tags = template_tags()
     pin = a.pin or (tags[0] if tags else "latest")
-    if a.pin and a.pin not in tags:
+    if a.pin and a.pin != "latest" and a.pin not in tags:
         die(f"沒有模板版本 {a.pin}", "現有版本：" + ("、".join(tags) or "（尚未打版本）"))
 
     if a.bib and a.kind in ("hw", "exam"):
@@ -584,6 +584,7 @@ ERROR_LINE = re.compile(r"^(?P<file>[^\s:][^:]*\.(?:tex|sty|cls|bib)):(?P<line>\
 
 # Plain-language hints for the errors people meet most often.
 ERROR_HINTS = [
+    ("Command \\c@lemma", "這個專案的模板版本太舊，跟新版 LaTeX 不相容；在專案裡跑 ax upgrade"),
     ("Undefined control sequence", "指令拼錯，或用到的套件沒有載入"),
     ("Missing $ inserted", "數學符號（_、^、\\alpha 等）要放在 $...$ 裡"),
     ("Missing } inserted", "大括號沒有成對"),
@@ -1038,8 +1039,11 @@ def cmd_selftest(a):
         ax = [sys.executable, str(AX)]
         for kind in KINDS:
             d = tmp / f"t-{kind}"
-            r = subprocess.run(ax + ["new", kind, str(d), "--title", "Test", "--no-preamble"],
-                               stdin=subprocess.DEVNULL, capture_output=True, text=True)
+            # --pin latest: test the templates as they are now, not the last tag
+            r = subprocess.run(ax + ["new", kind, str(d), "--title", "Test", "--no-preamble",
+                                     "--pin", "latest"],
+                               stdin=subprocess.DEVNULL, capture_output=True,
+                               encoding="utf-8", errors="replace")
             out = r.stdout + r.stderr
             code = r.returncode
             if code == 0:
@@ -1191,7 +1195,7 @@ def main():
     n.add_argument("--layout", choices=["normal", "margin"], help="margin：右側寬邊欄放 sidenote")
     n.add_argument("--bib", action="store_true", help="加上 refs.bib 和參考文獻")
     n.add_argument("--progress", action="store_true", help="簡報底部加進度條")
-    n.add_argument("--pin", help="模板版本，預設最新的 tag")
+    n.add_argument("--pin", help="模板版本，預設最新的 tag；latest 表示永遠用安裝的最新檔案")
     n.add_argument("--git", action="store_true", help="建立 git repo 並做第一個 commit")
     n.add_argument("--no-preamble", action="store_true",
                    help="不加入設定資料夾裡的 preamble.tex / preamble-種類.tex")

@@ -160,7 +160,8 @@ if (open(my $fh, '<', '.ax.json')) {
   ($ax_pin) = $ax_json =~ /"template"\s*:\s*"([^"]+)"/;
 }
 # "shell_escape": true in .ax.json lets LaTeX run programs (minted, svg, ...;
-# ax new --code minted sets it).
+# ax new --code minted sets it on TeX older than 2024, whose restricted shell
+# escape cannot run minted's latexminted).
 if ($ax_json =~ /"shell_escape"\s*:\s*true/) {
   push @extra_xelatex_options, '-shell-escape';
   push @extra_pdflatex_options, '-shell-escape';
@@ -418,6 +419,39 @@ def template_tags():
     """Template versions, newest first."""
     out = git("tag", "--list", "v*", "--sort=-v:refname").stdout
     return [t for t in out.split() if t]
+
+
+def unreleased_changes():
+    """True when CHANGELOG.md has entries under "Unreleased": the templates
+    here (and the manual) are newer than the newest tag."""
+    try:
+        text = (REPO / "CHANGELOG.md").read_text(errors="replace")
+    except OSError:
+        return False
+    m = re.search(r"^## Unreleased[^\n]*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+    return bool(m and m.group(1).strip())
+
+
+def pin_behind_manual(pin):
+    """The pinned tag when the manual (the working tree) describes features
+    that tag does not have; None for latest, frozen or an up-to-date pin."""
+    if not pin or pin in ("latest", "frozen"):
+        return None
+    tags = template_tags()
+    if pin not in tags:
+        return None
+    return pin if pin != tags[0] or unreleased_changes() else None
+
+
+def behind_note(pin, err=False):
+    """Tell the user that the manual is ahead of their template version."""
+    note("\n".join(wrap_cols(T(f"注意：ax docs 的手冊寫的是模板目前的內容，比 {pin} 新；CHANGELOG.md 裡"
+           f"「Unreleased」和 {pin} 之後的功能（選項、環境）在 {pin} 還沒有。要用它們，"
+           f"把 .ax.json 的 \"template\" 改成 \"latest\"（新專案：ax new --pin latest）",
+           f"Note: the manual (ax docs) describes the templates as they are now, newer than {pin}; "
+           f"features listed under \"Unreleased\" (or after {pin}) in CHANGELOG.md are not in {pin} yet. "
+           f"To use them, set \"template\" to \"latest\" in .ax.json (new projects: ax new --pin latest)"),
+                                _doc_width(), "    ", "  ")), err=err)
 
 
 def load_json(path):
@@ -979,7 +1013,8 @@ def cmd_new(a):
     if a.bib:
         (target / "refs.bib").write_text("% BibTeX entries go here.\n")
     project = {"kind": a.kind, "main": "main.tex", "template": pin}
-    if a.code == "minted":
+    if a.code == "minted" and not restricted_minted():
+        # TeX before 2024 runs Pygments only with full shell escape
         project["shell_escape"] = True  # latexmkrc and ax build pass -shell-escape
     (target / PROJECT_CONFIG).write_text(json.dumps(project, indent=2) + "\n")
     template_dir(pin)  # fetch the pinned version now, while the repo is at hand
@@ -1010,6 +1045,8 @@ def cmd_new(a):
         v = PAPER_VENUES[a.venue]
         warn(T(f"{v['sty']}.sty 沒有附上：從 {v['where']} 下載到 {target}",
                f"{v['sty']}.sty is not included: download it from {v['where']} into {target}"))
+    if pin_behind_manual(pin):
+        behind_note(pin)
     print(T("\n下一步：", "\nNext:"))
     print(f"  {cmd_text(f'cd {target}')}")
     keys = 'Cmd+Option+V' if MACOS else 'Ctrl+Alt+V'
@@ -1116,6 +1153,12 @@ def warnings_summary(log_path):
         found.append(T(f"{cites} 個 \\cite 找不到文獻", f"{cites} \\cite without a bibliography entry"))
     if overfull:
         found.append(T(f"{overfull} 行超出版面", f"{overfull} line(s) run into the margin"))
+    # options the class does not know (often: newer than the pinned version)
+    m = re.search(r"Unused global option\(s\):\s*\[([^\]]*)\]", log)
+    if m:
+        unused = ", ".join(o.strip() for o in re.sub(r"\s+", "", m.group(1)).split(",") if o.strip())
+        found.append(T(f"文件選項沒有作用（模板不認得）：{unused}",
+                       f"Document option(s) with no effect (the template does not know them): {unused}"))
     return found
 
 
@@ -1206,8 +1249,12 @@ def safe_build(main, jobname=None, pretex=None, label=None):
                    f"{dest} is locked by a PDF viewer and could not be updated; close it, or open {built}"))
             return True
         ok(T(f"{dest}（{elapsed(secs)}）", f"{dest} ({elapsed(secs)})"))
-        for w in warnings_summary(log):
+        warnings = warnings_summary(log)
+        for w in warnings:
             warn(w)
+        behind = pin_behind_manual(project_config().get("template"))
+        if behind and log.exists() and "Unused global option" in log.read_text(errors="replace"):
+            behind_note(behind)
         return True
 
     fail(T(f"編譯失敗：{main}" + (f"（{job}）" if jobname else ""),
@@ -1216,6 +1263,11 @@ def safe_build(main, jobname=None, pretex=None, label=None):
         tail = [l for l in output.splitlines() if re.search(r"error|failed", l, re.I)]
         for l in tail[-5:]:
             print(f"  {l.strip()}", file=sys.stderr)
+    behind = pin_behind_manual(project_config().get("template"))
+    err = first_error(log)
+    if behind and err and re.search(r"Undefined control sequence|Environment \S+ undefined|"
+                                    r"Unknown option|Key .* unknown|not defined", err[1]):
+        behind_note(behind, err=True)
     if Path(f"{job}.pdf").exists():
         note(T(f"  上一份 {job}.pdf 保留著，沒有被覆蓋", f"  The previous {job}.pdf is kept"), err=True)
     if log.exists():
@@ -1273,8 +1325,9 @@ SHELL_BUILTINS = {"cd", "echo", "set", "export", "test", "[", "true", "false", "
 
 def latexmk_flags(cfg=None, main=None):
     """latexmk options that .ax.json asks for; shared by build, both and watch.
-    -shell-escape when "shell_escape" is true or the main file uses code=minted;
-    with minted, warns if Pygments is not found."""
+    -shell-escape when "shell_escape" is true or the main file uses code=minted
+    on a TeX whose restricted shell escape cannot run latexminted; with
+    minted, warns if Pygments is not found."""
     cfg = project_config() if cfg is None else cfg
     if "shell_escape" in cfg and not isinstance(cfg["shell_escape"], bool):
         warn(T(f'.ax.json 的 "shell_escape" 要寫 true 或 false（不加引號），現在是 {json.dumps(cfg["shell_escape"])}，當成 false',
@@ -1295,7 +1348,28 @@ def latexmk_flags(cfg=None, main=None):
     elif minted and not (shutil.which("latexminted") or shutil.which("pygmentize")):
         warn(T("minted 需要 Pygments（latexminted 或 pygmentize），找不到；程式碼改用 listings",
                "minted needs Pygments (latexminted or pygmentize), which is not found; code falls back to listings"))
+    elif cfg.get("shell_escape") is not True and restricted_minted():
+        return []  # TeX Live 2024+: the default restricted shell escape runs latexminted
     return ["-shell-escape"]
+
+
+_RESTRICTED_MINTED = []
+
+
+def restricted_minted():
+    """True when TeX's default restricted shell escape may run latexminted
+    (TeX Live 2024 and later), so minted needs no -shell-escape."""
+    if not _RESTRICTED_MINTED:
+        good = False
+        if shutil.which("latexminted") and shutil.which("kpsewhich"):
+            try:
+                var = lambda name: subprocess.run(["kpsewhich", "-var-value", name], capture_output=True,
+                                                  text=True, timeout=20).stdout.strip()
+                good = var("shell_escape") == "p" and "latexminted" in var("shell_escape_commands").split(",")
+            except (OSError, subprocess.SubprocessError):
+                pass
+        _RESTRICTED_MINTED.append(good)
+    return _RESTRICTED_MINTED[0]
 
 
 # Lines that only a current latexmkrc has: "shell_escape", the indexer, and
@@ -2497,6 +2571,9 @@ def _doc_hits(lines, sec, tokens):
     return hits
 
 
+WEAK_HIT = 20
+
+
 def _doc_scores(lines, heads, query):
     """{section number: (score, hits)}: 80-100 when the heading has the
     words, 60-75 when it has some and its text the rest, 30-58 when only
@@ -2530,6 +2607,10 @@ def _doc_scores(lines, heads, query):
                           if lines[i].lstrip().startswith("|") and lines[i].count("|") > 2)
             # and so does a section that starts with it
             score = 30 + min(len(hits), 8) + 12 * defines + 2 * max(4 - min(hits), 0)
+            # only in a plain ``` block (a file tree, terminal output): a last resort
+            blocks = doc_blocks(lines, h["line"] + 1, h["own"])
+            if all(lines[blocks[b][0]].strip() == "```" for b in hits):
+                score = WEAK_HIT
         if score:
             out[k] = (score, hits)
     return out
@@ -2551,6 +2632,40 @@ def _map_hits(lines, mine, olines, theirs, hits):
     return out
 
 
+def _code_words(text):
+    """What a paragraph says in both languages: `code`, \\macros, options."""
+    spans = re.findall(r"`([^`]+)`", text)
+    return set(spans) | set(re.findall(r"\\?[A-Za-z][\w=@.-]{2,}", " ".join(spans) or text))
+
+
+def _match_hits(lines, mine, olines, theirs, hits):
+    """Hits in the other language's paragraphs, moved to this language's
+    paragraphs (and table rows) that share the most code with them, for
+    sections whose paragraphs do not line up one to one."""
+    out = {}
+    for b, shown in hits.items():
+        rows = [i for i in shown if i not in theirs[b][:2]] if _is_table(olines, theirs[b]) else []
+        cand = [(c, blk) for c, blk in enumerate(mine) if _is_table(lines, blk) == _is_table(olines, theirs[b])]
+        if rows:  # table rows: the row of this table with the same first cell's code
+            for c, blk in cand:
+                picked = []
+                for i in rows:
+                    want = _code_words(olines[i].split("|")[1])
+                    best = max(blk[2:], key=lambda j: len(want & _code_words(lines[j].split("|")[1])), default=None)
+                    if best is not None and want & _code_words(lines[best].split("|")[1]):
+                        picked.append(best)
+                if picked:
+                    out[c] = blk[:2] + sorted(set(picked))
+                    break
+            continue
+        want = _code_words(" ".join(olines[i] for i in theirs[b]))
+        score, c = max(((len(want & _code_words(" ".join(lines[i] for i in blk))), c) for c, blk in cand),
+                       default=(0, None))
+        if score:
+            out[c] = mine[c]
+    return out or {0: mine[0]} if mine else {}
+
+
 def doc_search(query, lang):
     """(lines, sections, [(score, section number, hits, lines the hits index)])
     for the language's file, best first; matches in the other language's file
@@ -2570,30 +2685,191 @@ def doc_search(query, lang):
                 if len(mine) == len(theirs):
                     found[k] = (s, _map_hits(lines, mine, olines, theirs, hits), lines)
                 else:
-                    found[k] = (s, hits, olines)
+                    # the paragraphs do not line up: never show the other
+                    # language's text; find the same paragraphs by their code
+                    found[k] = (s, _match_hits(lines, mine, olines, theirs, hits), lines)
+    if any(s > WEAK_HIT for s, _, _ in found.values()):
+        found = {k: v for k, v in found.items() if v[0] > WEAK_HIT}
     ranked = sorted(found.items(), key=lambda kv: (-kv[1][0], len(heads[kv[0]]["title"]), kv[0]))
     return lines, heads, [(s, k, hits, src) for k, (s, hits, src) in ranked]
 
 
-def _doc_render(text_lines):
-    """Lines in color: headings, `code` and **bold**; fenced code as it is."""
-    out, fence = [], False
-    for line in text_lines:
-        if line.lstrip().startswith("```"):
-            fence = not fence
-            out.append(line)
+# Terminal rendering of the manual: paragraphs and list items reflowed to the
+# terminal (CJK characters take two columns), tables as aligned columns when
+# they fit and as one entry per row when they do not, links as their text.
+# Inline marks travel through the wrapping as control characters: \x01..\x02
+# bold, \x03..\x04 code; _marks() turns them into colour or backticks.
+
+_CLOSE_PUNCT = "，。、；：？！）」』〉》】,.;:?!)]}”’…%"
+_OPEN_PUNCT = "（「『〈《【([{“‘"
+
+
+def _wrap_tokens(text, width):
+    toks = re.findall(r"\s+|\x03[^\x04]*\x04|[\x01\x02\x21-\x7e]+|.", text)
+    out = []
+    for t in toks:
+        if t.startswith("\x03") and _width(t) > width // 2 and " " in t:
+            parts = t.split(" ")  # a long code span may break at its spaces
+            for j, part in enumerate(parts):
+                out += ([" "] if j else []) + [part]
+            continue
+        out.append(t)
+    merged = []
+    for t in out:  # no line starts with a closing mark or ends with an opening one
+        if merged and not t.isspace() and not merged[-1].isspace() and (
+                t[0] in _CLOSE_PUNCT or merged[-1][-1] in _OPEN_PUNCT or
+                t.strip("\x01\x02\x03\x04") == "" or merged[-1].strip("\x01\x02\x03\x04") == ""):
+            merged[-1] += t
         else:
-            out.append(line if fence else _doc_line(line))
+            merged.append(t)
+    return merged
+
+
+def wrap_cols(text, width, indent="", first=None):
+    """Lines of text no wider than width terminal columns, breaking at spaces
+    and between CJK characters; first is the first line's indent."""
+    first = indent if first is None else first
+    lines, cur, space, empty = [], first, False, True
+    for t in _wrap_tokens(text, width - _width(indent)):
+        if t.isspace():
+            space = True
+            continue
+        sep = " " if space and not empty else ""
+        if not empty and _width(cur) + len(sep) + _width(t) > width:
+            lines.append(cur)
+            cur, sep = indent, ""
+        cur += sep + t
+        space, empty = False, False
+    lines.append(cur)
+    return lines
+
+
+def _inline(text):
+    """Markdown inline marks to the control characters _marks() reads."""
+    text = re.sub(r"\[([^\]]*)\]\(#[^)]*\)", r"\1", text)  # links inside the manual: their text
+    text = re.sub(r"\[([^\]]*)\]\(([^)]*)\)", r"\1 (\2)", text)
+    text = re.sub(r"`([^`]+)`", lambda m: "\x03" + m.group(1).replace("\\|", "|") + "\x04", text)
+    text = re.sub(r"\*\*([^*]+)\*\*", "\x01\\1\x02", text)
+    return text.replace("\\|", "|")
+
+
+def _marks(lines):
+    """Paint wrapped lines: bold and code in colour (closed at each line's
+    end and reopened on the next), or backticks without colour."""
+    if not COLOR["out"]:
+        return [l.replace("\x01", "").replace("\x02", "").replace("\x03", "`").replace("\x04", "`")
+                for l in lines]
+    out, bold, code = [], False, False
+    for line in lines:
+        text = ("\033[1m" if bold else "") + ("\033[36m" if code else "")
+        for ch in line:
+            if ch == "\x01":
+                bold, ch = True, "\033[1m"
+            elif ch == "\x02":
+                bold, ch = False, "\033[22m"
+            elif ch == "\x03":
+                code, ch = True, "\033[36m"
+            elif ch == "\x04":
+                code, ch = False, "\033[39m"
+            text += ch
+        out.append(text + ("\033[0m" if bold or code else ""))
+    return out
+
+
+def _doc_width():
+    return max(40, min(shutil.get_terminal_size((80, 40)).columns, 100) - 1)
+
+
+def _table_cells(line):
+    cells = re.split(r"(?<!\\)\|", line.strip())
+    if cells and not cells[0].strip():
+        cells = cells[1:]
+    if cells and not cells[-1].strip():
+        cells = cells[:-1]
+    return [_inline(c.strip()) for c in cells]
+
+
+def _render_table(rows, width):
+    rows = [r for r in rows if not re.fullmatch(r"\s*\|?[\s:|-]*-[\s:|-]*", r)]
+    cells = [_table_cells(r) for r in rows]
+    if not cells:
+        return []
+    head, body = cells[0], cells[1:]
+    n = max(len(c) for c in cells)
+    cols = [max((_width(c[j]) for c in cells if j < len(c)), default=0) for j in range(n)]
+    if sum(cols) + 2 * (n - 1) <= width:
+        out = []
+        for k, c in enumerate(cells):
+            line = "  ".join(c[j] + " " * (cols[j] - _width(c[j])) if j < len(c) else " " * cols[j]
+                             for j in range(n)).rstrip()
+            out.append("\x01" + line + "\x02" if k == 0 else line)
+            if k == 0:
+                out.append("─" * min(width, sum(cols) + 2 * (n - 1)))
+        return out
+    out = []
+    for c in body:  # too wide: each row as an entry, its other cells below it
+        out += wrap_cols(c[0] if c else "", width, "    ", f"{MARK['dot']} ")
+        for j in range(1, len(c)):
+            if not c[j]:
+                continue
+            label = f"{head[j]}{T('：', ': ')}" if n > 2 and j < len(head) and head[j] else ""
+            out += wrap_cols(label + c[j], width, "      ", "    ")
+    return out
+
+
+def _doc_render(text_lines):
+    """Manual lines as the terminal shows them: headings coloured, text
+    reflowed, tables laid out, fenced code as it is."""
+    width, out = _doc_width(), []
+    text_lines = list(text_lines)
+    i = 0
+    while i < len(text_lines):
+        line = text_lines[i]
+        if line.lstrip().startswith("```"):
+            j = i + 1
+            while j < len(text_lines) and not text_lines[j].lstrip().startswith("```"):
+                j += 1
+            out += ["  " + (_paint(l, "2") if COLOR["out"] else l) for l in text_lines[i + 1:j]]
+            i = j + 1
+            continue
+        if not line.strip():
+            if out and out[-1] != "":
+                out.append("")
+            i += 1
+            continue
+        m = re.match(r"(#{1,6})\s+(.*)", line)
+        if m:
+            out.append(_paint(m.group(1) + " " + _plain_heading(m.group(2)), "1;36"))
+            i += 1
+            continue
+        if line.lstrip().startswith("|"):
+            j = i
+            while j < len(text_lines) and text_lines[j].lstrip().startswith("|"):
+                j += 1
+            out += _marks(_render_table(text_lines[i:j], width))
+            i = j
+            continue
+        item = re.match(r"(\s*)([-*]|\d+\.)\s+", line)
+        j = i + 1  # a paragraph or list item runs on until a blank line, a new item or a block
+        while j < len(text_lines) and text_lines[j].strip() and not re.match(
+                r"\s*([-*]|\d+\.)\s|\s*\||\s*```|#{1,6}\s", text_lines[j]):
+            j += 1
+        text = " ".join(l.strip() for l in text_lines[i:j])
+        if item:
+            lead = item.group(1)
+            bullet = MARK["dot"] if item.group(2) in "-*" else item.group(2)
+            text = text[len(item.group(0)) - len(lead):]
+            out += _marks(wrap_cols(_inline(text), width, lead + " " * (_width(bullet) + 1), lead + bullet + " "))
+        else:
+            out += _marks(wrap_cols(_inline(text), width))
+        i = j
     return out
 
 
 def _doc_line(line):
-    if re.match(r"#{1,6}\s", line):
-        return _paint(line, "1;36")
-    if COLOR["out"]:
-        line = re.sub(r"`[^`]+`", lambda m: _paint(m.group(0), "36"), line)
-        line = re.sub(r"\*\*([^*]+)\*\*", lambda m: _paint(m.group(1), "1"), line)
-    return line
+    """A heading line, coloured, without its Markdown marks."""
+    m = re.match(r"(#{1,6})\s+(.*)", line)
+    return _paint(m.group(1) + " " + _plain_heading(m.group(2)), "1;36")
 
 
 def _doc_page(text_lines):
@@ -2615,6 +2891,39 @@ def _doc_page(text_lines):
     print("\n".join(text_lines[:keep]))
     note(T(f"…（還有 {len(text_lines) - keep} 行；加 --web 在瀏覽器看全文）",
            f"... ({len(text_lines) - keep} more lines; add --web to read it all in the browser)"))
+
+
+# Natural phrases a reader types, to the words the manual uses (whole query).
+DOC_ALIASES = [
+    (r"(按|依|照|每)?(一)?(節|章|小節)(來|重新)?(編號|計數)|(編號|計數)(按|依|照|跟著)(節|章)"
+     r"|number(ing)? (by|per|within) (section|chapter)", "thmwithin"),
+    (r"(定理|環境)?(的)?(編號|計數)(方式|規則)?|theorem number(ing|s)?", "編號方式"),
+    (r".*(解答|答案).*(最後|書末|章末|文末|後面|集中|一起|另外).*|.*(書末|章末|最後).*(解答|答案).*"
+     r"|solutions? (at|in) the (end|back)|collect(ed)? solutions?", "solutions"),
+    (r".*(舊|以前的?|原本的?)(文件|檔案?|文檔|講義|作業|模板).*|.*(轉換|轉檔|搬過來|遷移).*"
+     r"|(convert|port|move) (an )?old.*", "ax migrate"),
+    (r"(程式碼|代碼|語法)?(上色|高亮|著色)|syntax highlight(ing)?|highlight(ing)? code", "minted"),
+    (r"(速查表|小抄|cheat ?sheet)", "cheatsheet"),
+    (r"(介面|界面)(語言)?|(英文|中文)(介面|界面|訊息)|interface language", "AX_LANG"),
+]
+# Little words dropped when a Chinese phrase finds nothing as a whole.
+DOC_STOPWORDS = r"怎麼|怎樣|如何|可以|能不能|要|想|的|把|將|放|在|用|讓|給|嗎|呢|和|與|跟|或|到"
+
+
+def doc_alias(query):
+    q = query.strip().lower()
+    for pattern, target in DOC_ALIASES:
+        if re.fullmatch(pattern, q) and q != target.lower():
+            return target
+    return None
+
+
+def doc_words(query):
+    """A Chinese phrase cut into words at the little words: 解答放最後 →
+    解答 最後; None when that changes nothing."""
+    words = [w for w in re.split(rf"\s+|{DOC_STOPWORDS}", query) if w]
+    split = " ".join(words)
+    return split if words and split != query.strip() else None
 
 
 def doc_suggestions(query, lang):
@@ -2701,8 +3010,27 @@ def cmd_docs(a):
             ok(T(f"已打開 {path}", f"Opened {path}"))
         note(T(f"  查一段：{cmd_text('ax docs 主題')}（例如 ax docs 定理）",
                f"  Look up one section: {cmd_text('ax docs TOPIC')} (e.g. ax docs theorem)"))
+        behind = docs_pin_behind()
+        if behind:
+            behind_note(behind)
         return
+    alias = doc_alias(query)
+    if alias:
+        found = doc_search(alias, lang)
+        if found[2]:
+            note(T(f"「{query}」：顯示「{alias}」", f'"{query}": showing "{alias}"'))
+            query = alias
     lines, heads, ranked = doc_search(query, lang)
+    if not ranked:
+        # a Chinese phrase: its words apart, then its longest word alone
+        words = doc_words(query)
+        for guess in ([words, max(words.split(), key=_width)] if words else []):
+            found = doc_search(guess, lang)
+            if found[2]:
+                note(T(f"找不到「{query}」，改找「{guess}」", f'No "{query}"; showing "{guess}"'))
+                query = guess
+                lines, heads, ranked = found
+                break
     if not ranked:
         # a typo: correct each word to one the manual uses, then the whole
         vocab = doc_vocabulary()
@@ -2770,7 +3098,24 @@ def cmd_docs(a):
     if more:
         out.append(_paint(T("也有提到：", "Also mentioned in:"), "2"))
         out += [_paint(f"  {MARK['dot']} {_plain_heading(heads[k]['title'])}", "2") for k in more]
+    behind = docs_pin_behind()
+    if behind:
+        out += [""] + [_paint(l, "33") for l in wrap_cols(
+            T(f"這份手冊比你用的模板 {behind} 新：CHANGELOG.md 裡標著 Unreleased 的功能要在 .ax.json 寫 "
+              f"\"template\": \"latest\" 才有（新專案：ax new --pin latest）",
+              f"This manual is newer than your template {behind}: features listed as Unreleased in "
+              f"CHANGELOG.md need \"template\": \"latest\" in .ax.json (new projects: ax new --pin latest)"),
+            _doc_width())]
     _doc_page(out)
+
+
+def docs_pin_behind():
+    """The template version the user gets (the project's pin, or what ax new
+    would pin) when the manual describes newer features; else None."""
+    cfg = find_project(quiet=True)
+    tags = template_tags()
+    pin = cfg.get("template") if cfg else (tags[0] if tags else None)
+    return pin_behind_manual(pin)
 
 
 # ---------- shell completion ----------
@@ -3049,11 +3394,34 @@ def _guess_lang(body):
     return "en"
 
 
+PROBLEM_HEAD_START = re.compile(r"\s*\\(?:sub)?section\*?\s*\{[^{}]*\}")
+
+
+def _own_lines(lines):
+    """\\begin{document}, \\end{document} and Problem headings on lines of
+    their own, so a body written on one line is migrated like any other."""
+    out = []
+    for line in lines:
+        code = _strip_comment(line)
+        parts = [p for p in re.split(r"(\\begin\{document\}|\\end\{document\})", code) if p.strip()]
+        if len(parts) < 2:
+            parts = [line]
+        else:
+            parts[-1] += line[len(code):]  # the comment stays at the end
+        for part in parts:
+            m = PROBLEM_HEAD_START.match(part)
+            if m and _strip_comment(part[m.end():]).strip() and PROBLEM_HEAD.match(m.group(0)):
+                out += [m.group(0), part[m.end():]]
+            else:
+                out.append(part)
+    return out
+
+
 def migrate_text(text, kind=None):
     """Rewrite one document. Returns (new text, kind, changes, notes): what
     was changed, and what needs a look."""
     changes, notes = [], []
-    lines = text.split("\n")
+    lines = _own_lines(text.split("\n"))
     begin = next((i for i, l in enumerate(lines) if re.match(r"\s*\\begin\{document\}", l)), None)
     if begin is None:
         die(T("找不到 \\begin{document}：ax migrate 只處理主檔", "No \\begin{document}: ax migrate works on main files"),
@@ -3989,7 +4357,8 @@ def cmd_selftest(a):
                T("專案 作業 --problems", "project hw --problems"))
         if code:
             print(out)
-        # code=minted: .ax.json asks for -shell-escape; without Pygments the
+        # code=minted: .ax.json asks for -shell-escape unless TeX's restricted
+        # shell escape runs latexminted (TeX Live 2024+); without Pygments the
         # document warns and falls back to listings, so it still builds
         d = tmp / "t-minted"
         r = subprocess.run(ax + ["new", "note", str(d), "--title", "Test", "--code", "minted",
@@ -4004,7 +4373,8 @@ def cmd_selftest(a):
                 "\\section{Introduction}", "\\section{Introduction}\n\\code[cpp]{int x;}\n"
                 "\\begin{codeblock}[numbered, lang=python]\nprint(1)\n\\end{codeblock}"))
             code, out, _ = run_with_spinner(ax + ["build"], T("專案 code=minted", "project code=minted"), cwd=d)
-            good = code == 0 and load_json(d / PROJECT_CONFIG).get("shell_escape") is True
+            # full shell escape only where restricted shell escape cannot run latexminted
+            good = code == 0 and (load_json(d / PROJECT_CONFIG).get("shell_escape") is True) != restricted_minted()
             if not good:
                 print(out)
         result(good, T("專案 code=minted", "project code=minted"))
@@ -4084,7 +4454,19 @@ def cmd_selftest(a):
         r = subprocess.run(ax + ["docs", "theorem"], stdin=subprocess.DEVNULL, capture_output=True,
                            encoding="utf-8", errors="replace", env={**os.environ, "AX_LANG": "zh"})
         good = _same_shape(zh_heads, en_heads) and r.returncode == 0 and "### 定理" in r.stdout
-        result(good, T("ax docs（兩種語言的手冊標題對得上）", "ax docs (the two manuals' headings line up)"))
+        # paragraphs too, section by section, so a hit maps to the same paragraph
+        zl, el = doc_sections(docs_file("zh"))[0], doc_sections(docs_file("en"))[0]
+        apart = [f"docs/reference.md:{z['line'] + 1}" for z, e in zip(zh_heads, en_heads)
+                 if len(doc_blocks(zl, z["line"] + 1, z["own"])) != len(doc_blocks(el, e["line"] + 1, e["own"]))]
+        for where in apart:
+            fail(T(f"  {where}：中英文手冊這一節的段落數不同", f"  {where}: this section has a different number "
+                   "of paragraphs in the two manuals"))
+        good = good and not apart
+        # plain words, and no Chinese in the English answer
+        r = subprocess.run(ax + ["docs", "number by section"], stdin=subprocess.DEVNULL, capture_output=True,
+                           encoding="utf-8", errors="replace", env={**os.environ, "AX_LANG": "en"})
+        good = good and r.returncode == 0 and "thmwithin" in r.stdout and not re.search(r"[\u4e00-\u9fff]", r.stdout)
+        result(good, T("ax docs（兩種語言的手冊標題、段落對得上）", "ax docs (the two manuals' headings and paragraphs line up)"))
         if not good:
             print(T(f"  標題數：中文 {len(zh_heads)}，英文 {len(en_heads)}",
                     f"  headings: Chinese {len(zh_heads)}, English {len(en_heads)}"))
@@ -4184,8 +4566,9 @@ HELP_LINES = {
               "(--web: in the browser, --cheatsheet: the cheat sheet)"),
 }
 
-HELP_COMMANDS = T("指令（new、doctor、config、migrate、docs 以外都在專案資料夾或它的子資料夾裡執行）：\n",
-                  "Commands (all but new, doctor, config, migrate and docs run inside a project folder):\n") + \
+HELP_COMMANDS = T("指令（new、doctor、config、completion、migrate、docs、selftest 以外都在專案資料夾或它的子資料夾裡執行）：\n",
+                  "Commands (all but new, doctor, config, completion, migrate, docs and selftest "
+                  "run inside a project folder):\n") + \
     "\n".join(f"  {c:<12}{HELP_LINES[c]}" for c in PUBLIC_COMMANDS) + "\n\n"
 
 HELP_EXAMPLES = T("""\
@@ -4277,7 +4660,9 @@ CMD_HELP = {
                "Look things up in the reference (docs/reference.en.md). With a topic, the best-matching "
                "section is printed here; Chinese or English words, option names and macros all work."),
              [("ax docs", "打開整份手冊", "open the whole manual"),
-              ("ax docs 定理", "印出〈定理、定義、證明〉", 'print "Theorems, definitions, proofs"'),
+              (T("ax docs 定理", "ax docs theorem"), "印出〈定理、定義、證明〉", 'print "Theorems, definitions, proofs"'),
+              (T("ax docs 按節編號", 'ax docs "number by section"'), "一般的說法也行：印出 thmwithin 選項",
+               "plain words work too: prints the thmwithin option"),
               ("ax docs thmcounter --web", "在瀏覽器打開提到它的那一節", "open the section about it in the browser"),
               ("ax docs --cheatsheet", "打開速查表 PDF", "open the cheat sheet PDF")]),
 }
@@ -4285,17 +4670,82 @@ CMD_HELP = {
 
 class ExamplesFormatter(argparse.HelpFormatter):
     """Wraps a one-paragraph description; keeps text with line breaks (the
-    examples) as written."""
+    examples, the command list) as written, wrapping only lines too wide for
+    the terminal under their own description column. Widths count CJK
+    characters as two columns, which argparse itself does not."""
 
     def _fill_text(self, text, width, indent):
-        if "\n" in text:
-            return "".join(indent + line for line in text.splitlines(keepends=True))
-        return super()._fill_text(text, width, indent)
+        if "\n" not in text:
+            return "\n".join(wrap_cols(" ".join(text.split()), width + len(indent), indent))
+        out = []
+        for line in text.splitlines():
+            if _width(indent + line) <= self._width:
+                out.append(indent + line)
+                continue
+            m = re.match(r"(\s*\S+(?: \S+)*?\s{2,})(\S.*)", line)  # "  command   what it does"
+            lead, rest = (m.group(1), m.group(2)) if m else (re.match(r"\s*", line).group(0), line.strip())
+            if _width(lead) > self._width // 2:
+                lead, rest = re.match(r"\s*", line).group(0), line.strip()
+                out += wrap_cols(rest, self._width, indent + lead + "  ", indent + lead)
+            else:
+                out += wrap_cols(rest, self._width, indent + " " * _width(lead), indent + lead)
+        return "\n".join(out) + ("\n" if text.endswith("\n") else "")
+
+    def _split_lines(self, text, width):
+        return wrap_cols(" ".join(text.split()), width)
+
+    def add_argument(self, action):
+        if action.help is not argparse.SUPPRESS:
+            lengths = [_width(self._format_action_invocation(x)) + self._current_indent
+                       for x in [action, *self._iter_indented_subactions(action)]]
+            self._action_max_length = max(self._action_max_length, *lengths)
+            self._add_item(self._format_action, [action])
+
+    def _format_action(self, action):
+        help_position = min(self._action_max_length + 2, self._max_help_position)
+        help_width = max(self._width - help_position, 11)
+        action_width = help_position - self._current_indent - 2
+        header = self._format_action_invocation(action)
+        if not action.help:
+            parts = [" " * self._current_indent + header + "\n"]
+        elif _width(header) <= action_width:
+            parts = [" " * self._current_indent + header + " " * (action_width - _width(header) + 2)]
+            indent_first = 0
+        else:
+            parts = [" " * self._current_indent + header + "\n"]
+            indent_first = help_position
+        if action.help and action.help.strip():
+            lines = self._split_lines(self._expand_help(action), help_width)
+            parts.append(" " * indent_first + lines[0] + "\n")
+            parts += [" " * help_position + line + "\n" for line in lines[1:]]
+        elif not parts[0].endswith("\n"):
+            parts.append("\n")
+        for sub in self._iter_indented_subactions(action):
+            parts.append(self._format_action(sub))
+        return self._join_parts(parts)
+
+    def _format_usage(self, usage, actions, groups, prefix):
+        # argparse wraps the usage line by len(); narrow it until it fits
+        width = self._width
+        try:
+            for _ in range(30):
+                text = super()._format_usage(usage, actions, groups, prefix)
+                if max(_width(l) for l in text.splitlines() or [""]) <= width or self._width < 30:
+                    return text
+                self._width -= 2
+            return text
+        finally:
+            self._width = width
 
 
 def _width(text):
-    """Columns text takes in a terminal: CJK characters take two."""
-    return sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in text)
+    """Columns text takes in a terminal: CJK characters take two; colour
+    codes and control characters none."""
+    text = re.sub(r"\x1b\[[0-9;]*m", "", text)
+    # \x03 \x04 mark code in the manual's text: backticks without colour
+    marks = "\x03\x04" if not COLOR["out"] else ""
+    return sum(1 if ch in marks else 0 if ord(ch) < 32 else
+               2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in text)
 
 
 def cmd_help(name):
@@ -4375,14 +4825,32 @@ class Parser(argparse.ArgumentParser):
         if m:
             die(T(f"少了參數：{m.group(1)}", f"Missing argument: {m.group(1)}"),
                 T(f"{self.prog} --help 看用法", f"{self.prog} --help shows how to use it"))
-        die(message, T(f"{self.prog} --help 看用法", f"{self.prog} --help shows how to use it"))
+        hint = T(f"{self.prog} --help 看用法", f"{self.prog} --help shows how to use it")
+        m = re.search(r"argument (\S+): invalid (\w+) value: '([^']*)'", message)
+        if m:
+            kind = {"int": T("整數", "a whole number"), "float": T("數字", "a number")}.get(m.group(2), m.group(2))
+            die(T(f"{m.group(1)} 要是{kind}，不能是 {m.group(3)}", f"{m.group(1)} must be {kind}, not {m.group(3)}"), hint)
+        m = re.search(r"argument (\S+): expected (one|at least one|at most one) argument", message)
+        if m:
+            die(T(f"{m.group(1)} 後面要接一個值", f"{m.group(1)} needs a value after it"), hint)
+        m = re.search(r"argument (\S+): not allowed with argument (\S+)", message)
+        if m:
+            die(T(f"{m.group(1)} 和 {m.group(2)} 不能一起用", f"{m.group(1)} and {m.group(2)} cannot be used together"), hint)
+        m = re.search(r"ambiguous option: (\S+) could match (.*)", message)
+        if m:
+            choices = [c.strip() for c in m.group(2).split(",")]
+            die(T(f"{m.group(1)} 不夠明確，可能是 {'、'.join(choices)}",
+                  f"{m.group(1)} is ambiguous; it could be {', '.join(choices)}"), hint)
+        m = re.search(r"argument (\S+): ignored explicit argument '([^']*)'", message)
+        if m:
+            die(T(f"{m.group(1)} 不接值（多了 {m.group(2)}）", f"{m.group(1)} takes no value (got {m.group(2)})"), hint)
+        die(message, hint)
 
 
 def main():
     p = Parser(prog="ax", usage=f"ax [-h] [--version] {CMD_METAVAR} ...",
                description=T("建立與編譯 akizumi-latex 專案。", "Start and build akizumi-latex projects."),
-               epilog=HELP_COMMANDS + HELP_EXAMPLES,
-               formatter_class=argparse.RawDescriptionHelpFormatter)
+               epilog=HELP_COMMANDS + HELP_EXAMPLES, formatter_class=ExamplesFormatter)
     p.add_argument("--version", action="version",
                    version=T(f"ax（模板 {', '.join(template_tags()[:1]) or '未打版本'}）",
                              f"ax (template {', '.join(template_tags()[:1]) or 'untagged'})"))
@@ -4395,17 +4863,17 @@ def main():
                        description=T("建立新專案。沒給的種類、資料夾、標題會互動式詢問。",
                                      "Start a new project. Kind, folder and title are asked for "
                                      "when not given."),
-                       epilog=HELP_EXAMPLES, formatter_class=argparse.RawDescriptionHelpFormatter)
+                       epilog=HELP_EXAMPLES, formatter_class=ExamplesFormatter)
     n.add_argument("kind", nargs="?", metavar=T("種類", "kind"), help=" / ".join(KINDS))
     n.add_argument("dir", nargs="?", metavar=T("資料夾", "folder"))
-    n.add_argument("--title", help=T("標題（作業不用，會寫成「作業 N」）",
+    n.add_argument("--title", metavar=T("標題", "TITLE"), help=T("標題（作業不用，會寫成「作業 N」）",
                                      'title (not for homework: it becomes "Homework N")'))
-    n.add_argument("--author", help=T("作者，預設取自 config.json（ax config 看位置）",
+    n.add_argument("--author", metavar=T("作者", "AUTHOR"), help=T("作者，預設取自 config.json（ax config 看位置）",
                                       "author; default from config.json (ax config shows where)"))
-    n.add_argument("--course", help=T("課名；書和簡報放在標題上方", "course; above the title in books and slides"))
-    n.add_argument("--number", help=T("作業編號", "homework number"))
-    n.add_argument("--due", help=T("作業繳交期限", "homework due date"))
-    n.add_argument("--id", help=T("學號，預設取自 config.json", "student ID; default from config.json"))
+    n.add_argument("--course", metavar=T("課名", "COURSE"), help=T("課名；書和簡報放在標題上方", "course; above the title in books and slides"))
+    n.add_argument("--number", metavar=T("編號", "NUMBER"), help=T("作業編號", "homework number"))
+    n.add_argument("--due", metavar=T("期限", "DUE"), help=T("作業繳交期限", "homework due date"))
+    n.add_argument("--id", metavar=T("學號", "ID"), help=T("學號，預設取自 config.json", "student ID; default from config.json"))
     n.add_argument("--lang", choices=["en", "zh", "ja", "ko"],
                    help=T("主語言，預設取自 config.json", "main language; default from config.json"))
     n.add_argument("--thmnames", choices=["english", "native"],
@@ -4418,8 +4886,8 @@ def main():
                    help=T("margin：右側寬邊欄放 sidenote", "margin: wide right margin for sidenotes"))
     n.add_argument("--bib", action="store_true", help=T("加上 refs.bib 和參考文獻", "add refs.bib and a bibliography"))
     n.add_argument("--code", choices=["listings", "minted"],
-                   help=T("程式碼上色：listings（預設）或 minted（Pygments，編譯時加 -shell-escape）",
-                          "code highlighting: listings (default) or minted (Pygments; builds with -shell-escape)"))
+                   help=T("程式碼上色：listings（預設）或 minted（Pygments；TeX Live 2024 以前要 -shell-escape，ax 會加）",
+                          "code highlighting: listings (default) or minted (Pygments; TeX before 2024 needs -shell-escape, which ax adds)"))
     n.add_argument("--progress", action="store_true", help=T("簡報底部加進度條", "progress bar along the slides' bottom"))
     n.add_argument("--venue", choices=list(PAPER_VENUES),
                    help=T("paper：投稿的會議（預設 plain）；會議的 .sty 要自己下載",
@@ -4431,7 +4899,7 @@ def main():
                    help=T("paper：匿名投稿版（會議預設如此）", "paper: anonymous submission (the default for venues)"))
     g.add_argument("--no-anonymous", dest="anonymous", action="store_false",
                    help=T("paper：署名版（camera-ready）", "paper: with author names (camera-ready)"))
-    n.add_argument("--pin", help=T("模板版本，預設最新的 tag；latest 表示永遠用安裝的最新檔案",
+    n.add_argument("--pin", metavar=T("版本", "PIN"), help=T("模板版本，預設最新的 tag；latest 表示永遠用安裝的最新檔案",
                                    "template version; default the newest tag. latest always uses the installed files"))
     n.add_argument("--git", action="store_true", help=T("建立 git repo 並做第一個 commit",
                                                         "create a git repo with a first commit"))
@@ -4494,7 +4962,7 @@ def main():
                                      "  zsh:        add to ~/.zshrc   eval \"$(ax completion zsh)\"\n"
                                      "  bash:       add to ~/.bashrc  eval \"$(ax completion bash)\"\n"
                                      "  PowerShell: add to $PROFILE   ax completion powershell | Out-String | Invoke-Expression"),
-                       formatter_class=argparse.RawDescriptionHelpFormatter)
+                       formatter_class=ExamplesFormatter)
     c.add_argument("shell", choices=["zsh", "bash", "powershell"])
     c.set_defaults(func=cmd_completion)
     t = sub.add_parser("selftest", **cmd_help("selftest"))

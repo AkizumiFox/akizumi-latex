@@ -366,6 +366,9 @@
 % the same between exam questions, whose zh label ends in 題 (第 1 題與第 2 題)
 \akizumi@s  {cref-qand}    {\ and\ }           {與}        {\ と}          {\ 및\ }
 \akizumi@s  {cref-qto}     {\ to\ }            {至}        {～}            {\ \textasciitilde\ }
+% the notation table and the list of notation (akizumi-index)
+\akizumi@s  {symbol}       {Symbol}            {符號}      {記号}          {기호}
+\akizumi@s  {meaning}      {Meaning}           {意義}      {意味}          {의미}
 %            key        en before    after  zh before after   ja before after   ko before after
 \akizumi@n  {section}   {Section~}  {}     {第~}  {~節}      {第~}  {~節}      {제}   {절}
 \akizumi@n  {chapter}   {Chapter~}  {}     {第~}  {~章}      {第~}  {~章}      {제}   {장}
@@ -706,10 +709,13 @@
 %   \begin{notation}
 %     \notn{$\vb{z}_t$}{latent state at time $t$}
 %   \end{notation}
+% Headers in the main language. \leavevmode: a \color first in a p cell
+% would sit above the cell's paragraph and add a \parskip to the row.
 \newenvironment{notation}
   {\par\noindent\tabularx{\linewidth}{@{}>{\raggedright\arraybackslash}p{0.24\linewidth}Y@{}}
    \toprule
-   {\sffamily\small\color{mute}Symbol} & {\sffamily\small\color{mute}Meaning}\\\midrule}
+   \leavevmode{\sffamily\small\color{mute}\akizumi@str{symbol}} &
+   \leavevmode{\sffamily\small\color{mute}\akizumi@str{meaning}}\\\midrule}
   {\bottomrule\endtabularx\par}
 \newcommand{\notn}[2]{#1 & #2\\}
 

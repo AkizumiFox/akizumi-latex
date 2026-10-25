@@ -18,7 +18,7 @@ Run `ax new` with no arguments and it asks for the kind, folder and title. Optio
 | `--thmnames english\|native` | Theorem names in English (Theorem, Proof) or the main language (定理, 證明); defaults to `config.json` |
 | `--text serif\|sans\|times\|palatino` `--paper a4\|letter\|pad` `--layout normal\|margin` | See [Document options](#document-options) |
 | `--bib` | Adds `refs.bib` and a bibliography |
-| `--code minted` | Highlight with minted: adds `code=minted` and writes `"shell_escape": true` to `.ax.json`, so `ax build`, `ax watch` and latexmkrc pass `-shell-escape`. `ax build` also adds it when the main file has `code=minted` or loads minted |
+| `--code minted` | Highlight with minted: adds `code=minted` (see [Highlighting with minted](#highlighting-with-minted)). TeX older than TeX Live 2024 needs full shell escape; there ax writes `"shell_escape": true` to `.ax.json`, so `ax build`, `ax watch` and latexmkrc pass `-shell-escape`, and `ax build` also adds it when the main file has `code=minted` or loads minted |
 | `--progress` | Progress bar along the bottom of slides |
 | `--venue neurips\|icml\|iclr\|aaai\|plain` | The venue of a paper (default `plain`); see [Papers](#papers) |
 | `--split` | Paper: each section in its own file in `sections/` |
@@ -352,6 +352,12 @@ The two arguments of `\iosample` are ordinary text with `\\` between lines; `\\`
 
 `\code` works inside other commands' arguments (section titles, theorem names, footnotes, ordinary slide frames). There TeX has read the text already, so write `%` and `#` as `\%` and `\#`; `\_`, `\&`, `\$`, `\{`, `\}` also print the bare character. Running headers, the contents and PDF bookmarks work too.
 
+#### Highlighting with minted
+
+Code is highlighted with listings by default. For Pygments' colours and languages, add `code=minted` to `\documentclass` (on slides, `\usetheme[code=minted]{Akizumi}`; for a new project, `ax new --code minted`). `codeblock`, `\inputcode`, `\code` and `terminal` are written the same way, so the text does not change.
+
+The `latexminted` that ships with TeX Live 2024 and later runs under the default restricted shell escape, so no `-shell-escape` is needed. Older TeX needs full shell escape: ax adds it, and with plain latexmk you pass `-shell-escape`. Without Pygments, or when built with `-no-shell-escape`, the document warns and falls back to listings, so it still builds.
+
 #### Languages
 
 Language names in `lang=` and `\code[…]` ignore case, and either engine's names work: `cpp` or `C++`, `py` or `Python`, `hs` or `Haskell`, `sh` or `bash`, `tex`. listings brings Haskell and SQL; the template adds `Agda` (Unicode symbols print), `Datalog` (`#` and `//` comments, `:-` coloured) and `Stata` (`*` at line start, `//`, `/* */` comments).
@@ -375,7 +381,7 @@ Language names in `lang=` and `\code[…]` ignore case, and either engine's name
 
 ### Index and list of notation
 
-`\documentclass[index=true]{akizumi-book}` (also notes, homework, exams) turns on a subject index and a list of notation with page numbers. Without it `\index` does nothing, so entries can be marked in advance.
+`\documentclass[index=true]{akizumi-book}` (also notes, homework, exams) turns on a subject index and a list of notation with page numbers. Without it `\index` does nothing, so entries can be marked in advance; `\printindex`, `\nota` and `\printnotation` stop with a message asking for `index=true`.
 
 <!-- snippet: options=index=true -->
 ```latex
@@ -738,7 +744,7 @@ Put them in `\documentclass[...]` (for slides, `\usetheme[...]{Akizumi}`):
 | `units` | `false` `true` | `false` | Loads siunitx: `\qty{9.8}{\metre\per\second\squared}`, `\unit{kg}`, `\num{12345}` |
 | `mathclash` | `yield` `error` | `yield` | When you define a macro akizumi-math also has, `yield` uses yours, `error` stops as LaTeX normally does |
 | `mathskip` | list of names | | These macros are not defined at all, e.g. `mathskip={vb, E}` |
-| `code` | `listings` `minted` | `listings` | Highlighting engine. `minted` uses Pygments (better colours, more languages); it needs shell escape and Pygments (the `latexminted` that ships with TeX Live 2024+ is enough) and otherwise warns and stays with listings |
+| `code` | `listings` `minted` | `listings` | Highlighting engine. `minted` uses Pygments (better colours, more languages; see [Highlighting with minted](#highlighting-with-minted)); without Pygments it warns and stays with listings |
 | `verbatim` | `plain` `styled` | `plain` | `styled` gives `verbatim` the code background and size |
 | `tikz` | `basic` `full` | `basic` | `full` (or bare `tikz`) also loads the 3d, angles, patterns, tikzmark, automata and other TikZ libraries (see [Figures](#figures)) |
 | `plots` | `true` `false` | `false` | Loads pgfplots, colored to match the templates |
@@ -751,7 +757,7 @@ Slides also take `progress` (progress bar along the bottom); `tikz` and `plots` 
 
 ## ax commands in detail
 
-Except `new`, `doctor`, `config`, `completion`, `migrate` and `docs`, commands run inside a project folder; a subfolder such as `figures/` works too, since `ax` looks upward for `.ax.json` the way git does.
+Except `new`, `doctor`, `config`, `completion`, `migrate`, `docs` and `selftest`, commands run inside a project folder; a subfolder such as `figures/` works too, since `ax` looks upward for `.ax.json` the way git does.
 
 `ax` speaks Chinese or English. It follows the system language; `"ui": "en"` or `"ui": "zh"` in `config.json`, or the environment variable `AX_LANG`, overrides it.
 
@@ -775,7 +781,7 @@ Except `new`, `doctor`, `config`, `completion`, `migrate` and `docs`, commands r
 | `ax completion zsh\|bash\|powershell` | Prints a tab-completion script; see `ax completion --help` for setup |
 | `ax migrate FILE.tex` | Rewrite an old document for akizumi as a copy, `FILE-akizumi.tex`, leaving the original alone; list macros that clash with akizumi's (see [Moving old documents over](#moving-old-documents-over)) |
 | `ax selftest` | Rebuilds every example, creates and builds every kind of project and builds the manual's snippets (after changing the templates; see [Maintaining the templates](#maintaining-the-templates)) |
-| `ax docs TOPIC` | Finds the topic in this manual and prints the best-matching section in the terminal (heading, text, tables). Chinese or English words, option names and macros all work: `ax docs theorem`, `ax docs 定理`, `ax docs thmcounter`, `ax docs '\cref'`; typos are corrected, and when nothing matches it lists similar headings. `--web` opens the manual on GitHub at that section, `--en` picks the English manual from a Chinese interface, `--cheatsheet` opens the cheat sheet PDF. Plain `ax docs` opens this file with the system's default program |
+| `ax docs TOPIC` | Finds the topic in this manual and prints the best-matching section in the terminal (heading, text, tables). Chinese or English words, option names and macros all work: `ax docs theorem`, `ax docs 定理`, `ax docs thmcounter`, `ax docs '\cref'`, and so do plain phrases (`ax docs "number by section"`, `ax docs "solutions at the end"`); the text is laid out for the terminal's width; typos are corrected, and when nothing matches it lists similar headings. `--web` opens the manual on GitHub at that section, `--en` picks the English manual from a Chinese interface, `--cheatsheet` opens the cheat sheet PDF. Plain `ax docs` opens this file with the system's default program |
 | `ax --version` | Newest template version |
 
 A failed `ax build` looks like this:
@@ -803,7 +809,7 @@ The two `l.10` lines are line 10 of the source, broken where the error happened.
 
 ```json
 {
-  "kind": "note", "main": "main.tex", "template": "v0.9",
+  "kind": "note", "main": "main.tex", "template": "v0.8",
   "prebuild": ["python scripts/make_figures.py", "stata-mp -b do analysis.do"],
   "shell_escape": true
 }
@@ -857,7 +863,7 @@ A file with many clashes gets a suggestion to drop it and move over only the mac
 |---|---|
 | `-o FILE` | Write to another file name |
 | `--in-place` | Rewrite the file itself, keeping the original as `main.tex.bak` |
-| `--kind hw\|note\|exam\|book` | The kind to convert to |
+| `--kind hw\|note\|exam\|book\|slides` | The kind to convert to |
 | `--dry-run` | List the changes, write nothing |
 | `--force` | Overwrite the output file if it exists |
 

@@ -18,7 +18,7 @@ English: [reference.en.md](reference.en.md)
 | `--thmnames english\|native` | 定理名稱用英文（Theorem、Proof）或主語言（定理、證明），預設取自 `config.json` |
 | `--text serif\|sans\|times\|palatino` `--paper a4\|letter\|pad` `--layout normal\|margin` | 見〈文件選項〉 |
 | `--bib` | 加上 `refs.bib` 和參考文獻 |
-| `--code minted` | 用 minted 上色：加上 `code=minted`，並在 `.ax.json` 寫 `"shell_escape": true`，`ax build`、`ax watch` 和 latexmkrc 都會加 `-shell-escape`。主檔裡有 `code=minted` 或載入 minted 時，`ax build` 也會自動加 |
+| `--code minted` | 用 minted 上色：加上 `code=minted`（見〈用 minted 上色〉）。TeX Live 2024 以前的 TeX 要完整的 shell escape，這時 ax 會在 `.ax.json` 寫 `"shell_escape": true`，`ax build`、`ax watch` 和 latexmkrc 都會加 `-shell-escape`；主檔裡有 `code=minted` 或載入 minted 時，`ax build` 也會自動加 |
 | `--progress` | 簡報底部的進度條 |
 | `--venue neurips\|icml\|iclr\|aaai\|plain` | 投稿論文的會議（預設 `plain`），見〈投稿論文〉 |
 | `--split` | 投稿論文：每一節放在 `sections/` 裡的獨立檔案 |
@@ -352,6 +352,12 @@ $ python main.py
 
 `\code` 可以放在別的指令的參數裡（章節標題、定理名稱、註腳、簡報的一般 frame）。這時 TeX 已經先讀過內容，所以 `%`、`#` 要寫成 `\%`、`\#`，`_` `&` `$` `{` `}` 也可以寫成 `\_` 等，印出來都是字元本身。頁首、目錄、PDF 書籤也正常。
 
+#### 用 minted 上色
+
+預設用 listings 上色。要 Pygments 的顏色和語言，就在 `\documentclass` 加 `code=minted`（簡報寫在 `\usetheme[code=minted]{Akizumi}`；新專案用 `ax new --code minted`）。`codeblock`、`\inputcode`、`\code`、`terminal` 的寫法完全一樣，不用改內文。
+
+TeX Live 2024 起內附的 `latexminted` 在預設的受限 shell escape 下就能跑，不用 `-shell-escape`。更舊的 TeX 要完整的 shell escape：ax 會自動加，直接用 latexmk 時加 `-shell-escape`。找不到 Pygments，或用 `-no-shell-escape` 編譯時，會警告並改用 listings，文件照樣編得出來。
+
 #### 語言
 
 `lang=` 和 `\code[…]` 的語言名稱不分大小寫，兩種引擎的名字都認得：`cpp` 和 `C++`、`py` 和 `Python`、`hs` 和 `Haskell`、`sh` 和 `bash`、`tex` 都可以。listings 內建 Haskell、SQL，模板另外加了 `Agda`（Unicode 符號照印）、`Datalog`（`#`、`//` 註解，`:-` 上色）、`Stata`（`*` 行首註解、`//`、`/* */`）。
@@ -375,7 +381,7 @@ $ python main.py
 
 ### 索引、符號列表
 
-`\documentclass[index=true]{akizumi-book}`（講義、作業、考卷也可以）打開書末索引和附頁碼的符號列表。沒開的時候 `\index` 什麼都不做，所以可以先標著。
+`\documentclass[index=true]{akizumi-book}`（講義、作業、考卷也可以）打開書末索引和附頁碼的符號列表。沒開的時候 `\index` 什麼都不做，所以可以先標著；`\printindex`、`\nota`、`\printnotation` 則會停下來，提醒你加 `index=true`。
 
 <!-- snippet: options=index=true -->
 ```latex
@@ -739,7 +745,7 @@ $A\cup B=[-2,3]$。
 | `units` | `false` `true` | `false` | 載入 siunitx：`\qty{9.8}{\metre\per\second\squared}`、`\unit{kg}`、`\num{12345}` |
 | `mathclash` | `yield` `error` | `yield` | 自己定義和 akizumi-math 同名的巨集時，`yield` 改用你的，`error` 照 LaTeX 原本的方式報錯 |
 | `mathskip` | 名稱清單 | | 這些巨集完全不定義，例如 `mathskip={vb, E}` |
-| `code` | `listings` `minted` | `listings` | 程式碼上色引擎。`minted` 用 Pygments，顏色更準、語言更多；需要 shell escape 和 Pygments（TeX Live 2024 起內附的 `latexminted` 就夠），缺了會警告並改用 listings |
+| `code` | `listings` `minted` | `listings` | 程式碼上色引擎。`minted` 用 Pygments，顏色更準、語言更多（見〈用 minted 上色〉）；缺了 Pygments 會警告並改用 listings |
 | `verbatim` | `plain` `styled` | `plain` | `styled` 讓 `verbatim` 環境也用程式碼的淡灰底和小字 |
 | `tikz` | `basic` `full` | `basic` | `full`（只寫 `tikz` 也一樣）多載入 3d、angles、patterns、tikzmark、automata 等 TikZ 函式庫（見〈圖〉） |
 | `plots` | `true` `false` | `false` | 載入 pgfplots，配色跟模板一致 |
@@ -752,7 +758,9 @@ $A\cup B=[-2,3]$。
 
 ## ax 指令細節
 
-除了 `new`、`doctor`、`config`、`completion`、`migrate`、`docs`，其他指令都在專案資料夾裡執行；在它的子資料夾（例如 `figures/`）裡也可以，`ax` 會像 git 一樣往上找 `.ax.json`。
+除了 `new`、`doctor`、`config`、`completion`、`migrate`、`docs`、`selftest`，其他指令都在專案資料夾裡執行；在它的子資料夾（例如 `figures/`）裡也可以，`ax` 會像 git 一樣往上找 `.ax.json`。
+
+`ax` 的訊息有中文和英文，跟著系統語言；`config.json` 裡寫 `"ui": "en"` 或 `"ui": "zh"`，或設環境變數 `AX_LANG`，可以改掉。
 
 | 指令 | 作用 |
 |---|---|
@@ -774,7 +782,7 @@ $A\cup B=[-2,3]$。
 | `ax completion zsh\|bash\|powershell` | 印出 Tab 補全腳本；裝法見 `ax completion --help` |
 | `ax migrate 檔案.tex` | 把舊文件轉成 akizumi 的副本 `檔案-akizumi.tex`，原檔不動；列出跟 akizumi 撞名的巨集（見〈從舊文件搬過來〉） |
 | `ax selftest` | 重編所有範例、建立並編譯每種專案、編譯手冊裡的片段（改模板後用，見〈維護這套模板〉） |
-| `ax docs 主題` | 在這份手冊裡找主題，把最相關的一節印在終端機（標題、內文、表格）。中英文都能查，也可以是選項或巨集：`ax docs 定理`、`ax docs theorem`、`ax docs thmcounter`、`ax docs '\cref'`；打錯字會自動更正，找不到時列出相近的標題。`--web` 在瀏覽器打開 GitHub 上的手冊並跳到那一節，`--en` 看英文版，`--cheatsheet` 打開速查表 PDF。只打 `ax docs` 用系統預設的程式打開這份檔案 |
+| `ax docs 主題` | 在這份手冊裡找主題，把最相關的一節印在終端機（標題、內文、表格）。中英文都能查，也可以是選項或巨集：`ax docs 定理`、`ax docs theorem`、`ax docs thmcounter`、`ax docs '\cref'`，一般的說法也行（`ax docs 按節編號`、`ax docs 解答放最後`）；結果依終端機寬度排版；打錯字會自動更正，找不到時列出相近的標題。`--web` 在瀏覽器打開 GitHub 上的手冊並跳到那一節，`--en` 看英文版，`--cheatsheet` 打開速查表 PDF。只打 `ax docs` 用系統預設的程式打開這份檔案 |
 | `ax --version` | 目前最新的模板版本 |
 
 `ax build` 失敗時的樣子：
@@ -802,7 +810,7 @@ $A\cup B=[-2,3]$。
 
 ```json
 {
-  "kind": "note", "main": "main.tex", "template": "v0.9",
+  "kind": "note", "main": "main.tex", "template": "v0.8",
   "prebuild": ["python scripts/make_figures.py", "stata-mp -b do analysis.do"],
   "shell_escape": true
 }
@@ -856,7 +864,7 @@ $A\cup B=[-2,3]$。
 |---|---|
 | `-o 檔案` | 寫到別的檔名 |
 | `--in-place` | 直接改原檔，原檔先備份成 `main.tex.bak` |
-| `--kind hw\|note\|exam\|book` | 指定要轉成哪一種 |
+| `--kind hw\|note\|exam\|book\|slides` | 指定要轉成哪一種 |
 | `--dry-run` | 只列出會改什麼，不寫檔 |
 | `--force` | 輸出檔已經存在也覆寫 |
 

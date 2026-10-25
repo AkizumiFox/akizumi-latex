@@ -38,10 +38,16 @@
   {
     \AtBeginDocument
       {
+        % \index is LaTeX's own and does nothing without an index; the rest
+        % stop with a message that names the option
         \providecommand { \nota } [2] { \PackageError { akizumi-index }
-          { \token_to_str:N \nota ~needs~the~class~option~index=true } { } }
+          { \token_to_str:N \nota \c_space_tl needs~the~class~option~index=true } { } }
         \providecommand { \printnotation } { \PackageError { akizumi-index }
-          { \token_to_str:N \printnotation ~needs~the~class~option~index=true } { } }
+          { \token_to_str:N \printnotation \c_space_tl needs~the~class~option~index=true } { } }
+        \providecommand { \printindex } [1] [ ] { \PackageError { akizumi-index }
+          { \token_to_str:N \printindex \c_space_tl needs~the~class~option~index=true } { } }
+        \providecommand { \akizumiNewIndex } [3] [ ] { \PackageError { akizumi-index }
+          { \token_to_str:N \akizumiNewIndex \c_space_tl needs~the~class~option~index=true } { } }
       }
     \ExplSyntaxOff
     \endinput
@@ -52,8 +58,6 @@
 %            key        en           zh      ja        ko
 \akizumi@s  {index}    {Index}      {索引}  {索引}    {색인}
 \akizumi@s  {notation} {Notation}   {符號表}{記号一覧}{기호표}
-\akizumi@s  {symbol}   {Symbol}     {符號}  {記号}    {기호}
-\akizumi@s  {meaning}  {Meaning}    {意義}  {意味}    {의미}
 \akizumi@s  {page}     {Page}       {頁碼}  {頁}      {쪽}
 \akizumi@s  {see}      {see}        {見}    {→}       {→}
 \akizumi@s  {seealso}  {see also}   {參見}  {→}       {참조}

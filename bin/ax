@@ -2451,7 +2451,7 @@ def main():
     n.add_argument("--thmnames", choices=["english", "native"],
                    help=T("定理名稱：english（Theorem、Proof）或 native（定理、證明）",
                           "theorem names: english (Theorem, Proof) or native (定理, 證明)"))
-    n.add_argument("--text", choices=["serif", "sans"], help=T("內文字型（預設 serif）", "body font (default serif)"))
+    n.add_argument("--text", choices=["serif", "sans", "times", "palatino"], help=T("內文字型（預設 serif）", "body font (default serif)"))
     n.add_argument("--paper", choices=["a4", "letter", "pad"],
                    help=T("紙張；pad 是平板閱讀版面", "paper; pad is a page for reading on a tablet"))
     n.add_argument("--layout", choices=["normal", "margin"],

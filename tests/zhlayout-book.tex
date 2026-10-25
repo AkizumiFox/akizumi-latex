@@ -1,0 +1,20 @@
+% !TEX program = xelatex
+% Chinese layout in a book: secnum=zh chapters, fontsize=14pt, palatino,
+% cjk-serif / cjk-serif-bold.
+\documentclass[lang=zh, secnum=zh, fontsize=14pt, text=palatino,
+  cjk-serif=FandolSong-Regular.otf, cjk-serif-bold=FandolSong-Bold.otf]{akizumi-book}
+\title{論文}
+\akizumisetup{subtitle={副標題}}
+\begin{document}
+\maketitle
+\tableofcontents
+\chapter{緒論}\label{ch:a}
+\section{背景}\label{sec:a}
+見\cref{ch:a}、\cref{sec:a}與\cref{thm:b}。\textbf{粗體}。
+\begin{theorem}\label{thm:b} 內文。\end{theorem}
+\ifdim\parindent=0pt \else\ERROR\fi  % par=skip stays the default
+\makeatletter\ifdim\f@size pt=14pt \else\ERROR\fi\makeatother
+\appendix
+\chapter{證明}
+\section{細節}
+\end{document}

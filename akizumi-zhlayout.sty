@@ -1,0 +1,234 @@
+% akizumi-zhlayout.sty -- Chinese report layout, loaded by akizumi-core
+% (documents only). Every option is off by default; they arrive as class options.
+%
+% Options:  par      = skip | indent   (indent: 2em first-line indent, first
+%                      paragraph too, no space between paragraphs; default skip)
+%           secnum   = arabic | zh     (zh: 一、 / （一） / 1. ; default arabic)
+%           fontsize = <size>, or 13pt / 14pt  (any body size, via scrextend)
+%           kai                        (CJK body text in a Kai face)
+%           cjk-serif = <font>, cjk-serif-bold = <font>  (CJK face for serif text)
+%           text = times | palatino    (handled with core's text key)
+% Metadata: \akizumisetup{subtitle=..., info={學號=B12345678, 系級=資工四}}
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-zhlayout}[2026/10/25 v0.8 Aaron Lin Chinese report layout]
+
+\newif\ifakizumi@parindent
+\newif\ifakizumi@zhsecnum
+\newif\ifakizumi@kai
+\ExplSyntaxOn
+\tl_new:N \l__akizumi_fontsize_tl
+\keys_define:nn { akizumi/zhlayout }
+  {
+    par      .choices:nn = { skip, indent }
+      { \use:c { akizumi@parindent \str_if_eq:VnTF \l_keys_choice_tl { indent } { true } { false } } },
+    secnum   .choices:nn = { arabic, zh }
+      { \use:c { akizumi@zhsecnum \str_if_eq:VnTF \l_keys_choice_tl { zh } { true } { false } } },
+    fontsize .tl_set:N = \l__akizumi_fontsize_tl,
+    13pt     .code:n = \tl_set:Nn \l__akizumi_fontsize_tl { 13pt },
+    14pt     .code:n = \tl_set:Nn \l__akizumi_fontsize_tl { 14pt },
+    kai      .choices:nn = { true, false } { \use:c { akizumi@kai \l_keys_choice_tl } },
+    kai      .default:n = true,
+    cjk-serif      .tl_set:N = \akizumi@usercjkserif,
+    cjk-serif      .initial:n = ,
+    cjk-serif-bold .tl_set:N = \akizumi@usercjkserifbold,
+    cjk-serif-bold .initial:n = ,
+  }
+\ProcessKeyOptions [ akizumi/zhlayout ]
+% The class handed these on to article too, which listed them as unused.
+\clist_clear:N \l_tmpa_clist
+\clist_map_inline:Nn \@unusedoptionlist
+  {
+    \str_case:nnF {#1}
+      { {par}{} {secnum}{} {fontsize}{} {13pt}{} {14pt}{} {kai}{} {cjk-serif}{} {cjk-serif-bold}{} }
+      { \clist_put_right:Nn \l_tmpa_clist {#1} }
+  }
+\cs_gset_eq:NN \@unusedoptionlist \l_tmpa_clist
+
+% ---------- font size ----------
+\tl_if_empty:NF \l__akizumi_fontsize_tl
+  {
+    % scalable Computer Modern math, or 13pt math falls back to 12pt
+    \RequirePackage { fix-cm }
+    \use:x { \exp_not:N \RequirePackage [ fontsize = \l__akizumi_fontsize_tl ] { scrextend } }
+    % taller header for the larger \small the header uses
+    \dim_set:Nn \l_tmpa_dim { \f@size pt * 12 / 10 }
+    \dim_compare:nNnT \l_tmpa_dim > { 15pt }
+      {
+        \tl_set:Nx \akizumi@headheight { \dim_use:N \l_tmpa_dim }
+        \cs_set_eq:NN \akizumi@zhsetgeometry \akizumi@setgeometry
+        \cs_set_protected:Npn \akizumi@setgeometry #1
+          { \akizumi@zhsetgeometry {#1} \geometry { headheight = \akizumi@headheight } }
+      }
+  }
+\ExplSyntaxOff
+
+% ---------- Latin body: TeX Gyre Termes / Pagella (text=times|palatino) ----------
+\def\akizumi@tmp{times}\ifx\akizumi@textfont\akizumi@tmp
+  \setmainfont{texgyretermes}[Extension=.otf, UprightFont=*-regular,
+    BoldFont=*-bold, ItalicFont=*-italic, BoldItalicFont=*-bolditalic]\fi
+\def\akizumi@tmp{palatino}\ifx\akizumi@textfont\akizumi@tmp
+  \setmainfont{texgyrepagella}[Extension=.otf, UprightFont=*-regular,
+    BoldFont=*-bold, ItalicFont=*-italic, BoldItalicFont=*-bolditalic]\fi
+
+% ---------- CJK body face: kai, cjk-serif, cjk-serif-bold ----------
+% With text=sans the body moves to the roman family, set to Lato, so that
+% kai can change the body's CJK face without touching the headings.
+\ifakizumi@kai\ifakizumi@serif\else
+  \setmainfont{Lato}[Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold,
+    ItalicFont=*-Italic, BoldItalicFont=*-BoldItalic, Ligatures=NoCommon]
+  \renewcommand{\familydefault}{\rmdefault}
+\fi\fi
+% Kai chain, first one installed wins: Kaiti TC (macOS) > BiauKai (macOS) >
+% DFKai-SB (Windows) > AR PL UKai (Linux) > STKaiti > FandolKai (TeX Live,
+% Simplified only). kai sets the CJK body face whatever text= is; cjk-serif
+% and cjk-serif-bold replace the serif one. A face with no bold is emboldened.
+\ifakizumi@kai
+  \akizumi@pickfont\akizumi@cjkbody\akizumi@cjkbodybold{%
+    {STKaitiTC-Regular}{STKaitiTC-Bold}, {BiauKaiTC-Regular}{}, {BiauKai}{},
+    {DFKai-SB}{}, {AR PL UKai TW}{}, {AR PL UKai}{}, {STKaiti}{},
+    {FandolKai-Regular.otf}{}}
+  \def\akizumi@tmp{FandolKai-Regular.otf}\ifx\akizumi@cjkbody\akizumi@tmp
+    \PackageWarningNoLine{akizumi-zhlayout}{kai: using FandolKai, which lacks
+      most Traditional characters; install Kaiti TC, BiauKai, DFKai-SB or AR PL UKai}\fi
+\else\ifakizumi@serif
+  \ifx\akizumi@usercjkserif\@empty
+    \let\akizumi@cjkbody\akizumi@cjkserif
+    \let\akizumi@cjkbodybold\akizumi@cjkserifbold
+  \else
+    \let\akizumi@cjkbody\akizumi@usercjkserif
+    \let\akizumi@cjkbodybold\@empty
+  \fi
+\fi\fi
+\ifx\akizumi@usercjkserifbold\@empty\else
+  \ifakizumi@kai\let\akizumi@cjkbodybold\akizumi@usercjkserifbold\fi
+  \ifakizumi@serif\let\akizumi@cjkbodybold\akizumi@usercjkserifbold\fi
+\fi
+% Only when something changed, so the core's choice stands otherwise.
+\newif\ifakizumi@cjkbodyset
+\ifakizumi@kai\akizumi@cjkbodysettrue\fi
+\ifakizumi@serif
+  \ifx\akizumi@usercjkserif\@empty\else\akizumi@cjkbodysettrue\fi
+  \ifx\akizumi@usercjkserifbold\@empty\else\akizumi@cjkbodysettrue\fi
+\fi
+\ifx\akizumi@cjkbody\@empty\akizumi@cjkbodysetfalse\fi
+% A family of its own (redefining the core's would warn), with the same
+% Japanese / Korean fallback.
+\ifakizumi@cjkbodyset
+  \ifx\akizumi@cjkbodybold\@empty
+    \setCJKfamilyfont{akizumibody}{\akizumi@cjkbody}[BoldFont=\akizumi@cjkbody,
+      BoldFeatures={FakeBold=2.5}, ItalicFont=\akizumi@cjkbody, ItalicFeatures={FakeBold=2.5},
+      BoldItalicFont=\akizumi@cjkbody, BoldItalicFeatures={FakeBold=2.5}]
+  \else
+    \setCJKfamilyfont{akizumibody}{\akizumi@cjkbody}[BoldFont=\akizumi@cjkbodybold,
+      ItalicFont=\akizumi@cjkbodybold, BoldItalicFont=\akizumi@cjkbodybold]
+  \fi
+  \renewcommand*{\CJKrmdefault}{akizumibody}
+  \akizumi@fallback\CJKrmdefault{serif}
+\fi
+
+% ---------- paragraphs: par=indent ----------
+% 2em of the body size; a \parindent set later in the preamble still wins.
+\ifakizumi@parindent
+  \RequirePackage{indentfirst}
+  {\normalfont\normalsize\global\parindent=2em}
+  \setlength{\parskip}{0pt plus 1pt}
+  % titlesec's starred spacing would drop the indent after headings
+  \titlespacing{\section}{0pt}{1.6em}{0.6em}
+  \titlespacing{\subsection}{0pt}{1.2em}{0.4em}
+  \titlespacing{\subsubsection}{0pt}{1em}{0.3em}
+\fi
+
+% ---------- section numbers: secnum=zh ----------
+% \akizumizhnum{n}: 一 ... 九十九 (larger numbers stay Arabic).
+\ExplSyntaxOn
+\cs_new:Npn \__akizumi_zhdigit:n #1
+  { \int_case:nn {#1} { {1}{一} {2}{二} {3}{三} {4}{四} {5}{五} {6}{六} {7}{七} {8}{八} {9}{九} } }
+\cs_new:Npn \akizumizhnum #1
+  {
+    \int_compare:nNnTF {#1} < { 10 } { \__akizumi_zhdigit:n {#1} }
+      {
+        \int_compare:nNnTF {#1} < { 100 }
+          {
+            \int_compare:nNnF {#1} < { 20 } { \__akizumi_zhdigit:n { \int_div_truncate:nn {#1} { 10 } } }
+            十 \__akizumi_zhdigit:n { \int_mod:nn {#1} { 10 } }
+          }
+          { \int_eval:n {#1} }
+      }
+  }
+% \akizumi@arabicwithin: \thesection -> \arabic{section} inside \thetheorem etc.
+\cs_new_protected:Npn \akizumi@arabicwithin
+  {
+    \clist_map_inline:nn { theorem, equation, figure, table, algorithm }
+      {
+        \cs_if_exist:cT { the##1 }
+          {
+            \tl_set_eq:Nc \l_tmpa_tl { the##1 }
+            \tl_replace_all:Nnn \l_tmpa_tl { \thesection } { \arabic { section } }
+            \tl_replace_all:Nnn \l_tmpa_tl { \thechapter } { \arabic { chapter } }
+            \cs_set_eq:cN { the##1 } \l_tmpa_tl
+          }
+      }
+  }
+\ExplSyntaxOff
+\ifakizumi@zhsecnum
+  \@ifundefined{c@chapter}{}{%
+    \renewcommand{\thechapter}{\akizumizhnum{\value{chapter}}}%
+    \ifakizumi@cjk\@namedef{akizumi@b@chapter}{第}\@namedef{akizumi@a@chapter}{章}\fi}
+  \renewcommand{\thesection}{\akizumizhnum{\value{section}}}
+  \renewcommand{\thesubsection}{\akizumi@str{lparen}\akizumizhnum{\value{subsection}}\akizumi@str{rparen}}
+  \renewcommand{\thesubsubsection}{\arabic{subsubsection}}
+  \renewcommand{\p@subsection}{\thesection}
+  \renewcommand{\p@subsubsection}{\thesection\thesubsection}
+  \def\akizumi@zhsecsep{、}
+  % article appendices number sections A, B: no 、 there
+  \@ifundefined{c@chapter}{\g@addto@macro\appendix{\def\akizumi@zhsecsep{\hspace{0.8em}}}}{}
+  \titleformat{\section}{\sffamily\Large\bfseries}{\textcolor{mute}{\thesection\akizumi@zhsecsep}}{0pt}{}
+  \titleformat{\subsection}{\sffamily\large\bfseries}{\textcolor{mute}{\thesubsection}}{0pt}{}
+  \titleformat{\subsubsection}{\sffamily\normalsize\bfseries}{\textcolor{mute}{\thesubsubsection.}}{0.5em}{}
+  % contents: room for 二十三 and （十二）
+  \patchcmd{\l@section}{\setlength\@tempdima{1.5em}}{\setlength\@tempdima{2.8em}}{}{}
+  \@ifundefined{c@chapter}
+    {\renewcommand*{\l@subsection}{\@dottedtocline{2}{2.8em}{3.4em}}}
+    {\renewcommand*{\l@section}{\@dottedtocline{1}{1.5em}{2.8em}}%
+     \renewcommand*{\l@subsection}{\@dottedtocline{2}{4.3em}{3.4em}}}
+  % 第一節; a subsection reads 一（一）
+  \ifakizumi@cjk
+    \@namedef{akizumi@b@section}{第}\@namedef{akizumi@a@section}{節}
+    \crefformat{subsection}{#2#1#3}
+    \crefformat{subsubsection}{#2#1#3}
+  \fi
+  % Numbers that carry the section (or chapter) keep it Arabic: 定理 1.2, (1.3).
+  \AtBeginDocument{\akizumi@arabicwithin}
+\fi
+
+% ---------- title block: subtitle and info line ----------
+%   \akizumisetup{subtitle={...}, info={學號=B12345678, 系級=資工四}}
+% Subtitle under the title; info items centred on one line, label muted.
+% An item without "=" is shown as is.
+\newcommand{\akizumi@subtitle}{}
+\ExplSyntaxOn
+\seq_new:N \l__akizumi_info_seq
+\keys_define:nn { akizumi/meta }
+  {
+    subtitle .tl_set:N = \akizumi@subtitle,
+    info     .code:n =
+      {
+        \seq_clear:N \l__akizumi_info_seq
+        \keyval_parse:nnn
+          { \seq_put_right:Nn \l__akizumi_info_seq }
+          { \__akizumi_info_pair:nn }
+          {#1}
+      },
+  }
+\cs_new_protected:Npn \__akizumi_info_pair:nn #1#2
+  { \seq_put_right:Nn \l__akizumi_info_seq { {\color{mute}#1}\enspace#2 } }
+\cs_new_protected:Npn \akizumi@aftertitle
+  {
+    \tl_if_empty:NF \akizumi@subtitle
+      { \vspace{0.5em} { \Large \color{mute} \akizumi@subtitle \par } }
+    \seq_if_empty:NF \l__akizumi_info_seq
+      { \vspace{0.8em} { \small \seq_use:Nn \l__akizumi_info_seq { \qquad } \par } }
+  }
+\ExplSyntaxOff
+
+\endinput

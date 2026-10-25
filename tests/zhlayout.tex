@@ -1,0 +1,43 @@
+% !TEX program = xelatex
+% Chinese report layout: par=indent, secnum=zh, 13pt, kai, text=times,
+% subtitle and info line in the title block.
+\documentclass[lang=zh, thmnames=native, par=indent, secnum=zh, 13pt, kai,
+  text=times]{akizumi-note}
+\title{2013 年臺灣毒澱粉事件}
+\author{林子祐}
+\akizumisetup{course=食品安全, subtitle={食品安全風險溝通失敗之案例研究},
+  info={學號=B10303083, 系級=資工四, 期末報告}}
+\begin{document}
+\maketitle
+
+\section{緒論}\label{sec:intro}
+食品安全涉及公眾健康與社會信任，其中風險溝通（Risk Communication）是連接科學評估、政策管理與消費者認知的關鍵環節。The first paragraph after a heading is indented too.
+
+第二段同樣縮排兩個字，段落之間沒有額外間距。\textbf{粗體楷書}與\emph{強調}。
+
+\subsection{研究背景}\label{sec:bg}
+本研究見\cref{sec:intro}與\cref{sec:bg}，以及\cref{thm:a}和\cref{eq:a}。
+\begin{equation}\label{eq:a} Y_i = f(A_i) + \varepsilon_i \end{equation}
+
+\begin{theorem}\label{thm:a}
+定理內文。
+\end{theorem}
+
+\subsubsection{細項}
+\begin{itemize}
+  \item 第一項
+  \item 第二項
+\end{itemize}
+
+\setcounter{section}{22}
+\section{結論}
+\setcounter{subsection}{11}
+\subsection{十二}
+
+\ExplSyntaxOn
+\str_if_eq:eeF { \thesection } { 二十三 } { \ERROR }
+\str_if_eq:eeF { \thesubsection } { （十二） } { \ERROR }
+\str_if_eq:eeF { \akizumizhnum{10}\akizumizhnum{11}\akizumizhnum{40}\akizumizhnum{105} } { 十十一四十105 } { \ERROR }
+\ExplSyntaxOff
+\ifdim\parindent=26pt \else\ERROR\fi  % 2em at 13pt
+\end{document}

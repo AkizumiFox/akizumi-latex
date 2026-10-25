@@ -1,0 +1,117 @@
+% akizumi-problems.sty -- problems for akizumi-hw.
+%   \documentclass[kind=assignment, header=name-id, problembreak]{akizumi-hw}
+%   \problemset{B}                    % B1, B2, ...
+%   \begin{problem}[label=C3, title=Compactness] ... \end{problem}
+%   \inputproblem[Title]{problems/p1}
+%   \begin{parts}[label=(\roman*)] \item ... \begin{subparts} ... \end{subparts} \end{parts}
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-problems}[2026/10/25 v0.8 Aaron Lin homework problems]
+
+\newif\ifakizumi@problembreak
+\newif\ifakizumi@firstproblem \akizumi@firstproblemtrue
+\newcommand{\akizumi@kind}{homework}
+% "Aaron Lin · B12345678"
+\newcommand{\akizumi@nameid}{\@author
+  \ifx\@author\@empty\else\ifx\akizumi@id\@empty\else\akizumisep\fi\fi\akizumi@id}
+
+\ExplSyntaxOn
+\keys_define:nn { akizumi/problems }
+  {
+    kind .choices:nn = { homework, assignment, exercise, report }
+      { \tl_set_eq:NN \akizumi@kind \l_keys_choice_tl },
+    problembreak .choices:nn = { true, false }
+      { \use:c { akizumi@problembreak \l_keys_choice_tl } },
+    problembreak .default:n = true,
+    header .choices:nn = { author, name-id }
+      {
+        \str_if_eq:VnTF \l_keys_choice_tl { name-id }
+          { \cs_set:Npn \akizumi@headright { \akizumi@nameid } }
+          { \cs_set:Npn \akizumi@headright { \@author } }
+      },
+  }
+\ProcessKeyOptions [ akizumi/problems ]
+% The same keys in \akizumisetup.
+\keys_define:nn { akizumi/meta }
+  {
+    kind         .code:n = \keys_set:nn { akizumi/problems } { kind = {#1} },
+    problembreak .code:n = \keys_set:nn { akizumi/problems } { problembreak = {#1} },
+    problembreak .default:n = true,
+    header       .code:n = \keys_set:nn { akizumi/problems } { header = {#1} },
+  }
+
+% [label=B1, title=...] sets keys; anything else is the title, as before.
+\tl_new:N \l__akizumi_problem_label_tl
+\tl_new:N \l__akizumi_problem_title_tl
+\bool_new:N \l__akizumi_problem_kv_bool
+\keys_define:nn { akizumi/problem }
+  {
+    label .tl_set:N = \l__akizumi_problem_label_tl,
+    title .tl_set:N = \l__akizumi_problem_title_tl,
+  }
+\cs_new_protected:Npn \__akizumi_problem_notkey:n #1
+  { \bool_set_false:N \l__akizumi_problem_kv_bool }
+\cs_new_protected:Npn \__akizumi_problem_iskey:nn #1#2
+  { \keys_if_exist:nnF { akizumi/problem } {#1} { \bool_set_false:N \l__akizumi_problem_kv_bool } }
+\cs_new_protected:Npn \akizumi@problemopts #1
+  {
+    \tl_clear:N \l__akizumi_problem_label_tl
+    \tl_clear:N \l__akizumi_problem_title_tl
+    \bool_set_true:N \l__akizumi_problem_kv_bool
+    \keyval_parse:nnn { \__akizumi_problem_notkey:n } { \__akizumi_problem_iskey:nn } {#1}
+    \bool_if:NTF \l__akizumi_problem_kv_bool
+      { \keys_set:nn { akizumi/problem } {#1} }
+      { \tl_set:Nn \l__akizumi_problem_title_tl {#1} }
+  }
+% A given label is shown and referenced as is; it does not advance the count.
+\cs_new_protected:Npn \akizumi@problemstep
+  {
+    \stepcounter { akizumi@problemrun }
+    \tl_if_empty:NTF \l__akizumi_problem_label_tl
+      { \refstepcounter { problem } }
+      {
+        \cs_set_eq:NN \theproblem \l__akizumi_problem_label_tl
+        \refstepcounter { problem }
+        \addtocounter { problem } { -1 }
+      }
+  }
+\cs_new:Npn \akizumi@problemtitle
+  {
+    \tl_if_empty:NF \l__akizumi_problem_title_tl
+      { \quad { \sffamily \color { mute } \l__akizumi_problem_title_tl } }
+  }
+\ExplSyntaxOff
+
+% Extra words for kind=...; homework is in akizumi-core's table.
+%            key           en            zh       ja            ko
+\akizumi@s  {assignment}  {Assignment}  {作業}   {課題}        {과제}
+\akizumi@s  {exercise}    {Exercise}    {習題}   {演習}        {연습문제}
+\akizumi@s  {report}      {Report}      {報告}   {レポート}    {보고서}
+
+% ---------- problems: Problem 1, or B1, B2 after \problemset{B} ----------
+\newcounter{problem}
+\newcounter{akizumi@problemrun}  % hyperref anchors; never reset
+\newcommand{\akizumi@problemprefix}{}
+\renewcommand{\theproblem}{\akizumi@problemprefix\arabic{problem}}
+\def\theHproblem{\arabic{akizumi@problemrun}}
+\newcommand{\problemset}[1]{\gdef\akizumi@problemprefix{#1}\setcounter{problem}{0}}
+\ifakizumi@cjk\crefformat{problem}{#2\akizumi@num{problem}{#1}#3}\else\crefname{problem}{Problem}{Problems}\fi
+\newcommand{\problemname}{\akizumi@num{problem}{\theproblem}}
+\NewDocumentEnvironment{problem}{o}
+  {\par
+   \ifakizumi@problembreak\ifakizumi@firstproblem\else\clearpage\fi\fi
+   \global\akizumi@firstproblemfalse
+   \addvspace{1.4em}\Needspace{4\baselineskip}%
+   \IfValueTF{#1}{\akizumi@problemopts{#1}}{\akizumi@problemopts{}}%
+   \akizumi@problemstep
+   \noindent{\sffamily\color{accent}\bfseries\problemname}%
+   \akizumi@problemtitle\par\nobreak\vspace{0.2em}}
+  {\par}
+% One problem per file: statement and solution.
+\NewDocumentCommand{\inputproblem}{o m}
+  {\IfValueTF{#1}{\begin{problem}[#1]}{\begin{problem}}\input{#2}\end{problem}}
+
+% (a), (b), ... and (i), (ii), ...; the optional argument takes enumitem keys.
+\NewDocumentEnvironment{parts}{O{}}{\begin{enumerate}[label=(\alph*),#1]}{\end{enumerate}}
+\NewDocumentEnvironment{subparts}{O{}}{\begin{enumerate}[label=(\roman*),#1]}{\end{enumerate}}
+
+\endinput

@@ -2,6 +2,7 @@
 %   \documentclass[lang=zh, solutions=false]{akizumi-hw}
 %   \akizumisetup{course=ODE, number=3, due=2026/10/28, id=B12345678}
 %   \begin{problem}[optional title] ... \begin{solution} ... \end{solution} \end{problem}
+%   problem numbering, \inputproblem, parts, kind=, header=: see akizumi-problems.sty
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesClass{akizumi-hw}[2026/10/25 v0.8 Aaron Lin homework]
 
@@ -24,6 +25,10 @@
     solutions .choices:nn = { true, false }
       { \use:c { akizumi@solutions \l_keys_choice_tl } },
     solutions .default:n = true,
+    kind         .code:n = \PassOptionsToPackage { kind = #1 } { akizumi-problems },
+    header       .code:n = \PassOptionsToPackage { header = #1 } { akizumi-problems },
+    problembreak .code:n = \PassOptionsToPackage { problembreak = #1 } { akizumi-problems },
+    problembreak .default:n = true,
     10pt      .code:n = \tl_set:Nn \l__akizumi_size_tl { 10pt },
     11pt      .code:n = \tl_set:Nn \l__akizumi_size_tl { 11pt },
     12pt      .code:n = \tl_set:Nn \l__akizumi_size_tl { 12pt },
@@ -39,7 +44,7 @@
 \akizumi@setgeometry{margin=2.5cm, top=2.3cm, headsep=0.8cm, headheight=15pt}
 
 % ---------- title: "Homework 3", kicker "ODE · Due 2026/10/28" ----------
-\title{\akizumi@str{homework}\ifx\akizumi@number\@empty\else\ \akizumi@number\fi}
+\title{\akizumi@str{\akizumi@kind}\ifx\akizumi@number\@empty\else\ \akizumi@number\fi}
 \AtBeginDocument{%
   \ifx\akizumi@kicker\@empty
     \edef\akizumi@kicker{\unexpanded\expandafter{\akizumi@course}%
@@ -49,19 +54,8 @@
 \newcommand{\akizumi@duename}{\akizumi@str{due}}
 \renewcommand{\akizumi@headleft}{\akizumi@course\ifx\akizumi@course\@empty\else\quad\fi\@title}
 
-% ---------- problems ----------
-\newcounter{problem}
-\ifakizumi@cjk\crefformat{problem}{#2\akizumi@num{problem}{#1}#3}\else\crefname{problem}{Problem}{Problems}\fi
-\newcommand{\problemname}{\akizumi@num{problem}{\theproblem}}
-\NewDocumentEnvironment{problem}{o}
-  {\par\addvspace{1.4em}\Needspace{4\baselineskip}%
-   \refstepcounter{problem}%
-   \noindent{\sffamily\color{accent}\bfseries\problemname}%
-   \IfValueT{#1}{\quad{\sffamily\color{mute}#1}}\par\nobreak\vspace{0.2em}}
-  {\par}
-
-% (a), (b), ... inside a problem
-\newenvironment{parts}{\begin{enumerate}[label=(\alph*)]}{\end{enumerate}}
+% ---------- problems, parts, kind=, header= ----------
+\RequirePackage{akizumi-problems}
 
 % ---------- solutions: thin left rule; hidden with solutions=false ----------
 \NewDocumentEnvironment{solution}{+b}

@@ -1,0 +1,9 @@
+% !TEX program = xelatex
+% cite=super with the default numeric style; backref=true written out (a
+% class option hyperref must not read as its own).
+\documentclass[bib=paper.bib, cite=super, backref=true]{akizumi-note}
+\begin{document}
+World models\cite{lin2026} learn from experience\cite{sutton2018,lin2026}.
+\Citet{sutton2018} and \citep{lin2026} still work.
+\printbibliography
+\end{document}

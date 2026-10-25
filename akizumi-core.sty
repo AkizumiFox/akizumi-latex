@@ -511,16 +511,14 @@
 \titlespacing*{\subsubsection}{0pt}{1em}{0.3em}
 
 % ---------- bibliography (bib=refs.bib) ----------
-% Numeric, compressed ([1-3]), in citation order, with back-references to the
-% pages that cite each entry. Print with \printbibliography.
+% biblatex through akizumi-bib.sty, which reads bibstyle=, backref=, cite=.
+% Default: numeric, compressed ([1-3]), in citation order, with back-references
+% to the pages that cite each entry. Print with \printbibliography.
 \ExplSyntaxOn
-\clist_if_empty:NF \l__akizumi_bib_clist
-  {
-    \RequirePackage[backend=biber, style=numeric-comp, sorting=none,
-      maxbibnames=99, backref=true]{biblatex}
-    \clist_map_inline:Nn \l__akizumi_bib_clist { \addbibresource{#1} }
-  }
+\cs_new:Npn \akizumi@ifbib
+  { \clist_if_empty:NTF \l__akizumi_bib_clist { \use_ii:nn } { \use_i:nn } }
 \ExplSyntaxOff
+\akizumi@ifbib{\RequirePackage{akizumi-bib}}{}
 
 % ---------- links and references ----------
 % amsthm, then hyperref, then cleveref.

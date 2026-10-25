@@ -1,0 +1,28 @@
+% !TEX program = xelatex
+% callouts on slides, with Chinese names (lang=zh; proofidea follows thmnames)
+\documentclass[aspectratio=169,11pt]{beamer}
+\usetheme[lang=zh]{Akizumi}
+\akizumiNewCallout{keypoint}{Key point}{學習要點}{}{}[numbered, tint]
+\begin{document}
+\section{\optional 延伸}
+\begin{frame}{提示框}
+  \begin{keyidea}[收斂]
+  級數收斂當且僅當尾項和趨於零。
+  \end{keyidea}
+  \begin{proofidea}
+  用 Cauchy 準則。
+  \end{proofidea}
+  \begin{warning}
+  條件收斂的級數重排後可能改變和。
+  \end{warning}
+  \begin{keypoint}
+  第一個學習要點。
+  \end{keypoint}
+\end{frame}
+\begin{frame}{其他}
+  \begin{tip}提示。\end{tip}
+  \begin{pitfall}常見錯誤。\end{pitfall}
+  \begin{chapterguide}\guidehead{本章內容}導覽。\end{chapterguide}
+  \begin{setup}設定。\end{setup}
+\end{frame}
+\end{document}

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ax selftest docs` (also part of `ax selftest`) builds every ```` ```latex ```` block of `docs/reference.md` and `docs/reference.en.md` and reports failures as `file:line`; fragments are wrapped in a default document, and `<!-- snippet: skip | class=... options=... | beamer | preamble | packages=... | ci-skip=... -->` before a block adjusts that. Fixed the snippets it found broken: an unclosed `theorem`, `axis` outside a `tikzpicture`, unfinished `problem`s, `\q` outside a frame, and Chinese sample text in the English manual.
 - `ax watch --bg` watches in the background (output in `build/watch.log`); `--status` shows whether it runs and how the last build went, with the first error; `--log` follows its output; `--stop` ends it. `ax build` / `ax both` warn while one runs, and bare `ax` shows it. Works on macOS, Linux and Windows.
 - Japanese and Korean: `lang=ja` and `lang=ko` set the date, captions, contents, section / problem / chapter labels, exam words and fonts (Hiragino, Yu, Noto CJK JP, HaranoAji; Apple SD Gothic Neo, Malgun, Noto CJK KR, Baekmuk). Korean keeps word spaces.
 - `thmnames=native` names theorem-like environments in the main language: 定理 / 證明 in Chinese, 定理 / 証明 in Japanese, 정리 / 증명 in Korean, also in cleveref, `proofof`, the list of theorems and slides. English stays the default.

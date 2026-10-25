@@ -1,0 +1,49 @@
+% !TEX program = pdflatex
+% akizumi-math in a venue paper (pdfLaTeX, no akizumi class), followed by the
+% usual math_commands.tex of ICLR / NeurIPS templates, which redefines \vb,
+% \E, \R, \KL, \argmax ... with \newcommand / \DeclareMathOperator / \def.
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amsfonts,bm}
+\usepackage{akizumi-math}
+\usepackage{hyperref}
+
+% --- excerpt of math_commands.tex ---
+\def\ceil#1{\lceil #1 \rceil}
+\def\vb{{\bm{b}}}
+\def\vx{{\bm{x}}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\KL}{D_{\mathrm{KL}}}
+\newcommand{\Var}{\mathrm{Var}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newcommand{\abs}[1]{\left| #1 \right|}
+\newcommand*{\norm}[1]{\left\| #1 \right\|}
+\DeclarePairedDelimiter{\set}{\{}{\}}
+\renewcommand{\T}{^{\top}}
+% ------------------------------------
+
+\makeatletter
+\newcommand\assert[2]{\ifx#1#2\else\errmessage{akizumi-math test: \string#1 is \meaning#1}\fi}
+\newcommand\expectKL{D_{\mathrm{KL}}}
+\assert\KL\expectKL
+\newcommand*\expectnorm[1]{\left\| #1 \right\|}
+\assert\norm\expectnorm
+% defaults: no letter macros, plain delimiters, \mathbbmss is \mathbb
+\@ifundefined{va}{}{\errmessage{akizumi-math test: letters are opt-in}}
+\@ifundefined{qty}{}{\errmessage{akizumi-math test: units are opt-in}}
+\AtBeginDocument{%
+  \ifx\mathbbmss\mathbb\else\errmessage{akizumi-math test: \string\mathbbmss}\fi
+  \ifx\Prob\akizumi@soft@Prob\else\errmessage{akizumi-math test: \string\Prob}\fi}
+\makeatother
+
+\begin{document}
+\section{Results}
+$\vb + \vx$, $\E[\vx]$, $\R^n$, $\KL(p \| q)$, $\argmax_\theta f$, $\abs{\frac12}$, $\norm{x}$,
+$\set{x}$, $\ceil{x}$, $A\T$.
+
+Still from akizumi-math: $\bvec{x}$, $\bvec{\Sigma}$, $\Prob{A \given B}$, $\Prob*{A \given \frac{B}{C}}$,
+$\Normal{0}{1}$, $\floor{x}$, $\Q$, $\C$, $\mathscr{F}$, $\mathbbmss{R}$, $\cvec{x, y}$,
+$\spn\{v\}$, $\Corr$, $X \indep Y$, $\int f \dd x$.
+\end{document}

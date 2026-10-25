@@ -1261,6 +1261,36 @@ CJK_FONTS = {  # sans, serif: the first choice on each system
 }
 
 
+# --- akizumi-math: macros the project redefines (ax doctor) ---
+MATH_DEF_RE = re.compile(r"\\(?:(?:re|provide)?newcommand\*?|DeclareMathOperator\*?|DeclarePairedDelimiter\w*"
+                         r"|[gex]?def|let)\s*\{?\s*\\([A-Za-z]+)(?![A-Za-z])")
+TEXT_LETTERS = set("abcdijklortuv")  # LaTeX's text commands (accents, \i, \l, \o) among \a..\z
+
+
+def math_clashes(sty):
+    """{file: (akizumi-math names it redefines, text letters it overwrites)} for the project's sources."""
+    try:
+        text = sty.read_text(errors="replace")
+    except OSError:
+        return {}
+    names = set(re.findall(r"\\akizumi@(?:new|newdelim|op|oplim)\s*\\([A-Za-z]+)", text)) - {"csname"}
+    found = {}
+    files = [p for p in sorted(Path(".").rglob("*")) if p.suffix in (".tex", ".sty")
+             and "build" not in p.parts and not p.name.startswith("akizumi-")][:200]
+    for p in files:
+        try:
+            src = re.sub(r"(?<!\\)%.*", "", p.read_text(errors="replace"))
+        except OSError:
+            continue
+        defined = MATH_DEF_RE.findall(src)
+        ours = sorted(set(defined) & names)
+        letters = sorted(set(defined) & TEXT_LETTERS)
+        if ours or letters:
+            found[str(p)] = (ours, letters)
+    return found
+# --- end akizumi-math ---
+
+
 def cmd_doctor(a):
     problems = []
 
@@ -1347,6 +1377,25 @@ def cmd_doctor(a):
             if tags and pin not in ("latest", tags[0]):
                 optional(False, T(f"有新版模板 {tags[0]}", f"Newer template {tags[0]}"),
                          T("想用新外觀就跑 ax upgrade", "run ax upgrade for the new look"))
+        # --- akizumi-math: macros the project redefines ---
+        sty = REPO / "akizumi-math.sty"
+        if not sty.exists() and found:
+            sty = Path(found).with_name("akizumi-math.sty")
+        clashes = math_clashes(sty)
+        for name, (ours, letters) in clashes.items():
+            if ours:
+                cs = " ".join("\\" + n for n in ours)
+                optional(False, T(f"{name} 重新定義了 akizumi-math 的 {cs}",
+                                  f"{name} redefines akizumi-math's {cs}"),
+                         T("以你的定義為準", "yours are used"))
+            if letters:
+                cs = " ".join("\\" + n for n in letters)
+                optional(False, T(f"{name} 蓋掉了文字指令 {cs}", f"{name} overwrites the text commands {cs}"),
+                         T("內文的 ç、š 這類重音會壞；letters=single 在數學裡給粗體、內文保留重音",
+                           "accents such as ç, š break in text; letters=single makes them bold in math only"))
+        if not clashes:
+            optional(True, T("沒有和 akizumi-math 撞名的巨集", "No macros clash with akizumi-math"))
+        # --- end akizumi-math ---
 
     print()
     if problems:

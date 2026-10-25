@@ -1,49 +1,308 @@
 % akizumi-math.sty -- math macros only. Engine-agnostic: works with pdfLaTeX,
 % XeLaTeX and LuaLaTeX, so it can go into conference papers (NeurIPS, ICML, ...)
 % that forbid custom styling. If you use unicode-math, load it BEFORE this file.
+%
+% Every macro here is provided, never forced: a name that already exists is
+% left alone, and a later \newcommand, \DeclareMathOperator or
+% \DeclarePairedDelimiter on one of these names replaces it instead of failing
+% (mathclash=error turns that off). mathskip={vb,E} leaves names out entirely.
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{akizumi-math}[2026/10/25 v0.8 Aaron Lin math macros]
 
-\RequirePackage{amsmath,amssymb,mathtools}
+\RequirePackage{amsmath,mathtools}
+% unicode-math has these symbols; amssymb after it clashes (\eth)
+\@ifpackageloaded{unicode-math}{}{\RequirePackage{amssymb}}
 
-% Vectors / matrices in upright bold: \vb{x}, \vb{A}.
-% Greek (any argument starting with a control sequence, e.g. \vb{\Lambda})
-% goes through \bm, since \mathbf has no Greek in the legacy math setup:
-% uppercase comes out upright bold, lowercase bold italic.
+% ---------- options ----------
+\newif\ifakizumi@mathyield \akizumi@mathyieldtrue
+\newif\ifakizumi@autodelims
+\newif\ifakizumi@vbup
+\newif\ifakizumi@units
+\ExplSyntaxOn
+\clist_new:N \l__akizumi_math_skip_clist
+\clist_new:N \l__akizumi_math_letters_clist
+\keys_define:nn { akizumi/math }
+  {
+    mathclash .choices:nn = { yield, error }
+      { \use:c { akizumi@mathyield \int_compare:nNnTF \l_keys_choice_int = 1 { true } { false } } },
+    mathskip  .code:n = \clist_set:Ne \l__akizumi_math_skip_clist { \tl_to_str:n {#1} },
+    delims    .choices:nn = { manual, auto }
+      { \use:c { akizumi@autodelims \int_compare:nNnTF \l_keys_choice_int = 2 { true } { false } } },
+    letters   .code:n =
+      {
+        \clist_set:Nn \l__akizumi_math_letters_clist {#1}
+        \clist_if_in:NnT \l__akizumi_math_letters_clist { all }
+          { \clist_put_right:Nn \l__akizumi_math_letters_clist { bold, cal, bb, greek } }
+        \clist_map_inline:Nn \l__akizumi_math_letters_clist
+          {
+            \clist_if_in:nnF { all, none, bold, single, cal, bb, greek } {##1}
+              { \msg_error:nnn { akizumi-math } { letters } {##1} }
+          }
+      },
+    vb        .choices:nn = { auto, upright }
+      { \use:c { akizumi@vbup \int_compare:nNnTF \l_keys_choice_int = 2 { true } { false } } },
+    units     .choices:nn = { true, false } { \use:c { akizumi@units \l_keys_choice_tl } },
+    units     .default:n = true,
+  }
+\msg_new:nnn { akizumi-math } { letters }
+  { Unknown~letters=#1;~use~bold,~single,~cal,~bb,~greek~or~all. }
+\ProcessKeyOptions [ akizumi/math ]
+% Loaded from inside a class, these global options would still be listed as
+% unused, since LaTeX fills that list only after the class ends.
+\AddToHook { begindocument/before }
+  {
+    \clist_map_inline:nn { mathclash, mathskip, delims, letters, vb, units }
+      {
+        \clist_remove_all:Nn \@unusedoptionlist {#1}
+        \clist_remove_all:Ne \@unusedoptionlist { \tl_to_str:n {#1} }
+      }
+  }
+\prg_generate_conditional_variant:Nnn \clist_if_in:Nn { Ne } { TF }
+\prg_generate_conditional_variant:Nnn \str_if_in:nn { ee } { TF }
+\cs_new:Npn \akizumi@ifletters #1 { \clist_if_in:NnTF \l__akizumi_math_letters_clist {#1} }
+% \akizumi@new\cs{code}: run code (which defines \cs) unless \cs exists or is
+% in mathskip, then remember the result so a later \newcommand may replace it.
+\cs_new_protected:Npn \akizumi@new #1#2
+  {
+    \akizumi@ifskipped { \cs_to_str:N #1 } { }
+      {
+        \cs_if_exist:NTF #1
+          { \PackageInfo { akizumi-math } { \token_to_str:N #1~already~defined;~kept~as~is } }
+          { #2 \akizumi@own #1 }
+      }
+  }
+\cs_new_protected:Npn \akizumi@own #1 { \cs_gset_eq:cN { akizumi@soft@ \cs_to_str:N #1 } #1 }
+\cs_new:Npn \akizumi@ifowned #1 { \cs_if_eq:cNTF { akizumi@soft@ \cs_to_str:N #1 } #1 }
+\cs_new_protected:Npn \akizumi@ifskipped #1
+  {
+    \str_set:Ne \l_tmpa_str {#1}
+    \clist_if_in:NVTF \l__akizumi_math_skip_clist \l_tmpa_str
+  }
+\cs_new_protected:Npn \akizumi@iftextcmd #1#2#3
+  {
+    \str_if_in:eeTF { \meaning #1 } { \tl_to_str:n { -cmd } } {#2}
+      { \str_if_in:eeTF { \meaning #1 } { \tl_to_str:n { @changed@cmd } } {#2} {#3} }
+  }
+\tl_new:N \g__akizumi_math_delims_tl
+\cs_new_protected:Npn \akizumi@newdelim #1#2
+  { \akizumi@new #1 {#2 \tl_gput_right:Nn \g__akizumi_math_delims_tl {#1}} }
+\cs_new_protected:Npn \akizumi@mapdelims #1 { \tl_map_function:NN \g__akizumi_math_delims_tl #1 }
+% \cvec{a, b, c}: column vector; \cvec[p]{...} picks pmatrix (b, p, v, V, B, or empty)
+\cs_new_protected:Npn \akizumi@cvec #1#2
+  {
+    \clist_set:Nn \l_tmpa_clist {#2}
+    \use:e
+      {
+        \exp_not:n { \begin{#1matrix} }
+        \clist_use:Nn \l_tmpa_clist { \\ }
+        \exp_not:n { \end{#1matrix} }
+      }
+  }
+\ExplSyntaxOff
+
+% ---------- bold: \vb{x}, \vb{A}, \vb{\Lambda} ----------
+% Greek (any argument starting with a control sequence) goes through \bm,
+% since \mathbf has no Greek in the legacy math setup: uppercase comes out
+% upright bold, lowercase bold italic; vb=upright makes lowercase upright too
+% (upgreek). \bvec is the same command under a name venues rarely take.
 \@ifpackageloaded{unicode-math}
-  {\newcommand{\vb}[1]{\symbfup{#1}}}
+  {\newcommand{\akizumi@bold}[1]{\symbfup{#1}}}
   {\RequirePackage{bm}%
-   \newcommand{\vb}[1]{\akizumi@vb#1\@nil}%
+   \ifakizumi@vbup\RequirePackage{upgreek}\fi
+   \newcommand{\akizumi@bold}[1]{\akizumi@vb#1\@nil}%
    \def\akizumi@vb#1#2\@nil{%
-     \ifcat\relax\noexpand#1\bm{#1#2}\else\mathbf{#1#2}\fi}}
+     \ifcat\relax\noexpand#1\expandafter\akizumi@vbcs\else\expandafter\akizumi@vbletter\fi{#1}{#2}}%
+   \def\akizumi@vbletter#1#2{\mathbf{#1#2}}%
+   \ifakizumi@vbup
+     \def\akizumi@vbcs#1#2{%
+       \ifcsname up\expandafter\@gobble\string#1\endcsname
+         \bm{\csname up\expandafter\@gobble\string#1\endcsname#2}%
+       \else\bm{#1#2}\fi}%
+   \else
+     \def\akizumi@vbcs#1#2{\bm{#1#2}}%
+   \fi}
+\akizumi@new\vb{\let\vb\akizumi@bold}
+\akizumi@new\bvec{\let\bvec\akizumi@bold}
 
 % Transpose: x\T
-\newcommand{\T}{^{\top}}
+\akizumi@new\T{\newcommand{\T}{^{\top}}}
 
-% Paired delimiters: \norm{x}, \norm*{x} (auto-size), \norm[\big]{x}
-\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
-\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
-\DeclarePairedDelimiter{\inner}{\langle}{\rangle}
-\DeclarePairedDelimiter{\set}{\{}{\}}
+% ---------- paired delimiters ----------
+% \norm{x}, \norm*{x} (auto-size), \norm[\big]{x}. With delims=auto the
+% plain form auto-sizes and the starred form keeps the natural size.
+% \given is | with spacing, and grows with \set{x \given ...} and \Prob.
+\protected\def\akizumi@given{\mid}
+\protected\def\akizumi@sizedgiven{\nonscript\;\delimsize\vert\allowbreak\nonscript\;\mathopen{}}
+\def\akizumi@withgiven{\ifx\given\akizumi@given\let\given\akizumi@sizedgiven\fi}
+\akizumi@new\given{\let\given\akizumi@given}
+\akizumi@newdelim\norm{\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}}
+\akizumi@newdelim\abs{\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}}
+\akizumi@newdelim\inner{\DeclarePairedDelimiter{\inner}{\langle}{\rangle}}
+\akizumi@newdelim\set{\DeclarePairedDelimiterXPP{\set}[1]{\akizumi@withgiven}\{\}{}{#1}}
+\akizumi@newdelim\floor{\DeclarePairedDelimiter{\floor}{\lfloor}{\rfloor}}
+\akizumi@newdelim\ceil{\DeclarePairedDelimiter{\ceil}{\lceil}{\rceil}}
 
-% Operators
-\DeclareMathOperator*{\argmin}{arg\,min}
-\DeclareMathOperator*{\argmax}{arg\,max}
-\DeclareMathOperator{\E}{\mathbb{E}}
-\DeclareMathOperator{\Var}{Var}
-\DeclareMathOperator{\Cov}{Cov}
-\DeclareMathOperator{\KL}{KL}
-\DeclareMathOperator{\tr}{tr}
-\DeclareMathOperator{\rank}{rank}
-\DeclareMathOperator{\diag}{diag}
-\DeclareMathOperator{\sg}{sg}
+% ---------- operators ----------
+\def\akizumi@op#1#2{\akizumi@new#1{\DeclareMathOperator{#1}{#2}}}
+\def\akizumi@oplim#1#2{\akizumi@new#1{\DeclareMathOperator*{#1}{#2}}}
+\akizumi@oplim\argmin{arg\,min}
+\akizumi@oplim\argmax{arg\,max}
+\akizumi@oplim\plim{plim}
+\akizumi@op\E{\mathbb{E}}
+\akizumi@op\Var{Var}
+\akizumi@op\Cov{Cov}
+\akizumi@op\Corr{Corr}
+\akizumi@op\KL{KL}
+\akizumi@op\sg{sg}
+% linear algebra
+\akizumi@op\tr{tr}
+\akizumi@op\rank{rank}
+\akizumi@op\diag{diag}
+\akizumi@op\spn{span}
+\akizumi@op\nullity{nullity}
+\akizumi@op\im{im}
+\akizumi@op\adj{adj}
+\akizumi@op\col{col}
+\akizumi@op\row{row}
+\akizumi@op\nul{nul}
+\akizumi@op\id{id}
+% analysis, topology, number theory
+\akizumi@op\supp{supp}
+\akizumi@op\vol{vol}
+\akizumi@op\Bd{Bd}
+\akizumi@op\Int{Int}
+\akizumi@op\diam{diam}
+\akizumi@op\lcm{lcm}
 
-% Number sets
-\newcommand{\R}{\mathbb{R}}
-\newcommand{\N}{\mathbb{N}}
-\newcommand{\Z}{\mathbb{Z}}
+% ---------- probability ----------
+% \Prob{A \given B}, \Normal{\mu}{\sigma^2}, \Bern{p}, \Bin{n}{p}, ...
+\akizumi@newdelim\Prob{\DeclarePairedDelimiterXPP{\Prob}[1]{\akizumi@withgiven\mathbb{P}}(){}{#1}}
+\akizumi@newdelim\Normal{\DeclarePairedDelimiterXPP{\Normal}[2]{\mathcal{N}}(){}{#1, #2}}
+\akizumi@newdelim\Bern{\DeclarePairedDelimiterXPP{\Bern}[1]{\operatorname{Bern}}(){}{#1}}
+\akizumi@newdelim\Bin{\DeclarePairedDelimiterXPP{\Bin}[2]{\operatorname{Bin}}(){}{#1, #2}}
+\akizumi@newdelim\Pois{\DeclarePairedDelimiterXPP{\Pois}[1]{\operatorname{Pois}}(){}{#1}}
+\akizumi@newdelim\Geom{\DeclarePairedDelimiterXPP{\Geom}[1]{\operatorname{Geom}}(){}{#1}}
+\akizumi@newdelim\Unif{\DeclarePairedDelimiterXPP{\Unif}[2]{\operatorname{Unif}}(){}{#1, #2}}
+\akizumi@new\indep{\newcommand{\indep}{\mathrel{\perp\mkern-9mu\perp}}}
+\akizumi@new\iid{\newcommand{\iid}{\overset{\mathrm{iid}}{\sim}}}
+
+% ---------- number sets, alphabets ----------
+\akizumi@new\R{\newcommand{\R}{\mathbb{R}}}
+\akizumi@new\N{\newcommand{\N}{\mathbb{N}}}
+\akizumi@new\Z{\newcommand{\Z}{\mathbb{Z}}}
+\akizumi@new\Q{\newcommand{\Q}{\mathbb{Q}}}
+\akizumi@new\C{\newcommand{\C}{\mathbb{C}}}
+% Script letters (RSFS) as a math alphabet: no symbol font slot until used.
+% \mathbbm and \mathbbmss (bbm's bitmap fonts) are plain \mathbb, unless a
+% package such as bbm defines them in the preamble.
+\@ifpackageloaded{unicode-math}{}{%
+  \@ifundefined{mathscr}{\DeclareMathAlphabet{\mathscr}{U}{rsfs}{m}{n}}{}}
+\AtBeginDocument{%
+  \akizumi@new\mathbbm{\let\mathbbm\mathbb}%
+  \akizumi@new\mathbbmss{\let\mathbbmss\mathbb}}
+
+% Column vector: \cvec{1, 2, 3}; \cvec[p]{...} for parentheses
+\akizumi@new\cvec{\newcommand{\cvec}[2][b]{\akizumi@cvec{#1}{#2}}}
 
 % Upright differential: \int f(x) \dd x
-\newcommand{\dd}{\mathop{}\!\mathrm{d}}
+\akizumi@new\dd{\newcommand{\dd}{\mathop{}\!\mathrm{d}}}
+
+% ---------- letters=bold,single,cal,bb,greek (opt-in) ----------
+% bold: \va..\vz, \vA..\vZ, \vzero, \vone; a bare \vb (no brace) is bold b.
+% single: \a..\z bold in math; outside math they keep their text meaning, so
+% accents like \c{c}, \v{s}, \d{h} still work. cal: \sA..\sZ. bb: \nA..\nZ.
+% greek: \valpha..\vomega, \vGamma..\vOmega.
+\def\akizumi@letter#1#2{% #1 name, #2 replacement
+  \expandafter\akizumi@new\csname#1\endcsname{\expandafter\def\csname#1\endcsname{#2}}}
+\akizumi@ifletters{bold}{%
+  \@tfor\akizumi@l:=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\do{%
+    \edef\akizumi@tmp{\noexpand\akizumi@letter{v\akizumi@l}{\noexpand\akizumi@bold{\akizumi@l}}}%
+    \akizumi@tmp}%
+  \akizumi@letter{vzero}{\akizumi@bold{0}}%
+  \akizumi@letter{vone}{\akizumi@bold{1}}%
+  \akizumi@ifowned\vb
+    {\protected\def\vb{\@ifnextchar\bgroup\akizumi@bold{\akizumi@bold{b}}}\akizumi@own\vb}{}%
+}{}
+\akizumi@ifletters{cal}{%
+  \@tfor\akizumi@l:=ABCDEFGHIJKLMNOPQRSTUVWXYZ\do{%
+    \edef\akizumi@tmp{\noexpand\akizumi@letter{s\akizumi@l}{\noexpand\mathcal{\akizumi@l}}}%
+    \akizumi@tmp}}{}
+\akizumi@ifletters{bb}{%
+  \@tfor\akizumi@l:=ABCDEFGHIJKLMNOPQRSTUVWXYZ\do{%
+    \edef\akizumi@tmp{\noexpand\akizumi@letter{n\akizumi@l}{\noexpand\mathbb{\akizumi@l}}}%
+    \akizumi@tmp}}{}
+\akizumi@ifletters{greek}{%
+  \@for\akizumi@l:=alpha,beta,gamma,delta,epsilon,varepsilon,zeta,eta,theta,%
+      vartheta,iota,kappa,lambda,mu,nu,xi,pi,varpi,rho,varrho,sigma,varsigma,%
+      tau,upsilon,phi,varphi,chi,psi,omega,Gamma,Delta,Theta,Lambda,Xi,Pi,%
+      Sigma,Upsilon,Phi,Psi,Omega\do{%
+    \edef\akizumi@tmp{\noexpand\akizumi@letter{v\akizumi@l}%
+      {\noexpand\akizumi@bold{\expandafter\noexpand\csname\akizumi@l\endcsname}}}%
+    \akizumi@tmp}}{}
+\akizumi@ifletters{single}{%
+  \@tfor\akizumi@l:=abcdefghijklmnopqrstuvwxyz\do{%
+    \expandafter\ifx\csname\akizumi@l\endcsname\relax
+      \edef\akizumi@tmp{\noexpand\akizumi@letter{\akizumi@l}%
+        {\noexpand\ensuremath{\noexpand\akizumi@bold{\akizumi@l}}}}%
+      \akizumi@tmp
+    \fi}%
+  \AtBeginDocument{\akizumi@wrapletters}}{}
+% The text commands among them (accents, \i, \l, \o) are wrapped once fonts
+% are set up, and only while they still are LaTeX's text commands.
+\def\akizumi@wrapletters{%
+  \let\akizumi@textletters\@empty
+  \@tfor\akizumi@l:=abcdijklortuv\do{%
+    \expandafter\akizumi@wrapletter\csname\akizumi@l\endcsname}%
+  \@ifpackageloaded{hyperref}% bookmarks see the text meaning
+    {\expandafter\pdfstringdefDisableCommands\expandafter{\akizumi@textletters}}{}}
+\def\akizumi@wrapletter#1{%
+  \akizumi@iftextcmd#1{\akizumi@ifskipped{\akizumi@l}{}{%
+    \edef\akizumi@tmp{%
+      \let\expandafter\noexpand\csname akizumi@text@\akizumi@l\endcsname\noexpand#1%
+      \protected\def\noexpand#1{\noexpand\ifmmode\noexpand\akizumi@bold{\akizumi@l}\noexpand\else
+        \noexpand\expandafter\expandafter\noexpand\csname akizumi@text@\akizumi@l\endcsname
+        \noexpand\fi}%
+      \noexpand\g@addto@macro\noexpand\akizumi@textletters{\let\noexpand#1%
+        \expandafter\noexpand\csname akizumi@text@\akizumi@l\endcsname}}%
+    \akizumi@tmp}}{}}
+
+% ---------- delims=auto ----------
+\def\akizumi@autodelim#1{\@ifstar{#1}{\@ifnextchar[{#1}{#1*}}}
+\ifakizumi@autodelims
+  \def\akizumi@wrapdelim#1{%
+    \expandafter\let\csname akizumi@pd@\expandafter\@gobble\string#1\endcsname#1%
+    \protected\edef#1{\noexpand\akizumi@autodelim
+      \expandafter\noexpand\csname akizumi@pd@\expandafter\@gobble\string#1\endcsname}%
+    \akizumi@own#1}
+  \akizumi@mapdelims\akizumi@wrapdelim
+\fi
+
+% ---------- units ----------
+\ifakizumi@units\RequirePackage{siunitx}\fi
+
+% ---------- yielding to the document ----------
+% \newcommand, \DeclareMathOperator and \DeclarePairedDelimiter all ask
+% \@ifdefinable first. For a name that still has the meaning given above,
+% drop it (and mathtools' helpers for it) so the new definition goes through.
+% \renewcommand resets \@ifdefinable from \@@ifdefinable, so both are set.
+\def\akizumi@yield#1{%
+  \ifcsname akizumi@soft@\expandafter\@gobble\string#1\endcsname
+    \expandafter\ifx\csname akizumi@soft@\expandafter\@gobble\string#1\endcsname#1%
+      \PackageInfo{akizumi-math}{\string#1 redefined by the document}%
+      \let#1\@undefined
+      \akizumi@dropmt{\expandafter\@gobble\string#1}{star:}%
+      \akizumi@dropmt{\expandafter\@gobble\string#1}{nostar:}%
+      \akizumi@dropmt{\expandafter\@gobble\string#1}{nostar_inner:}%
+    \fi
+  \fi}
+\def\akizumi@dropmt#1#2{%
+  \ifcsname MT_delim_#1_#2\endcsname
+    \expandafter\let\csname MT_delim_#1_#2\endcsname\@undefined
+  \fi}
+\ifakizumi@mathyield
+  \let\akizumi@ifdefinable\@ifdefinable
+  \long\def\@ifdefinable#1{\akizumi@yield#1\akizumi@ifdefinable#1}
+  \let\@@ifdefinable\@ifdefinable
+\fi
 
 \endinput

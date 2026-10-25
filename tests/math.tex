@@ -1,0 +1,57 @@
+% !TEX program = xelatex
+% akizumi-math: class options reach it, preamble definitions win over its
+% macros without errors, letter sets, delims=auto, \given, new operators.
+\documentclass[delims=auto, letters={all, single}, vb=upright, units, mathskip={Geom}]{akizumi-note}
+% bbm-style alphabet (never used below, so no bitmap font is needed); the
+% \mathbbm alias must step aside for it
+\DeclareMathAlphabet{\mathbbm}{U}{bbm}{m}{n}
+
+% A typical shortcuts file: each of these used to stop with "already defined"
+% or quietly change meaning.
+\newcommand{\R}{\mathbf{R}}
+\DeclareMathOperator{\E}{E}
+\DeclarePairedDelimiter{\ceil}{\lceil}{\rceil}
+\renewcommand{\T}{^{\mathsf{T}}}
+\def\vb{{\bm{b}}}
+\newcommand{\Geom}{G} % left out by mathskip, so \newcommand just works
+
+\makeatletter
+\newcommand\assert[2]{\ifx#1#2\else\errmessage{akizumi-math test: \string#1 is \meaning#1}\fi}
+\newcommand\assertowned[1]{\akizumi@ifowned#1{}{\errmessage{akizumi-math test: \string#1 was taken over}}}
+\newcommand\expectR{\mathbf{R}}
+\assert\R\expectR
+\@ifundefined{akizumi@soft@Geom}{}{\errmessage{akizumi-math test: mathskip ignored}}
+\AtBeginDocument{%
+  % nothing loaded after akizumi-math (fonts, hyperref, cleveref, ...) took a name
+  \begingroup\def\do#1{\assertowned#1}%
+  \do\abs\do\norm\do\set\do\inner\do\floor\do\given\do\Prob\do\Normal\do\Bern
+  \do\Bin\do\Pois\do\Unif\do\indep\do\iid\do\plim\do\Corr\do\spn\do\nullity\do\im
+  \do\adj\do\col\do\row\do\nul\do\id\do\supp\do\vol\do\Bd\do\Int\do\diam\do\lcm
+  \do\N\do\Z\do\Q\do\C\do\cvec\do\dd\do\bvec\do\va\do\vA\do\sA\do\nA\do\valpha
+  \do\vOmega\do\vzero\do\x\do\Var\do\argmin\do\tr\do\mathbbmss\endgroup
+  \@ifundefined{mathscr}{\errmessage{akizumi-math test: no \string\mathscr}}{}%
+  \akizumi@ifowned\mathbbm{\errmessage{akizumi-math test: bbm's \string\mathbbm\space replaced}}{}%
+  \akizumi@ifowned\vb{\errmessage{akizumi-math test: user \string\vb\space replaced}}{}}
+\makeatother
+
+\begin{document}
+\section{Fa\c{c}ade}
+Text accents still work with \texttt{letters=single}: Fa\c{c}ade, \v{s}, \d{h}, \i, \o, \l, \u{a}.
+
+Delimiters grow by default: $\abs{\frac{1}{2}}$, $\norm{\frac{a}{b}}$; starred keeps the size:
+$\abs*{\frac{1}{2}}$; $\abs[\big]{x}$.
+\begin{gather*}
+  \Prob{A \given \frac{B}{C}} \quad \set{x \in \R \given x > 0} \quad
+  X_i \iid \Normal{\mu}{\sigma^2} \quad X \indep Y \quad \plim_{n\to\infty} \bar X_n \\
+  Y \sim \Bern{p}, \Bin{n}{p}, \Pois{\lambda}, \Unif{a}{b}
+\end{gather*}
+\[
+  \x + \c + \v, \ \va + \vA\vx, \ \sA, \nR, \ \valpha, \vGamma, \vzero, \vone, \ \bvec{\alpha},
+  \ \vb, \ A\T, \ \E X, \ \C, \Q, \N, \Z, \ \mathscr{L}, \mathbbmss{R}
+\]
+\[
+  \cvec{1, 2, 3} \quad \cvec[p]{a, b} \quad \floor{x} \ceil{y} \quad
+  \spn\nullity\im\adj\col\row\nul\id\quad \supp\vol\Bd\Int\diam\lcm \quad \Corr \quad \Geom
+\]
+Units: \qty{9.8}{\metre\per\second\squared}.
+\end{document}

@@ -1,0 +1,12 @@
+\chapter{Chapter folders}\label{ch:folders}
+\typeout{AXTEST chapter=\thechapter, dir=\thechapterdir}
+\input{chapterdir-section}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=3cm]{chapterdir-swatch}\quad
+  \chapterdir[figures=img]{chapterdir-demo}%
+  \includegraphics[width=3cm]{chapterdir-other}
+  \caption{The first image from \texttt{figures/}, the second from \texttt{img/}.}
+\end{figure}
+\inputcode[lang=Python, title=chapterdir-hello.py]{chapterdir-hello.py}
+\lstinputlisting[language=Python, numbers=none]{code/chapterdir-hello.py}

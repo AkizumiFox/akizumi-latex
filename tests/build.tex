@@ -1,0 +1,18 @@
+% !TEX program = xelatex
+% \chapterdir: figures, \input and code files come from the chapter's own
+% folder (tests/chapterdir-demo); \chapterdir{} returns to the main folder.
+% ax build --chapter, prebuild, shell_escape and ax count are tested by
+% `ax selftest projects`.
+\documentclass{akizumi-book}
+\title{Chapter folders}
+\begin{document}
+\mainmatter
+\chapter{Before}
+Main folder only; \verb|\thechapterdir| is empty: [\thechapterdir].
+\chapterdir{chapterdir-demo/}
+\include{chapterdir-demo/chapterdir-chapter}
+\chapterdir{}
+\chapter{After}
+Back in the main folder: [\thechapterdir]. See \cref{ch:folders}.
+\IfFileExists{chapterdir-section.tex}{\PackageError{test}{chapter folder still searched}{}}{}
+\end{document}

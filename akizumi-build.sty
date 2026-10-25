@@ -1,0 +1,89 @@
+% akizumi-build.sty -- one folder per chapter. Loaded by akizumi-core (documents).
+%   \chapterdir{basic-op}       \includegraphics looks in basic-op/ and
+%                               basic-op/figures/; \input, \inputcode and
+%                               \lstinputlisting in basic-op/ and basic-op/code/
+%   \include{basic-op/chapter}  (give the folder: aux files are named after it)
+%   \chapterdir[figures=img, code=ref-codes]{basic-op}
+%   \chapterdir{}               back to the main folder only
+%   \thechapterdir              the current folder (empty before the first one)
+% The document's own \graphicspath and \input@path stay searched after the
+% chapter's folders. Settings are global, so the call may sit inside a chapter.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-build}[2026/10/25 v0.8 Aaron Lin chapter folders]
+\RequirePackage{graphicx}
+
+\ExplSyntaxOn
+\tl_new:N \l__akizumi_cdir_fig_tl
+\tl_new:N \l__akizumi_cdir_code_tl
+\keys_define:nn { akizumi/chapterdir }
+  {
+    figures .tl_set:N = \l__akizumi_cdir_fig_tl,
+    figures .initial:n = figures,
+    code    .tl_set:N = \l__akizumi_cdir_code_tl,
+    code    .initial:n = code,
+  }
+\tl_new:N \g__akizumi_cdir_base_gpath_tl
+\tl_new:N \g__akizumi_cdir_base_ipath_tl
+\bool_new:N \g__akizumi_cdir_saved_bool
+\bool_new:N \g__akizumi_cdir_had_gpath_bool
+\bool_new:N \g__akizumi_cdir_had_ipath_bool
+\tl_new:N \thechapterdir
+
+% Folder names without a trailing slash; "a/b/" and "a/b" mean the same.
+\cs_new:Npn \__akizumi_cdir_join:nn #1#2
+  { \tl_if_blank:nTF {#2} { {#1/} } { {#1/#2/} } }
+\cs_generate_variant:Nn \__akizumi_cdir_join:nn { VV }
+
+\NewDocumentCommand \chapterdir { O{} m }
+  {
+    \group_begin:
+      \keys_set:nn { akizumi/chapterdir } {#1}
+      \bool_if:NF \g__akizumi_cdir_saved_bool
+        {
+          \cs_if_exist:NT \Ginput@path
+            {
+              \tl_gset_eq:NN \g__akizumi_cdir_base_gpath_tl \Ginput@path
+              \bool_gset_true:N \g__akizumi_cdir_had_gpath_bool
+            }
+          \cs_if_exist:NT \input@path
+            {
+              \tl_gset_eq:NN \g__akizumi_cdir_base_ipath_tl \input@path
+              \bool_gset_true:N \g__akizumi_cdir_had_ipath_bool
+            }
+          \bool_gset_true:N \g__akizumi_cdir_saved_bool
+        }
+      \tl_set:Ne \l_tmpa_tl { \tl_trim_spaces:n {#2} }
+      \tl_if_blank:VF \l_tmpa_tl
+        {
+          \str_if_eq:eeT { \tl_item:Nn \l_tmpa_tl { -1 } } { / }
+            { \tl_set:Ne \l_tmpa_tl { \tl_range:Nnn \l_tmpa_tl { 1 } { -2 } } }
+        }
+      \tl_gset_eq:NN \thechapterdir \l_tmpa_tl
+      \tl_if_blank:VTF \l_tmpa_tl
+        {
+          \bool_if:NTF \g__akizumi_cdir_had_gpath_bool
+            { \tl_gset_eq:NN \Ginput@path \g__akizumi_cdir_base_gpath_tl }
+            { \cs_undefine:N \Ginput@path }
+          \bool_if:NTF \g__akizumi_cdir_had_ipath_bool
+            { \tl_gset_eq:NN \input@path \g__akizumi_cdir_base_ipath_tl }
+            { \cs_undefine:N \input@path }
+        }
+        {
+          \tl_gset:Ne \Ginput@path
+            {
+              { \l_tmpa_tl / }
+              \__akizumi_cdir_join:VV \l_tmpa_tl \l__akizumi_cdir_fig_tl
+              \exp_not:V \g__akizumi_cdir_base_gpath_tl
+            }
+          \tl_gset:Ne \input@path
+            {
+              { \l_tmpa_tl / }
+              \__akizumi_cdir_join:VV \l_tmpa_tl \l__akizumi_cdir_code_tl
+              \exp_not:V \g__akizumi_cdir_base_ipath_tl
+            }
+        }
+    \group_end:
+  }
+\ExplSyntaxOff
+
+\endinput

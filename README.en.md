@@ -54,7 +54,7 @@ The integrating factor is $e^{2x}$, so $y = e^{-x}$.
 \end{problem}
 ```
 
-`ax new` on its own asks for the kind, folder and title. Six kinds:
+`ax new` on its own walks you through it: kind (arrow keys), title, language, bibliography or not, folder name (suggested from the title), then a final confirmation. Six kinds:
 
 | Kind | For |
 |---|---|
@@ -73,7 +73,7 @@ In a project folder (or any folder inside it):
 
 | Command | Does |
 |---|---|
-| `ax` | this project's status: kind, template version, when the PDF was updated |
+| `ax` | a menu: in a project, its status and what to do (build, watch, open the PDF); elsewhere, start a document or reopen a recent project |
 | `ax watch` | recompile on every save (when not using Cursor); `--bg` runs it in the background, `--status` and `--stop` check on it and stop it |
 | `ax build` | compile once; on failure, shows the line, a plain-language hint, and keeps the previous PDF |
 | `ax open` | open the PDF (`--solutions` for the answer key) |

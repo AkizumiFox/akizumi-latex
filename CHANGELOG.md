@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Friendlier menus: bare `ax` shows a home menu outside a project (start a document, recent projects, check the setup, look something up) and an action menu inside one (build, watch, background watch, open the PDF, Cursor). Bare `ax new` walks through kind, title, language, bibliography and folder (suggested from the title) with defaults, then asks for confirmation. Arrow keys / j k / digits; plain prompts when not on a terminal.
 - `ax docs TOPIC` prints the matching section of the reference manual in the terminal: Chinese or English words, option names (`thmcounter`) and macros (`\cref`), matched across both languages, with typo correction and a list of similar headings when nothing matches; `--web` opens it on GitHub at that section, `--en` the English manual, `--cheatsheet` the cheat sheet PDF (built into the cache when missing). Plain `ax docs` opens the manual.
 - `ax --help` and each command's `--help` are in Chinese in the Chinese interface (用法、參數、選項), and every command's help has a short description and examples. Unknown options get a suggestion from that command's own options.
 - `examples/cheatsheet.tex`: a quick reference (Chinese, landscape) built with the templates, each feature's source next to its output; `ax selftest examples` builds it and copies `examples/cheatsheet.pdf`, linked from the README.

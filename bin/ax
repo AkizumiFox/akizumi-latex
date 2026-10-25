@@ -594,8 +594,138 @@ def ask(prompt):
         sys.exit(130)
 
 
+def ask_default(prompt, default):
+    """Ask with the default shown in brackets; Enter keeps it."""
+    shown = _paint(f" [{default}]", "2") if default else ""
+    return ask(f"{prompt}{shown}{T('：', ': ')}") or default
+
+
+def confirm(prompt, default=True):
+    hint = _paint("[Y/n]" if default else "[y/N]", "2")
+    answer = ask(f"{prompt} {hint} ").lower()
+    return default if not answer else answer in ("y", "yes", "是", "好", "要")
+
+
+def _width(text):
+    """Terminal columns: CJK characters take two."""
+    import unicodedata
+    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+
+def _read_key():
+    """One key press: 'up', 'down', 'enter', 'quit', a digit, or ''."""
+    if WINDOWS:
+        import msvcrt
+        ch = msvcrt.getwch()
+        if ch in ("\x00", "\xe0"):
+            return {"H": "up", "P": "down"}.get(msvcrt.getwch(), "")
+    else:
+        import termios
+        import tty
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = os.read(fd, 1).decode(errors="ignore")
+            if ch == "\x1b":  # arrows send ESC [ A / ESC [ B; a lone ESC quits
+                import select as _select
+                if _select.select([fd], [], [], 0.05)[0]:
+                    rest = os.read(fd, 2).decode(errors="ignore")
+                    return {"[A": "up", "[B": "down", "OA": "up", "OB": "down"}.get(rest, "")
+                return "quit"
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    if ch in ("\r", "\n"):
+        return "enter"
+    if ch in ("\x03", "\x1b", "q", "Q"):
+        return "quit"
+    if ch in ("k", "K"):
+        return "up"
+    if ch in ("j", "J"):
+        return "down"
+    return ch if ch.isdigit() else ""
+
+
+def menu_keys_ok():
+    """Arrow-key menus need a terminal that understands cursor movement."""
+    if not (stdin_is_terminal() and sys.stdout.isatty()):
+        return False
+    return _enable_windows_ansi() if WINDOWS else os.environ.get("TERM") != "dumb"
+
+
+def select(title, options, default=0):
+    """Pick one of options [(label, hint), ...]; returns its index, or None
+    when the user quits. Arrow keys, j/k or a digit, then Enter, on a
+    terminal; a numbered prompt otherwise."""
+    if title:
+        print(title)
+    if not menu_keys_ok():
+        for i, (label, hint) in enumerate(options, 1):
+            print(f"  {cmd_text(str(i))}. {label}  {_paint(hint, '2') if hint else ''}")
+        for _ in range(3):
+            choice = ask(T(f"選擇 [1-{len(options)}，Enter = {default + 1}]：",
+                           f"Choose [1-{len(options)}, Enter = {default + 1}]: "))
+            if not choice:
+                return default
+            if choice.isdigit() and 1 <= int(choice) <= len(options):
+                return int(choice) - 1
+            warn(T(f"請輸入 1–{len(options)}", f"Type 1-{len(options)}"))
+        return None
+    pointer = "❯" if _unicode_ok(sys.stdout) else ">"
+    width = max(_width(label) for label, _ in options)
+    current = default
+
+    def draw(first):
+        if not first:
+            sys.stdout.write(f"\033[{len(options) + 1}A")
+        for i, (label, hint) in enumerate(options):
+            mark = _paint(pointer, "36") if i == current else " "
+            text = _paint(label, "1") if i == current else label
+            pad = " " * (width - _width(label))
+            sys.stdout.write(f"\r\033[K  {mark} {text}{pad}  {_paint(hint, '2') if hint else ''}\n")
+        sys.stdout.write("\r\033[K" + _paint(T("  ↑↓ 選擇 · Enter 確認 · q 離開",
+                                                "  ↑↓ move · Enter choose · q quit"), "2") + "\n")
+        sys.stdout.flush()
+
+    draw(True)
+    while True:
+        key = _read_key()
+        if key == "up":
+            current = (current - 1) % len(options)
+        elif key == "down":
+            current = (current + 1) % len(options)
+        elif key.isdigit() and 1 <= int(key) <= len(options):
+            current = int(key) - 1
+        elif key in ("enter", "quit"):
+            # collapse the menu into one line with the choice
+            sys.stdout.write(f"\033[{len(options) + 1}A\r\033[J")
+            if key == "enter":
+                sys.stdout.write(f"  {_paint(pointer, '36')} {options[current][0]}\n")
+            sys.stdout.flush()
+            return current if key == "enter" else None
+        draw(False)
+
+
+def folder_name(kind, title, course, number):
+    """A folder name suggested from what was typed: "self-predictive-reps",
+    "ode-hw3"; falls back to "note-1026" when the title is not Latin."""
+    def slug(text):
+        words = re.findall(r"[A-Za-z0-9]+", text or "")
+        return "-".join(words[:5]).lower()
+    if kind == "hw":
+        base = "-".join(filter(None, [slug(course), f"hw{number}" if number else "hw"]))
+        return base
+    return slug(title) or f"{kind}-{time.strftime('%m%d')}"
+
+
 def choose_kind():
     names = list(KINDS)
+    if menu_keys_ok():
+        i = select(T("要建立哪一種文件？", "What do you want to make?"),
+                   [(k, KIND_HELP[k]) for k in names])
+        if i is None:
+            sys.exit(0)
+        return names[i]
     print(T("要建立哪一種文件？", "What do you want to make?"))
     for i, k in enumerate(names, 1):
         print(f"  {cmd_text(str(i))}. {k:<7} {_paint(KIND_HELP[k], '2')}")
@@ -843,6 +973,12 @@ def paper_scaffold(a, title, author, pin, extra):
 def cmd_new(a):
     user = load_json(USER_CONFIG)
     interactive = stdin_is_terminal()
+    # Guided mode: bare `ax new` (or the ax menu) on a terminal asks step by
+    # step with defaults and a summary; with arguments it creates at once.
+    guided = interactive and a.kind is None and a.dir is None
+    if guided:
+        print(T("建立新文件。每一步按 Enter 用預設值，Ctrl-C 隨時取消。\n",
+                "New document. Press Enter to keep a default; Ctrl-C cancels at any step.\n"))
     if a.kind is None:
         if not interactive:
             die(T("ax new 需要種類", "ax new needs a kind"),
@@ -866,21 +1002,68 @@ def cmd_new(a):
             a.byline = bool(value)
         elif key == "code" and a.code is None:
             a.code = value
-    if a.dir is None:
+    if a.dir is None and not guided:
         if not interactive:
             die(T("ax new 需要資料夾名稱", "ax new needs a folder name"),
                 T(f"例如 ax new {a.kind} my-{a.kind}", f"For example ax new {a.kind} my-{a.kind}"))
         a.dir = ask(T("資料夾名稱：", "Folder name: ")) or die(T("沒有給資料夾名稱", "No folder name given"))
-    target = Path(a.dir)
-    if target.exists() and any(target.iterdir()) and not a.force:
-        die(T(f"{target} 已經存在而且不是空的", f"{target} already exists and is not empty"),
-            T("換一個名字，或加 --force 照樣建立", "Pick another name, or add --force to use it anyway"))
 
     title = a.title
     if title is None and a.kind != "hw" and interactive:
         title = ask(T("標題：", "Title: ")) or None
     if a.kind == "hw" and a.course is None and interactive:
         a.course = ask(T("課名（可留白）：", "Course (optional): ")) or None
+    if guided and a.kind == "hw" and a.number is None:
+        a.number = ask(T("第幾次作業（可留白）：", "Homework number (optional): ")) or None
+    if guided:
+        print()
+        if a.lang is None and a.kind != "paper":
+            langs = ["en", "zh", "ja", "ko"]
+            names = {"en": T("英文", "English"), "zh": T("中文", "Chinese"),
+                     "ja": T("日文", "Japanese"), "ko": T("韓文", "Korean")}
+            start = user.get("lang", "en")
+            i = select(T("主語言？", "Main language?"),
+                       [(names[l], l) for l in langs], langs.index(start) if start in langs else 0)
+            if i is None:
+                sys.exit(0)
+            a.lang = langs[i]
+        if a.kind == "paper" and a.venue is None:
+            venues = ["plain", "neurips", "icml", "iclr", "aaai"]
+            i = select(T("投稿哪裡？", "Which venue?"),
+                       [(v, T("一般論文（article）", "plain article") if v == "plain" else
+                         T("會議的 .sty 要自己下載", "download the venue's .sty yourself")) for v in venues])
+            if i is None:
+                sys.exit(0)
+            a.venue = venues[i]
+        if not a.bib and a.kind in ("note", "book", "slides"):
+            a.bib = confirm(T("要參考文獻（refs.bib）嗎？", "Add a bibliography (refs.bib)?"), False)
+        a.dir = ask_default(T("資料夾名稱", "Folder name"), folder_name(a.kind, title, a.course, a.number))
+        if not a.dir:
+            die(T("沒有給資料夾名稱", "No folder name given"))
+        target = Path(a.dir)
+        if target.exists() and any(target.iterdir()) and not a.force:
+            die(T(f"{target} 已經存在而且不是空的", f"{target} already exists and is not empty"),
+                T("換一個名字，或加 --force 照樣建立", "Pick another name, or add --force to use it anyway"))
+        lang_name = {"en": T("英文", "English"), "zh": T("中文", "Chinese"),
+                     "ja": T("日文", "Japanese"), "ko": T("韓文", "Korean")}.get(a.lang or "en", a.lang)
+        parts = [KIND_NAME[a.kind]]
+        if title:
+            parts.append(f"「{title}」" if UI == "zh" else f'"{title}"')
+        if a.course:
+            parts.append(a.course)
+        if a.kind != "paper":
+            parts.append(lang_name)
+        if a.bib:
+            parts.append(T("參考文獻", "bibliography"))
+        print()
+        if not confirm(T(f"建立 {cmd_text(a.dir + '/')}：{' · '.join(parts)}？",
+                         f"Create {cmd_text(a.dir + '/')}: {' · '.join(parts)}?")):
+            note(T("已取消", "Cancelled"))
+            sys.exit(0)
+    target = Path(a.dir)
+    if target.exists() and any(target.iterdir()) and not a.force:
+        die(T(f"{target} 已經存在而且不是空的", f"{target} already exists and is not empty"),
+            T("換一個名字，或加 --force 照樣建立", "Pick another name, or add --force to use it anyway"))
     author = a.author or user.get("author") or git("config", "user.name").stdout.strip()
     student_id = a.id or user.get("id")
     lang = a.lang or user.get("lang", "en")
@@ -1025,6 +1208,7 @@ def cmd_new(a):
         run("commit", "-q", "-m", f"Start {a.kind} project")
 
     print()
+    remember_project(target)
     ok(T(f"已建立 {cmd_text(str(target))}（{KIND_NAME[a.kind]}，模板 {pin}）",
          f"Created {cmd_text(str(target))} ({KIND_NAME[a.kind]}, template {pin})"))
     dot = MARK['dot']
@@ -1301,6 +1485,7 @@ def cmd_copypdf(a):
 
 def cmd_build(a):
     main = main_file(a.file)
+    remember_project()
     warn_if_watching()
     run_prebuild(a)
     if a.chapter:
@@ -2090,6 +2275,7 @@ def cmd_watch(a):
             find_project(quiet=True)
         sys.exit(watch_status() if a.status else watch_stop() if a.stop else watch_follow())
     main = main_file(a.file)
+    remember_project()
     need_tool("latexmk", T("請先安裝 TeX Live，再執行 ax doctor", "Install TeX Live, then run ax doctor"))
     if not watcher():
         run_prebuild(a)  # once, before watching; not on every save
@@ -4481,6 +4667,32 @@ def cmd_selftest(a):
     ok(T("全部通過", "All passed"))
 
 
+# ---------- recent projects (for the ax menu) ----------
+RECENT = CACHE / "recent.json"
+
+
+def remember_project(root=None):
+    """Note a project in the recent list (newest first, at most 12)."""
+    try:
+        root = Path(root or ".").resolve()  # commands chdir to the project first
+        cfg = load_json(root / PROJECT_CONFIG)
+        if not cfg:
+            return
+        items = [r for r in load_json(RECENT) or [] if r.get("path") != str(root)]
+        items.insert(0, {"path": str(root), "kind": cfg.get("kind", "?"), "time": time.time()})
+        RECENT.parent.mkdir(parents=True, exist_ok=True)
+        RECENT.write_text(json.dumps(items[:12], ensure_ascii=False, indent=1))
+    except (OSError, ValueError, TypeError):
+        pass
+
+
+def recent_projects():
+    items = load_json(RECENT)
+    if not isinstance(items, list):
+        return []
+    return [r for r in items if isinstance(r, dict) and (Path(r.get("path", "")) / PROJECT_CONFIG).exists()]
+
+
 # ---------- bare `ax`: project status ----------
 
 def ago(path):
@@ -4494,8 +4706,9 @@ def ago(path):
     return T(f"{int(secs // 86400)} 天前", f"{int(secs // 86400)} days ago")
 
 
-def show_status():
-    """Bare `ax` inside a project: what this project is and what to do next."""
+def show_status(actions=True):
+    """Bare `ax` inside a project: what this project is and what to do next
+    (actions=False when a menu follows instead of the command list)."""
     cfg = find_project(quiet=True)
     if not cfg:
         return False
@@ -4526,6 +4739,8 @@ def show_status():
     if running:
         print(T(f"  監看  背景執行中（PID {running['pid']}；ax watch --status、--stop）",
                 f"  watch     running in the background (PID {running['pid']}; ax watch --status, --stop)"))
+    if not actions:
+        return True
     print(T("\n常用：", "\nUseful:"))
     for c, text in ((("ax watch", T("存檔就重編", "rebuild on save")),
                      ("ax build", T("編譯一次", "build once")),
@@ -4535,6 +4750,116 @@ def show_status():
         print(f"  {cmd_text(c):<20} {text}")
     note(T("\n全部指令：ax --help", "\nAll commands: ax --help"))
     return True
+
+
+# ---------- bare `ax` on a terminal: menus ----------
+
+def _short(path, limit=48):
+    home = str(Path.home())
+    path = "~" + path[len(home):] if path.startswith(home) else path
+    return path if len(path) <= limit else "…" + path[-(limit - 1):]
+
+
+def _run(parser, argv):
+    a = parser.parse_args(argv)
+    a.func(a)
+
+
+def home_menu(parser):
+    """Bare `ax` outside a project."""
+    tags = template_tags()
+    print(f"{cmd_text('akizumi-latex')} {_paint(tags[0] if tags else '', '2')}")
+    print(_paint(T("這裡不是專案資料夾。要做什麼？", "Not in a project folder. What next?"), "2"))
+    recent = recent_projects()
+    items = [("new", T("建立新文件", "Start a new document"), "ax new")]
+    if recent:
+        items.append(("recent", T("最近的專案", "Recent projects"),
+                      T(f"{len(recent)} 個", f"{len(recent)}")))
+    items += [("doctor", T("檢查環境", "Check the setup"), "ax doctor"),
+              ("docs", T("查文件", "Look something up"), "ax docs"),
+              ("help", T("所有指令", "All commands"), "ax --help")]
+    i = select("", [(label, hint) for _, label, hint in items])
+    if i is None:
+        return
+    key = items[i][0]
+    print()
+    if key == "new":
+        _run(parser, ["new"])
+    elif key == "recent":
+        recent_menu(recent)
+    elif key == "doctor":
+        _run(parser, ["doctor"])
+    elif key == "docs":
+        topic = ask(T("查什麼？（例如 定理、minted、index；留白打開整份手冊）：",
+                      "Topic? (e.g. theorem, minted, index; blank opens the manual): "))
+        _run(parser, ["docs"] + topic.split())
+    else:
+        parser.print_help()
+
+
+def recent_menu(recent):
+    def label(r):
+        name = Path(r["path"]).name
+        return f"{name}  {_paint(KIND_NAME.get(r.get('kind'), r.get('kind', '')), '2')}"
+    i = select(T("最近的專案：", "Recent projects:"),
+               [(label(r), _short(r["path"])) for r in recent])
+    if i is None:
+        return
+    path = Path(recent[i]["path"])
+    print()
+    options = []
+    if shutil.which("cursor"):
+        options.append(("cursor", T("用 Cursor 開啟", "Open in Cursor")))
+    cfg = load_json(path / PROJECT_CONFIG)
+    pdf = path / Path(cfg.get("main", "main.tex")).with_suffix(".pdf")
+    if pdf.exists():
+        options.append(("pdf", T("打開 PDF", "Open the PDF")))
+    options.append(("folder", T("打開資料夾", "Open the folder")))
+    j = select(cmd_text(_short(str(path))), [(text, "") for _, text in options])
+    if j is not None:
+        what = options[j][0]
+        if what == "cursor":
+            subprocess.Popen(["cursor", str(path)])
+        elif what == "pdf":
+            open_file(pdf)
+        else:
+            open_file(path)
+    note(T(f"在終端機進入專案：cd {_short(str(path))}", f"To work there: cd {_short(str(path))}"))
+
+
+def project_menu(parser, cfg):
+    """Bare `ax` inside a project, after its status."""
+    kind = cfg.get("kind")
+    running = watcher()
+    items = [(["build"], T("編譯一次", "Build once"), "ax build"),
+             (["watch"], T("存檔就重編", "Rebuild on save"), "ax watch")]
+    if running:
+        items.append((["watch", "--stop"], T("停止背景監看", "Stop the background watcher"), "ax watch --stop"))
+    else:
+        items.append((["watch", "--bg"], T("在背景監看", "Watch in the background"), "ax watch --bg"))
+    items.append((["open"], T("打開 PDF", "Open the PDF"), "ax open"))
+    if kind in ("hw", "exam"):
+        items.append((["both"], T("題目卷和解答各一份", "Problems and solutions"), "ax both"))
+    if shutil.which("cursor"):
+        items.append((None, T("用 Cursor 開啟", "Open in Cursor"), "cursor ."))
+    items += [(["docs"], T("查文件", "Look something up"), "ax docs"),
+              (["--help"], T("所有指令", "All commands"), "ax --help")]
+    print()
+    i = select(T("要做什麼？", "What next?"), [(label, hint) for _, label, hint in items])
+    if i is None:
+        return
+    argv = items[i][0]
+    print()
+    if argv is None:
+        subprocess.Popen(["cursor", "."])
+    elif argv == ["--help"]:
+        parser.print_help()
+    elif argv == ["docs"]:
+        topic = ask(T("查什麼？（例如 定理、minted、index；留白打開整份手冊）：",
+                      "Topic? (e.g. theorem, minted, index; blank opens the manual): "))
+        _run(parser, ["docs"] + topic.split())
+    else:
+        _run(parser, argv)
 
 
 # ---------- command line ----------
@@ -5006,8 +5331,18 @@ def main():
     e.set_defaults(func=cmd_explain)
 
     if len(sys.argv) == 1:
-        if not show_status():
-            p.print_help()
+        menus = menu_keys_ok()
+        try:
+            if show_status(actions=not menus):
+                if menus:
+                    project_menu(p, project_config())
+            elif menus:
+                home_menu(p)
+            else:
+                p.print_help()
+        except KeyboardInterrupt:
+            print()
+            sys.exit(130)
         sys.exit(0)
     global PARSER
     PARSER = p

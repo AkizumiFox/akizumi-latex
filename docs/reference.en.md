@@ -763,7 +763,7 @@ Except `new`, `doctor`, `config`, `completion`, `migrate`, `docs` and `selftest`
 
 | Command | Effect |
 |---|---|
-| `ax` | In a project: kind, template version (with a note when a newer one exists), when the PDF was last updated, common commands. Outside a project: help |
+| `ax` | In a project: kind, template version (with a note when a newer one exists), when the PDF was last updated, then a menu of actions (build, watch, open the PDF, …). Outside a project: a home menu (start a document, recent projects, check the setup, look something up). Arrow keys or j/k to move, Enter to choose, q to quit; when output is not a terminal (e.g. piped) it prints the plain status or help instead |
 | `ax new` | Creates a project (see [ax new options](#ax-new-options-and-project-contents)) |
 | `ax build` | Compiles once and shows how long it took. Replaces `main.pdf` only on success; on failure prints the file, line number and source line of the first error with a plain-language hint, and keeps the old PDF |
 | `ax watch` | Recompiles on every save and reports each success or failure; opens Skim if you have it |

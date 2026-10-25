@@ -10,6 +10,9 @@
 - GitHub Actions builds everything on Linux and Windows on demand and on version tags.
 - Friendlier `ax`: messages in Chinese with ✓ ✗ and colour (off when piped or with `NO_COLOR`); a spinner with elapsed time while compiling; plain-language hints for common LaTeX errors; typo suggestions for commands, kinds and option values; works from any subfolder of a project; bare `ax` shows the project's status; `ax open`; `ax completion zsh|bash|powershell`; `ax new` lists next steps; `ax doctor` ends with a summary and fixes.
 - Fix: projects pinned to versions before v0.6 no longer re-extract the version on every build.
+- Works with the 2026-06 LaTeX kernel, which made `\newtheorem{x}[theorem]` a counter alias that clashes with thmtools: lemma, claim, … now share theorem's count register under their own counter names (cleveref names them without the old alias hook). Projects pinned to v0.6 or older fail on that kernel with `Command \c@lemma already defined`; `ax build` now says to run `ax upgrade`.
+- Windows: ax reads and writes UTF-8 text and prints UTF-8 to pipes; `ax new` no longer mistakes NUL for a terminal.
+- `ax new --pin latest`; `ax selftest` tests the working tree.
 
 ## v0.6 — 2026-10-25
 

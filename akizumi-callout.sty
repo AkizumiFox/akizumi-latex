@@ -1,0 +1,256 @@
+% akizumi-callout.sty -- reading-aid boxes in the left-bar look of the
+% theorems. Loaded by akizumi-core (documents and slides).
+%
+%   \begin{keyidea}[title] ... \end{keyidea}      also proofidea, tip, warning,
+%   pitfall, note, chapterguide (with \guidehead{...}) and setup (no label)
+%   \akizumiNewCallout{name}{English}{zh}{ja}{ko}[keys]   a new kind
+%   \akizumiCalloutSetup{name}{keys}                      change a kind
+%   \optional   star for optional material, also in bookmarks:
+%               \section{\optional Title}, \begin{remark}[\optional Title]
+%
+% Keys: numbered = false | true | <counter>  (true: 1, 2, ...; chapter,
+%         section, ...: reset by that counter and shown as 3.1; ignored when
+%         the counter does not exist)
+%       tint = false | true | <color>  (faint background; true: the bar color
+%         at 7%)
+%       bar = <width>, color = <bar color>, labelcolor = <label color>,
+%       head = inline | block  (label run into the text or on its own line),
+%       thmname = false | true  (true: the name follows thmnames= like the
+%         theorems; false: it follows lang=), plural = <English plural>
+%
+% The ready-made kinds are defined at \begin{document} and only when the name
+% is free, so a preamble's own keyidea, \pitfall or \optional wins (and on
+% slides beamer's \note keeps the name note).
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-callout}[2026/10/25 v0.8 Aaron Lin callouts]
+
+\newif\ifakizumi@coslides
+\@ifclassloaded{beamer}{\akizumi@coslidestrue}{}
+
+\tcbset{
+  akizumi/callout/.style 2 args={akizumi/bar={#1}{#2}},
+  akizumi/callout tint/.style 2 args={enhanced jigsaw, breakable, parbox=false,
+    frame hidden, colback=akizumi@cotint, boxrule=0pt,
+    arc=0pt, outer arc=0pt, boxsep=0pt, borderline west={#1}{0pt}{#2},
+    left=0.9em, right=0.8em, top=0.55em, bottom=0.55em,
+    before skip=0.9em, after skip=0.9em},
+  akizumi/callout extra/.style={},
+}
+\ifakizumi@coslides\tcbset{akizumi/callout extra/.style={before skip=0.6em, after skip=0.6em}}\fi
+
+\ExplSyntaxOn
+\tl_new:N \l__akizumi_co_name_tl
+\seq_new:N \g__akizumi_co_numbered_seq
+\cs_new_protected:Npn \__akizumi_co_set:nnn #1#2#3
+  { \tl_gset:cn { akizumi@co@ #1 @ #2 } {#3} }
+\cs_new_protected:Npn \__akizumi_co_key:nn #1#2
+  { \exp_args:NV \__akizumi_co_set:nnn \l__akizumi_co_name_tl {#1} {#2} }
+\cs_new_protected:Npn \__akizumi_co_numbered:nn #1#2
+  {
+    \str_if_eq:nnTF {#2} { false }
+      { \__akizumi_co_set:nnn {#1} { num } { } }
+      {
+        \__akizumi_co_set:nnn {#1} { num } {#1}
+        \seq_if_in:NnF \g__akizumi_co_numbered_seq {#1}
+          { \seq_gput_right:Nn \g__akizumi_co_numbered_seq {#1} }
+        \cs_if_exist:cF { c@#1 } { \newcounter {#1} }
+        \str_if_eq:nnF {#2} { true }
+          {
+            \cs_if_exist:cTF { c@#2 }
+              {
+                \counterwithin* {#1} {#2}
+                \cs_gset:cpn { the#1 } { \use:c { the#2 } . \arabic {#1} }
+                \cs_gset:cpn { theH#1 } { \use:c { theH#2 } . \arabic {#1} }
+              }
+              { }
+          }
+      }
+  }
+\keys_define:nn { akizumi/callout }
+  {
+    numbered   .code:n = \exp_args:NV \__akizumi_co_numbered:nn \l__akizumi_co_name_tl {#1},
+    numbered   .default:n = true,
+    tint       .code:n = \__akizumi_co_key:nn { tint } {#1},
+    tint       .default:n = true,
+    bar        .code:n = \__akizumi_co_key:nn { bar } {#1},
+    color      .code:n = \__akizumi_co_key:nn { color } {#1},
+    labelcolor .code:n = \__akizumi_co_key:nn { labelcolor } {#1},
+    head       .choices:nn = { inline, block }
+      { \exp_args:NnV \__akizumi_co_key:nn { head } \l_keys_choice_tl },
+    thmname    .choices:nn = { true, false }
+      { \exp_args:NnV \__akizumi_co_key:nn { thm } \l_keys_choice_tl },
+    thmname    .default:n = true,
+    plural     .code:n = \__akizumi_co_key:nn { plural } {#1},
+  }
+% defaults, then names (empty zh / ja / ko fall back to the English)
+\cs_new_protected:Npn \__akizumi_co_init:nnnnn #1#2#3#4#5
+  {
+    \__akizumi_co_set:nnn {#1} { tint } { false }
+    \__akizumi_co_set:nnn {#1} { bar } { 1pt }
+    \__akizumi_co_set:nnn {#1} { color } { accentsoft }
+    \__akizumi_co_set:nnn {#1} { labelcolor } { accent }
+    \__akizumi_co_set:nnn {#1} { head } { inline }
+    \__akizumi_co_set:nnn {#1} { thm } { false }
+    \__akizumi_co_set:nnn {#1} { num } { }
+    \tl_if_blank:nTF {#2}
+      { \__akizumi_co_set:nnn {#1} { plural } { } }
+      { \__akizumi_co_set:nnn {#1} { plural } { #2s } }
+    \use:e
+      {
+        \__akizumi_co_names:nnnnn {#1} { \exp_not:n {#2} }
+          { \tl_if_blank:nTF {#3} { \exp_not:n {#2} } { \exp_not:n {#3} } }
+          { \tl_if_blank:nTF {#4} { \exp_not:n {#2} } { \exp_not:n {#4} } }
+          { \tl_if_blank:nTF {#5} { \exp_not:n {#2} } { \exp_not:n {#5} } }
+      }
+  }
+\cs_new_protected:Npn \__akizumi_co_names:nnnnn #1#2#3#4#5
+  {
+    \akizumi@s  {callout-#1} {#2} {#3} {#4} {#5}
+    \akizumi@tn {callout-#1@thm} {#2} {#3} {#4} {#5}
+  }
+\cs_new_protected:Npn \__akizumi_co_env:n #1
+  {
+    \NewDocumentEnvironment {#1} { o }
+      { \akizumi@cobegin {#1} {##1} }
+      { \end{tcolorbox} }
+  }
+\NewDocumentCommand \akizumiCalloutSetup { m m }
+  {
+    \tl_set:Nn \l__akizumi_co_name_tl {#1}
+    \keys_set:nn { akizumi/callout } {#2}
+  }
+\NewDocumentCommand \akizumiNewCallout { m m m m m O{} }
+  {
+    \__akizumi_co_init:nnnnn {#1} {#2} {#3} {#4} {#5}
+    \akizumiCalloutSetup {#1} {#6}
+    \__akizumi_co_env:n {#1}
+  }
+% ready-made kinds: configured now, defined at \begin{document} if free
+\cs_new_protected:Npn \__akizumi_co_provide:nnnnnn #1#2#3#4#5#6
+  {
+    \__akizumi_co_init:nnnnn {#1} {#2} {#3} {#4} {#5}
+    \akizumiCalloutSetup {#1} {#6}
+    \AddToHook { begindocument/before }
+      { \cs_if_exist:cF {#1} { \__akizumi_co_env:n {#1} } }
+  }
+% \crefname for numbered kinds; CJK native names have no plural
+\cs_new_protected:Npn \__akizumi_co_crefname:n #1
+  {
+    \bool_lazy_or:nnTF
+      { \tl_if_empty_p:c { akizumi@co@#1@plural } }
+      { \bool_lazy_and_p:nn { \legacy_if_p:n { akizumi@nativethm } } { \legacy_if_p:n { akizumi@cjk } } }
+      { \crefname {#1} { \akizumi@coname {#1} } { \akizumi@coname {#1} } }
+      { \crefname {#1} { \akizumi@coname {#1} } { \use:c { akizumi@co@#1@plural } } }
+  }
+\AddToHook { begindocument }
+  {
+    \cs_if_exist:NT \crefname
+      { \seq_map_function:NN \g__akizumi_co_numbered_seq \__akizumi_co_crefname:n }
+  }
+\cs_new:Npn \akizumi@coname #1
+  {
+    \str_if_eq:eeTF { \use:c { akizumi@co@#1@thm } } { true }
+      { \akizumi@str {callout-#1@thm} } { \akizumi@str {callout-#1} }
+  }
+\cs_new:Npn \__akizumi_co_if_unnamed:nTF #1
+  { \tl_if_empty:cTF { akizumi@s@callout-#1 } }
+\cs_new_protected:Npn \akizumi@cobegin #1#2
+  {
+    \ifakizumi@coslides \else \Needspace { 4\baselineskip } \fi
+    \tl_set:Nv \l_tmpa_tl { akizumi@co@#1@tint }
+    \str_case:VnF \l_tmpa_tl
+      {
+        { false } { \__akizumi_co_box:nn {#1} { akizumi/callout } }
+        { true }  { \use:e { \exp_not:N \colorlet {akizumi@cotint} { \use:c{akizumi@co@#1@color}!7!white } } \__akizumi_co_tintbox:n {#1} }
+      }
+      { \exp_args:NnV \colorlet {akizumi@cotint} \l_tmpa_tl \__akizumi_co_tintbox:n {#1} }
+    % label: name, number, title
+    \tl_if_empty:cF { akizumi@co@#1@num } { \refstepcounter { \use:c { akizumi@co@#1@num } } }
+    \bool_set_false:N \l_tmpa_bool
+    \__akizumi_co_if_unnamed:nTF {#1} { } { \bool_set_true:N \l_tmpa_bool }
+    \IfValueT {#2} { \bool_set_true:N \l_tmpa_bool }
+    \bool_if:NT \l_tmpa_bool
+      {
+        \noindent
+        { \sffamily \bfseries \exp_args:Nv \color { akizumi@co@#1@labelcolor }
+          \__akizumi_co_if_unnamed:nTF {#1}
+            { \IfValueT {#2} {#2} }
+            {
+              \akizumi@coname {#1}
+              \tl_if_empty:cF { akizumi@co@#1@num }
+                { \nobreak \c_space_tl \use:c { the \use:c { akizumi@co@#1@num } } }
+              \IfValueT {#2} { { \mdseries \c_space_tl \color{mute} ( #2 ) } }
+            }
+          \str_if_eq:eeF { \use:c { akizumi@co@#1@head } } { block } { \__akizumi_co_punct:n {#1} }
+        }
+        \str_if_eq:eeTF { \use:c { akizumi@co@#1@head } } { block }
+          { \par \nobreak }
+          { \hskip 0.6em \relax }
+      }
+    \akizumi@coeatlabel
+  }
+% "Key idea." in English; a CJK name takes no period (like the theorems)
+\cs_new:Npn \__akizumi_co_punct:n #1
+  {
+    \str_if_eq:eeTF { \use:c { akizumi@co@#1@thm } } { true }
+      { \akizumi@thmpunct }
+      { \legacy_if:nF { akizumi@cjk } { . } }
+  }
+\cs_new_protected:Npn \__akizumi_co_tintbox:n #1
+  { \__akizumi_co_box:nn {#1} { akizumi/callout~tint } }
+% stored values are expanded first: tcolorbox / TikZ keys see plain text
+\cs_new_protected:Npn \__akizumi_co_box:nn #1#2
+  {
+    \use:e
+      {
+        \exp_not:N \begin {tcolorbox}
+          [ #2 = { \use:c { akizumi@co@#1@bar } } { \use:c { akizumi@co@#1@color } },
+            akizumi/callout~extra ]
+      }
+  }
+\cs_generate_variant:Nn \str_case:nnF { V }
+\ExplSyntaxOff
+
+% Names (lang=; proofidea follows thmnames= like the proof it precedes).
+%                       name           English            zh          ja              ko
+\csname __akizumi_co_provide:nnnnnn\endcsname
+                       {keyidea}      {Key idea}         {重點}      {要点}          {핵심}
+  {bar=1.6pt, color=accent, tint}
+\csname __akizumi_co_provide:nnnnnn\endcsname
+                       {proofidea}    {Idea of the proof}{證明思路}  {証明の方針}    {증명 아이디어}
+  {color=asidebar, labelcolor=mute, thmname, plural=Ideas of the proof}
+\csname __akizumi_co_provide:nnnnnn\endcsname
+                       {tip}          {Tip}              {提示}      {ヒント}        {팁}
+  {}
+\csname __akizumi_co_provide:nnnnnn\endcsname
+                       {warning}      {Warning}          {注意}      {注意}          {주의}
+  {bar=1.6pt, color=warn, labelcolor=warn}
+\csname __akizumi_co_provide:nnnnnn\endcsname
+                       {pitfall}      {Pitfall}          {常見錯誤}  {落とし穴}      {함정}
+  {bar=1.6pt, color=warn, labelcolor=warn}
+\csname __akizumi_co_provide:nnnnnn\endcsname
+                       {note}         {Note}             {附註}      {メモ}          {메모}
+  {color=asidebar, labelcolor=ink}
+\csname __akizumi_co_provide:nnnnnn\endcsname
+                       {chapterguide} {Chapter guide}    {本章導覽}  {この章の案内}  {장 안내}
+  {bar=1.6pt, head=block, tint}
+\csname __akizumi_co_provide:nnnnnn\endcsname
+                       {setup}        {}                 {}          {}              {}
+  {color=rule, labelcolor=ink, tint=wash}
+
+% A \label right after \begin{keyidea} (or its title) adds no space.
+\def\akizumi@coeatlabel{\@ifnextchar\label{\akizumi@colabel}{\ignorespaces}}
+\def\akizumi@colabel\label#1{\label{#1}\akizumi@coeatlabel}
+
+% \guidehead{What this chapter is about}: a heading inside a chapterguide.
+% \optional: muted star before a title; "★ " in bookmarks.
+\DeclareRobustCommand{\akizumi@optionalmark}{\textcolor{mute}{$\star$}\,}
+\newcommand{\akizumi@guidehead}[1]{\par\addvspace{0.4em}%
+  {\noindent\sffamily\bfseries\color{accent}#1\par}\nobreak}
+\AddToHook{begindocument/before}{%
+  \providecommand{\guidehead}{\akizumi@guidehead}%
+  \providecommand{\optional}{%
+    \ifdefined\texorpdfstring\texorpdfstring{\akizumi@optionalmark}{★ }%
+    \else\akizumi@optionalmark\fi}}
+
+\endinput

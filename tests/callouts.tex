@@ -1,0 +1,73 @@
+% !TEX program = xelatex
+% callouts: ready-made kinds, \akizumiNewCallout, \optional, numbering, cref,
+% page breaks, and a preamble's own definitions winning
+\documentclass{akizumi-book}
+\title{Callouts}
+\akizumiNewCallout{keypoint}{Key point}{學習要點}{}{}[numbered=chapter, tint]
+\akizumiNewCallout{stylepoint}{Style point}{風格要點}{}{}[numbered, color=asidebar, labelcolor=ink]
+\akizumiCalloutSetup{keyidea}{numbered=chapter}
+\newcommand{\pitfall}[1]{\textbf{Pitfall.}~#1}  % user's own: the env is skipped
+\begin{document}
+\chapter{Series}
+\begin{chapterguide}
+\guidehead{What this chapter is about}
+When does an infinite sum have a value?
+\guidehead{Prerequisites}
+Limits of sequences.
+\end{chapterguide}
+
+\begin{keyidea}\label{ki:tails}
+A series converges when its tails become small.
+\end{keyidea}
+
+\begin{theorem}[Comparison]\label{thm:cmp}
+If $\abs{a_n}\le b_n$ and $\sum b_n$ converges, so does $\sum a_n$.
+\end{theorem}
+\begin{proofidea}
+Tails of $\sum\abs{a_n}$ are bounded by tails of $\sum b_n$.
+\end{proofidea}
+\begin{proof}
+Cauchy criterion.
+\end{proof}
+
+\begin{tip}[Root test]
+Try it when $a_n$ has an $n$-th power.
+\end{tip}
+\begin{warning}
+Rearranging a conditionally convergent series can change its sum.
+\end{warning}
+\pitfall{Here \texttt{\textbackslash pitfall} is the preamble's command.}
+\begin{note}
+Notes are quiet asides.
+\end{note}
+\begin{setup}
+Let $(a_n)$ be a sequence of real numbers and $s_n=\sum_{k\le n}a_k$.
+\end{setup}
+\begin{setup}[Data]
+A titled setup box shows only its title.
+\end{setup}
+\begin{keypoint}\label{kp:one}
+你不需要在 \code{import} 之前先確認套件裝了沒。
+\end{keypoint}
+\begin{stylepoint}
+Name things after what they mean.
+\end{stylepoint}
+See \cref{ki:tails}, \cref{kp:one} and \cref{thm:cmp}.
+
+\section{\optional Rearrangements}\label{sec:opt}
+\begin{remark}[\optional Riemann]
+Optional remark.
+\end{remark}
+\begin{keypoint}
+Second key point: \thekeypoint.
+\end{keypoint}
+
+\begin{keyidea}[Breaks across pages]
+\foreach \i in {1,...,60}{Line \i\ of a long key idea that must split across pages.\par}
+\end{keyidea}
+
+\chapter{Next}
+\begin{keypoint}\label{kp:two}
+Numbering restarts: \thekeypoint.
+\end{keypoint}
+\end{document}

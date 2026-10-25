@@ -1,0 +1,249 @@
+% akizumi-logic.sty -- logic and programming-language notation, opt-in:
+%   \usepackage{akizumi-logic}  or  \usepackage[connectives=classic]{akizumi-logic}
+% Works with any engine; inside the akizumi classes it uses their colors and
+% language table, and class options reach it too.
+%
+% Options:  connectives = modern | classic | arrows
+%                  modern  ∧ ∨ ¬ → ↔ (default)   classic & ∨ ~ ⊃ ≡
+%                  arrows  ∧ ∨ ¬ ⇒ ⇔
+%           rulecase = upper | lower      (→I or →i in rule names; default upper)
+%           just = refs-first | rule-first (Fitch justification "1, 3 →E" or
+%                  "→E, 1, 3"; default refs-first)
+%           fitchrules = false | true  (fitch's own short rule macros \ii, \ne,
+%                  \r ... inside nd; default false: they hide \ni, \ne, \r)
+%
+%   \limp \liff; \land \lor \lnot follow the chosen style too
+%   \RuleAndI \RuleImpE[1] ...   rule names, optional subscript; \RuleA[\RuleNotI]
+%   fitch, nd, ndresume          Fitch proofs (fitch.sty) with muted lines
+%   prooftree                    inference rules (ebproof), labels in \rulename
+%   truthtable{colspec}          \tvrow{TF|!T}, \main{\land}
+%   calc                         expr \step{=}{hint} expr ...
+%   funcdef, \fn{map}, \sem{e}, \sem*{...}
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-logic}[2026/10/25 v0.8 Aaron Lin logic notation]
+
+\RequirePackage{amsmath,amssymb,mathtools,xcolor,array,booktabs}
+\providecolor{mute}{HTML}{6E7781}
+\providecolor{accent}{HTML}{0B6E99}
+
+% Outside the akizumi classes: an English-only string table.
+\@ifundefined{akizumi@str}{%
+  \def\akizumi@str#1{\csname akizumi@s@#1\endcsname}%
+  \def\akizumi@s#1#2#3#4#5{\@namedef{akizumi@s@#1}{#2}}}{}
+%            key                en           zh      ja      ko
+\akizumi@s  {logic-assumption} {Assumption} {假設}  {仮定}  {가정}
+\akizumi@s  {logic-premise}    {Premise}    {前提}  {前提}  {전제}
+
+% proofpack and similar packages load lmodern, which would replace the
+% document's text fonts; claim it is loaded so they cannot.
+\@ifpackageloaded{lmodern}{}{\@namedef{ver@lmodern.sty}{2009/10/30 v1.6 (skipped by akizumi-logic)}}
+
+\ExplSyntaxOn
+\tl_new:N \l__akizumi_logic_conn_tl
+\bool_new:N \l__akizumi_logic_lower_bool
+\bool_new:N \l__akizumi_logic_rulefirst_bool
+\bool_new:N \l__akizumi_logic_fitchrules_bool
+\keys_define:nn { akizumi/logic }
+  {
+    connectives .choices:nn = { modern, classic, arrows }
+      { \tl_set_eq:NN \l__akizumi_logic_conn_tl \l_keys_choice_tl },
+    connectives .initial:n = modern,
+    rulecase .choices:nn = { upper, lower }
+      { \bool_set:Nn \l__akizumi_logic_lower_bool { \int_compare_p:n { \l_keys_choice_int = 2 } } },
+    just .choices:nn = { refs-first, rule-first }
+      { \bool_set:Nn \l__akizumi_logic_rulefirst_bool { \int_compare_p:n { \l_keys_choice_int = 2 } } },
+    fitchrules .bool_set:N = \l__akizumi_logic_fitchrules_bool,
+    fitchrules .default:n = true,
+  }
+\ProcessKeyOptions [ akizumi/logic ]
+
+% ---------- connectives ----------
+\str_case:Vn \l__akizumi_logic_conn_tl
+  {
+    { modern }  { \DeclareRobustCommand \limp { \rightarrow }
+                  \DeclareRobustCommand \liff { \leftrightarrow } }
+    { arrows }  { \DeclareRobustCommand \limp { \Rightarrow }
+                  \DeclareRobustCommand \liff { \Leftrightarrow } }
+    { classic } { \DeclareRobustCommand \limp { \supset }
+                  \DeclareRobustCommand \liff { \equiv }
+                  \DeclareRobustCommand \land { \mathbin { \char`\& } }
+                  \DeclareRobustCommand \lnot { \mathopen { \sim } } }
+  }
+
+% ---------- rule names ----------
+% \RuleImpE -> →E, \RuleAndE[1] -> ∧E₁. Text mode, so they go straight into
+% fitch's \by, ebproof labels and running text, and follow the connectives.
+\cs_new:Npn \akizumi@ruleI { \bool_if:NTF \l__akizumi_logic_lower_bool { i } { I } }
+\cs_new:Npn \akizumi@ruleE { \bool_if:NTF \l__akizumi_logic_lower_bool { e } { E } }
+\cs_new_protected:Npn \__akizumi_logic_rule:nnn #1#2#3
+  { \textnormal { \ensuremath {#1} #2 \tl_if_novalue:nF {#3} { \ensuremath { \sb {#3} } } } }
+\cs_new_protected:Npn \__akizumi_logic_defrule:Nnn #1#2#3
+  { \NewDocumentCommand #1 { o } { \__akizumi_logic_rule:nnn {#2} {#3} {##1} } }
+\cs_generate_variant:Nn \__akizumi_logic_defrule:Nnn { c }
+\cs_new_protected:Npn \__akizumi_logic_defpair:nn #1#2
+  {
+    \__akizumi_logic_defrule:cnn { Rule #1 I } {#2} { \akizumi@ruleI }
+    \__akizumi_logic_defrule:cnn { Rule #1 E } {#2} { \akizumi@ruleE }
+  }
+\__akizumi_logic_defpair:nn { And } { \land }
+\__akizumi_logic_defpair:nn { Or }  { \lor }
+\__akizumi_logic_defpair:nn { Imp } { \limp }
+\__akizumi_logic_defpair:nn { Iff } { \liff }
+\__akizumi_logic_defpair:nn { Not } { \lnot }
+\__akizumi_logic_defpair:nn { Bot } { \bot }
+\__akizumi_logic_defpair:nn { DN }  { \lnot\lnot }
+\__akizumi_logic_defpair:nn { All } { \forall }
+\__akizumi_logic_defpair:nn { Ex }  { \exists }
+\__akizumi_logic_defpair:nn { Eq }  { = }
+\ExplSyntaxOff
+\newcommand{\RuleR}{\textnormal{R}}
+\newcommand{\RuleMT}{\textnormal{MT}}
+\newcommand{\RuleRAA}{\textnormal{RAA}}
+\newcommand{\RuleLEM}{\textnormal{LEM}}
+\newcommand{\RuleAssumption}{\textnormal{\akizumi@str{logic-assumption}}}
+\newcommand{\RulePremise}{\textnormal{\akizumi@str{logic-premise}}}
+% \RuleA -> "A"; \RuleA[\RuleNotI] -> "A / ¬I" (assumption opened for ¬I)
+\NewDocumentCommand{\RuleA}{o}{\textnormal{A\IfValueT{#1}{~/ #1}}}
+
+% Rule labels (ebproof, and anywhere by hand): small, muted.
+\newcommand{\rulename}[1]{\textnormal{\small\color{mute}#1}}
+
+% ---------- Fitch proofs ----------
+%   \begin{fitch}                  (or \[ \begin{nd} ... \end{nd} \])
+%     \hypo{1}{A \limp B}  \by{\RulePremise}{}
+%     \open
+%     \hypo{2}{A}          \by{\RuleA[\RuleImpI]}{}
+%     \have{3}{B}          \by{\RuleImpE}{1,2}
+%     \close
+%     \have{4}{A \limp B}  \by{\RuleImpI}{2-3}
+%   \end{fitch}
+\RequirePackage{fitch}
+\newif\ifakizumi@rulefirst
+% muted scope lines
+\def\nd@v{{\color{mute}\rule[-\nd@depth]{\nd@linethickness}{\nd@height}}}
+\def\nd@t{{\color{mute}\rule[-\nd@depth]{\nd@linethickness}{\nd@topheight}}}
+\def\nd@u#1{\makebox[0pt][l]{\settowidth{\nd@dim}{\nd@f{#1}}%
+  \addtolength{\nd@dim}{\nd@hsep}\addtolength{\nd@dim}{\nd@hsep}%
+  \hspace{-\nd@hsep}{\color{mute}\rule[-\nd@depth]{\nd@dim}{\nd@linethickness}}}\nd@f{#1}}
+% muted line numbers; fitch hands the column spec, we add the color
+\newenvironment{akizumi@ndarray}[1]
+  {\begin{array}{>{\color{mute}}l@{\hspace{\nd@labelsep}}l@{\hspace{\nd@justsep}}l}}
+  {\end{array}}
+% \by{rule}{refs}: always through one formatter, also when refs are empty
+\def\akizumi@ndjust#1#2{{\small\color{mute}%
+  \def\akizumi@tmp{#2}%
+  \ifx\akizumi@tmp\@empty#1%
+  \else\def\akizumi@tmp{#1}%
+    \ifx\akizumi@tmp\@empty\ndref{#2}%
+    \else\ifakizumi@rulefirst#1, \ndref{#2}\else\ndref{#2}\ #1\fi\fi
+  \fi}}
+\def\nd@by#1#2{\gdef\nd@byt{\mbox{\akizumi@ndjust{#1}{#2}}}\ignorespaces}
+\newcommand{\akizumi@ndrules}{}
+\ExplSyntaxOn
+\bool_if:NT \l__akizumi_logic_rulefirst_bool { \akizumi@rulefirsttrue }
+\bool_if:NTF \l__akizumi_logic_fitchrules_bool
+  { \setkeys{fitch}{rules=ndrules} }
+  { \setkeys{fitch}{rules=akizumi@ndrules} }
+\ExplSyntaxOff
+\setkeys{fitch}{arrayenv=akizumi@ndarray}
+\NewDocumentEnvironment{fitch}{O{}}{\[\begin{nd}[#1]}{\end{nd}\]}
+
+% ---------- inference rules (ebproof) ----------
+%   \begin{prooftree}
+%     \hypo{\Gamma \vdash t : \sigma \limp \tau} \hypo{\Gamma \vdash s : \sigma}
+%     \infer2[app]{\Gamma \vdash t\,s : \tau}
+%   \end{prooftree}
+\RequirePackage{ebproof}
+\ebproofset{right label template=\rulename{\inserttext},
+  left label template=\rulename{\inserttext}}
+
+% ---------- truth tables ----------
+%   \begin{truthtable}{cc|ccc}
+%     A & B & A & \main{\land} & B \\ \midrule
+%     \tvrow{TT|T!TT}
+%   \end{truthtable}
+% Cells are math; \tvrow takes one character per cell (spaces and | are
+% ignored, - leaves a cell empty, ! marks the next value as the main column).
+\newcommand{\akizumi@tv}[1]{\mathsf{#1}}
+\newcommand{\akizumi@tvmain}[1]{\textcolor{accent}{\mathsf{#1}}}
+\ExplSyntaxOn
+\tl_new:N \l__akizumi_logic_row_tl
+\bool_new:N \l__akizumi_logic_main_bool
+\bool_new:N \l__akizumi_logic_first_bool
+\cs_new_protected:Npn \__akizumi_logic_cell:n #1
+  {
+    \bool_if:NF \l__akizumi_logic_first_bool { \tl_put_right:Nn \l__akizumi_logic_row_tl { & } }
+    \bool_set_false:N \l__akizumi_logic_first_bool
+    \tl_put_right:Nn \l__akizumi_logic_row_tl {#1}
+  }
+\cs_new_protected:Npn \akizumi@tvrow #1
+  {
+    \tl_clear:N \l__akizumi_logic_row_tl
+    \bool_set_true:N \l__akizumi_logic_first_bool
+    \bool_set_false:N \l__akizumi_logic_main_bool
+    \tl_map_inline:nn {#1}
+      {
+        \str_case:nnF {##1}
+          {
+            { | } { }
+            { ! } { \bool_set_true:N \l__akizumi_logic_main_bool }
+            { - } { \__akizumi_logic_cell:n { } }
+          }
+          {
+            \bool_if:NTF \l__akizumi_logic_main_bool
+              { \__akizumi_logic_cell:n { \akizumi@tvmain {##1} } }
+              { \__akizumi_logic_cell:n { \akizumi@tv {##1} } }
+            \bool_set_false:N \l__akizumi_logic_main_bool
+          }
+      }
+    \tl_put_right:Nn \l__akizumi_logic_row_tl { \\ }
+    \tl_use:N \l__akizumi_logic_row_tl
+  }
+\ExplSyntaxOff
+\NewDocumentEnvironment{truthtable}{m}
+  {\let\tvrow\akizumi@tvrow
+   \def\main##1{\textcolor{accent}{##1}}%
+   \[\setlength{\arraycolsep}{0.3em}\renewcommand{\arraystretch}{1.2}%
+   \begin{array}{#1}}
+  {\end{array}\]}
+
+% ---------- calculations ----------
+%   \begin{calc}
+%     \fn{sum}\;[1,2]
+%     \step{=}{def.\ of $\fn{sum}$}
+%     1 + \fn{sum}\;[2]
+%   \end{calc}
+% Bird-style: each step on its own line with the hint in braces; an empty
+% hint puts the relation in front of the next expression. Breaks across pages.
+\newcommand{\akizumi@step}[2]{%
+  \\ #1{}%
+  \ifx\relax#2\relax\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi
+  {&}{&\quad\textcolor{mute}{\{\ \text{#2}\ \}}\\ &}}
+\NewDocumentEnvironment{calc}{+b}
+  {\let\step\akizumi@step\allowdisplaybreaks
+   \begin{align*}&#1\end{align*}}
+  {}
+
+% ---------- functional programming ----------
+%   \begin{funcdef}
+%     \fn{zip} &: \fn{List}\;a \to \fn{List}\;b \to \fn{List}\;(a, b) \\
+%     \fn{zip}\;[]\;ys &= []
+%   \end{funcdef}
+\newcommand{\fn}[1]{\mathsf{#1}}
+\NewDocumentEnvironment{funcdef}{}
+  {\[\renewcommand{\arraystretch}{1.25}\begin{array}{@{}l@{\;\;}l@{}}}
+  {\end{array}\]}
+
+% Semantic brackets ⟦e⟧: \sem{e}, \sem*{\frac{a}{b}} (auto-size), \sem[\big]{e}.
+% Takes \llbracket from unicode-math or stmaryrd when present, otherwise
+% declares just these two from the stmaryrd font, else [\![ ]\!].
+\@ifundefined{llbracket}{%
+  \IfFileExists{Ustmry.fd}{%
+    \DeclareSymbolFont{akizumistmry}{U}{stmry}{m}{n}%
+    \DeclareMathDelimiter{\llbracket}{\mathopen}{akizumistmry}{"4A}{akizumistmry}{"71}%
+    \DeclareMathDelimiter{\rrbracket}{\mathclose}{akizumistmry}{"4B}{akizumistmry}{"79}%
+    \DeclarePairedDelimiter{\sem}{\llbracket}{\rrbracket}}%
+   {\newcommand{\sem}[1]{\mathopen{[\mkern-3mu[}#1\mathclose{]\mkern-3mu]}}}}%
+  {\DeclarePairedDelimiter{\sem}{\llbracket}{\rrbracket}}
+
+\endinput

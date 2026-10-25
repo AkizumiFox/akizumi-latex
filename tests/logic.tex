@@ -1,0 +1,76 @@
+% !TEX program = xelatex
+% akizumi-logic: Fitch proofs, rule names, connective styles, ebproof rules,
+% truth tables, calc derivations, funcdef, \fn, \sem; lmodern stays out.
+\documentclass{akizumi-note}
+\usepackage[connectives=classic]{akizumi-logic}
+\usepackage{lmodern}  % skipped: must not replace the body fonts
+\title{Logic notation}
+\begin{document}
+\maketitle
+
+\section{Fitch}
+Rules in text: \RuleImpE, \RuleNotI, \RuleAndE[1], \RuleDNE, \RuleA[\RuleIffI].
+The macros \verb|\ni| and \verb|\ne| keep their meaning: $a \ni b \ne c$.
+
+\begin{fitch}
+  \hypo{1}{(A \limp B) \limp C}      \by{\RuleAssumption}{}
+  \hypo{2}{(A \limp B) \lor \lnot C} \by{\RuleAssumption}{}
+  \open
+  \hypo{3}{\lnot C}                  \by{\RuleA[\RuleIffI]}{}
+  \open
+  \hypo{4}{A \limp B}                \by{\RuleA[\RuleNotI]}{}
+  \have{5}{C}                        \by{\RuleImpE}{1,4}
+  \have{6}{\lnot C}                  \by{\RuleR}{3}
+  \close
+  \have{7}{\lnot(A \limp B)}         \by{\RuleNotI}{4-6}
+  \close
+  \have{8}{\lnot C \limp \lnot(A \limp B)} \by{\RuleImpI}{3-7}
+\end{fitch}
+
+\[
+\begin{nd}
+  \hypo{1}{A \land B} \by{\RulePremise}{}
+  \have{2}{A}         \by{\RuleAndE}{1}
+\end{nd}
+\]
+
+\section{Inference rules}
+\[
+\begin{prooftree}
+  \hypo{\Gamma \vdash t : \sigma \limp \tau}
+  \hypo{\Gamma \vdash s : \sigma}
+  \infer2[app]{\Gamma \vdash t\,s : \tau}
+  \infer1[\RuleImpI]{\vdash \lambda x.\, t\,s : \rho \limp \tau}
+\end{prooftree}
+\]
+
+\section{Truth table}
+\begin{truthtable}{cc|cccc}
+  A & B & \lnot & (A & \main{\land} & B) \\ \midrule
+  \tvrow{TT|FT!TT}
+  \tvrow{TF|F-!FF}
+  \tvrow{FF|TF!FF}
+\end{truthtable}
+
+\section{Calculation}
+\begin{calc}
+  \fn{foldr}\;(\oplus)\;e\;[1,2]
+  \step{=}{def.\ of $\fn{foldr}$}
+  1 \oplus \fn{foldr}\;(\oplus)\;e\;[2]
+  \step{=}{}
+  1 \oplus (2 \oplus e)
+\end{calc}
+
+\begin{funcdef}
+  \fn{zip} &: \fn{List}\;a \to \fn{List}\;b \to \fn{List}\;(a, b) \\
+  \fn{zip}\;[]\;ys &= [] \\
+  \fn{zip}\;(x:xs)\;(y:ys) &= (x, y) : \fn{zip}\;xs\;ys
+\end{funcdef}
+
+Semantics: $\sem{P}(E)$, $\sem*{\frac{a}{b}}$, $\sem[\big]{e}$.
+
+\makeatletter
+\edef\x{\f@family}\def\y{lmr}
+\ifx\x\y\errmessage{lmodern replaced the body font}\fi
+\makeatother
+\end{document}

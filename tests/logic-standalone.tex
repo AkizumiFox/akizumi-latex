@@ -1,0 +1,21 @@
+% !TEX program = pdflatex
+% akizumi-logic outside the akizumi classes, with the non-default options
+\documentclass{article}
+\usepackage[connectives=arrows, rulecase=lower, just=rule-first, fitchrules]{akizumi-logic}
+\begin{document}
+\[
+\begin{nd}
+  \hypo{1}{p \limp q}   \by{\RulePremise}{}
+  \open
+  \hypo{2}{p}           \by{\RuleA}{}
+  \have{3}{q}           \by{\RuleImpE}{1,2}
+  \have{4}{q \lor r}    \oi{3}
+  \close
+  \have{5}{p \limp q \lor r} \by{\RuleImpI}{2-4}
+\end{nd}
+\]
+\RuleAndE[2], \RuleDNI, $\lnot p \liff q$, $\sem{x}$.
+\begin{calc}
+  a \step{\leq}{monotone} b
+\end{calc}
+\end{document}

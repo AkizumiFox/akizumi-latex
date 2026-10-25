@@ -1,0 +1,35 @@
+% !TEX program = xelatex
+% code=minted (falls back to listings with a warning when Pygments or shell
+% escape is missing), verbatim=styled, chapter numbering, Chinese names
+\documentclass[lang=zh, code=minted, verbatim=styled]{akizumi-book}
+\akizumiNewCodeKind[env=example, counter=code]{example}{Example}{範例}
+\begin{document}
+\chapter{程式碼}
+\listofcodes
+
+行內 \code[cpp]{std::vector<int> v;} 與 \code{a_b}；標題裡的
+\cref{lst:m}。
+
+\begin{codeblock}[numbered, label=lst:m, title=main.cpp, lang=cpp]
+#include <iostream>
+int main() { std::cout << "hi\n"; }  // comment
+\end{codeblock}
+
+\begin{example}{haskell}{(fold.hs) 摺疊}
+sum' = foldr (+) 0
+\end{example}
+
+\begin{code}{stata}{迴歸}
+reg y x, r
+\end{code}
+
+\begin{terminal}
+$ ax build
+\end{terminal}
+
+\iosample{3}{6}
+
+\begin{verbatim}
+styled verbatim: 背景與程式碼相同
+\end{verbatim}
+\end{document}

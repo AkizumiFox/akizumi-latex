@@ -136,7 +136,7 @@ KIND_HELP = {
 PUBLIC_COMMANDS = ["new", "build", "watch", "open", "both", "doctor", "upgrade",
                    "freeze", "pack", "config", "completion", "selftest"]
 NEW_OPTIONS = ["--title", "--author", "--course", "--number", "--due", "--id", "--lang", "--thmnames",
-               "--text", "--paper", "--layout", "--bib", "--progress", "--pin", "--git",
+               "--text", "--paper", "--layout", "--bib", "--code", "--progress", "--pin", "--git",
                "--no-preamble", "--force", "--problems"]
 
 LATEXMKRC = r"""# Written by ax. Builds into build/; `ax build` copies the PDF out only when
@@ -148,6 +148,15 @@ $aux_dir = 'build';
 # SyncTeX: jump between PDF and source (Skim, SumatraPDF, Zathura, editors).
 push @extra_xelatex_options, '-synctex=1';
 push @extra_pdflatex_options, '-synctex=1';
+# code=minted runs Pygments: "shell_escape": true in .ax.json (ax new --code minted).
+if (open(my $fh, '<', '.ax.json')) {
+  local $/; my $json = <$fh>; close $fh;
+  if ($json =~ /"shell_escape"\s*:\s*true/) {
+    push @extra_xelatex_options, '-shell-escape';
+    push @extra_pdflatex_options, '-shell-escape';
+    push @extra_lualatex_options, '-shell-escape';
+  }
+}
 
 # Template version pinned in .ax.json, unpacked in ax's cache.
 my $ax_pin = '';
@@ -597,6 +606,8 @@ def cmd_new(a):
             setattr(a, key, True)
         elif key == "byline":
             a.byline = bool(value)
+        elif key == "code" and a.code is None:
+            a.code = value
     if a.dir is None:
         if not interactive:
             die(T("ax new 需要資料夾名稱", "ax new needs a folder name"),
@@ -623,6 +634,9 @@ def cmd_new(a):
             T("現有版本：" + ("、".join(tags) or "（尚未打版本）"),
               "Versions: " + (", ".join(tags) or "(none tagged yet)")))
 
+    if a.code == "minted" and a.kind == "paper":
+        warn(T("論文不支援 --code minted，已略過", "--code minted is not available for papers; skipped"))
+        a.code = None
     if a.bib and a.kind in ("hw", "exam"):
         warn(T(f"{KIND_NAME[a.kind]}不支援 --bib，已略過", f"--bib is not available for {KIND_NAME[a.kind]}; skipped"))
         a.bib = False
@@ -654,6 +668,8 @@ def cmd_new(a):
             opts.append("byline")
         if a.bib:
             opts.append("bib=refs.bib")
+        if a.code == "minted" and a.kind != "slides":
+            opts.append("code=minted")
 
     lines = ["% !TEX program = " + ("pdflatex" if a.kind == "paper" else "xelatex")]
     cls = KINDS[a.kind]
@@ -665,6 +681,8 @@ def cmd_new(a):
             theme_opts.append("thmnames=native")
         if a.progress:
             theme_opts.append("progress")
+        if a.code == "minted":
+            theme_opts.append("code=minted")
         lines.append(f"\\usetheme{'[' + ', '.join(theme_opts) + ']' if theme_opts else ''}{{Akizumi}}")
         if a.bib:
             lines += ["\\usepackage[backend=biber, style=numeric-comp, sorting=none]{biblatex}",
@@ -720,8 +738,10 @@ def cmd_new(a):
     (target / ".gitignore").write_text(GITIGNORE)
     if a.bib:
         (target / "refs.bib").write_text("% BibTeX entries go here.\n")
-    (target / PROJECT_CONFIG).write_text(json.dumps(
-        {"kind": a.kind, "main": "main.tex", "template": pin}, indent=2) + "\n")
+    project = {"kind": a.kind, "main": "main.tex", "template": pin}
+    if a.code == "minted":
+        project["shell_escape"] = True  # latexmkrc and ax build pass -shell-escape
+    (target / PROJECT_CONFIG).write_text(json.dumps(project, indent=2) + "\n")
     template_dir(pin)  # fetch the pinned version now, while the repo is at hand
     if a.git:
         run = lambda *c: subprocess.run(["git", "-C", str(target), *c], capture_output=True)
@@ -852,6 +872,27 @@ def warnings_summary(log_path):
     return found
 
 
+# ---------- shell escape for minted (code=minted) ----------
+MINTED_RE = re.compile(r"\\(?:documentclass|usetheme)\[[^\]]*\bcode\s*=\s*minted"
+                       r"|\\usepackage(?:\[[^\]]*\])?\{[^}]*\bminted\b"
+                       r"|\\tcbuselibrary\{[^}]*\bminted\b")
+
+
+def shell_escape_flags(main):
+    """["-shell-escape"] when the project asks for it in .ax.json or its main
+    file uses minted; warns if Pygments is not found."""
+    try:
+        text = re.sub(r"(?<!\\)%.*", "", Path(main).read_text(errors="replace"))
+    except OSError:
+        text = ""
+    if not (project_config().get("shell_escape") or MINTED_RE.search(text)):
+        return []
+    if not (shutil.which("latexminted") or shutil.which("pygmentize")):
+        warn(T("minted 需要 Pygments（latexminted 或 pygmentize），找不到；程式碼改用 listings",
+               "minted needs Pygments (latexminted or pygmentize), which is not found; code falls back to listings"))
+    return ["-shell-escape"]
+
+
 def latexmk(main, label, jobname=None, pretex=None, clean_first=False):
     need_tool("latexmk", T("請先安裝 TeX Live，再執行 ax doctor", "Install TeX Live, then run ax doctor"))
     base = ["latexmk", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error"]
@@ -861,7 +902,7 @@ def latexmk(main, label, jobname=None, pretex=None, clean_first=False):
         base.append(f"-usepretex={pretex}")
     if clean_first:
         subprocess.run(base[:1] + ["-C"] + base[4:] + [str(main)], capture_output=True)
-    return run_with_spinner(base + [str(main)], label)
+    return run_with_spinner(base + shell_escape_flags(main) + [str(main)], label)
 
 
 def safe_build(main, jobname=None, pretex=None, label=None):
@@ -956,6 +997,7 @@ def watch_cmd(main, background=False):
         # PDF as out_dir + job name
         cmd.append("-view=none")
         pdf = "%Z%R.pdf"
+    cmd += shell_escape_flags(main)
     return cmd + ["-e", f"$success_cmd = q({AX_CMD} copypdf {pdf} %R.pdf);",
                   "-e", f"$failure_cmd = q({AX_CMD} explain %R);", str(main)]
 
@@ -1660,6 +1702,25 @@ def cmd_selftest(a):
                T("專案 作業 --problems", "project hw --problems"))
         if code:
             print(out)
+        # code=minted: .ax.json asks for -shell-escape; without Pygments the
+        # document warns and falls back to listings, so it still builds
+        d = tmp / "t-minted"
+        r = subprocess.run(ax + ["new", "note", str(d), "--title", "Test", "--code", "minted",
+                                 "--no-preamble", "--pin", "latest"], stdin=subprocess.DEVNULL,
+                           capture_output=True, encoding="utf-8", errors="replace")
+        good = False
+        if r.returncode == 0:
+            for f in template_files(REPO):  # this checkout's files, even if another one is installed
+                shutil.copy(f, d)
+            main_tex = d / "main.tex"
+            main_tex.write_text(main_tex.read_text().replace(
+                "\\section{Introduction}", "\\section{Introduction}\n\\code[cpp]{int x;}\n"
+                "\\begin{codeblock}[numbered, lang=python]\nprint(1)\n\\end{codeblock}"))
+            code, out, _ = run_with_spinner(ax + ["build"], T("專案 code=minted", "project code=minted"), cwd=d)
+            good = code == 0 and load_json(d / PROJECT_CONFIG).get("shell_escape") is True
+            if not good:
+                print(out)
+        result(good, T("專案 code=minted", "project code=minted"))
         # main languages, with all three scripts in one document. Missing
         # characters depend on the fonts installed, so they only warn.
         for lang in ("zh", "ja", "ko"):
@@ -1865,6 +1926,9 @@ def main():
     n.add_argument("--layout", choices=["normal", "margin"],
                    help=T("margin：右側寬邊欄放 sidenote", "margin: wide right margin for sidenotes"))
     n.add_argument("--bib", action="store_true", help=T("加上 refs.bib 和參考文獻", "add refs.bib and a bibliography"))
+    n.add_argument("--code", choices=["listings", "minted"],
+                   help=T("程式碼上色：listings（預設）或 minted（Pygments，編譯時加 -shell-escape）",
+                          "code highlighting: listings (default) or minted (Pygments; builds with -shell-escape)"))
     n.add_argument("--progress", action="store_true", help=T("簡報底部加進度條", "progress bar along the slides' bottom"))
     n.add_argument("--pin", help=T("模板版本，預設最新的 tag；latest 表示永遠用安裝的最新檔案",
                                    "template version; default the newest tag. latest always uses the installed files"))

@@ -1,0 +1,100 @@
+% !TEX program = xelatex
+% code: numbered blocks, kinds, \listofcodes, \begin{code}, lines= and
+% \codedir, output and terminal, \iosample, inline \code in arguments,
+% Agda / Datalog / Stata / Haskell / SQL
+\documentclass{akizumi-note}
+\akizumiNewCodeKind[env=example, counter=code]{example}{Example}{範例}
+\akizumiNewCodeKind[env=recipe]{recipe}{Recipe}{作法}
+\codedir{build/}
+\begin{filecontents*}[overwrite]{code-demo.py}
+import sys
+
+def add(a, b):
+    return a + b  # line 4
+
+print(add(1, 2))
+\end{filecontents*}
+\begin{filecontents*}[overwrite]{code-run.txt}
+$ python code-demo.py
+3
+\end{filecontents*}
+\title{Code}
+\begin{document}
+\maketitle
+\listofcodes
+
+\section{The \code{a\_b} function and \code[cpp]{std::vector<int>}}
+
+Inline: \code{x_1 % #{} \n} and \code|a{b| and \code[python]{print("hi")  # note}.
+Bold: \textbf{\code[python]{print("\n")}}; in a footnote\footnote{See \code{f(x)_2}.}.
+
+\begin{theorem}[\code{sort} is stable]\label{thm:s}
+  Merge sort with \code[cpp]{a[i] <= b[j]} keeps equal keys in order.
+\end{theorem}
+
+\begin{codeblock}[numbered, label=lst:fit, title=fit.py, lang=py]
+def fit(x, y):
+    return (x.T @ x).inverse() @ x.T @ y   # least squares
+\end{codeblock}
+
+\begin{codeblock}[lang=Python, title=unnumbered.py]
+pass
+\end{codeblock}
+
+\begin{example}{python}{(sum.py) Adding numbers}
+total = sum([1, 2, 3])
+\end{example}
+
+\begin{code}[label=lst:idiom]{python}{Loop over a list}
+for x in xs:
+    print(x)
+\end{code}
+
+\begin{recipe}[numbers=false]{haskell}{Fold}
+sum' :: [Int] -> Int
+sum' = foldr (+) 0  -- right fold
+\end{recipe}
+
+\cref{lst:fit} and \cref{lst:idiom} (numbers shared with examples), \cref{thm:s}.
+
+\inputcode[lang=Python, lines=3-4, title=code-demo.py (lines 3--4)]{code-demo.py}
+\inputcode[output, title=output]{code-run.txt}
+\inputcode[numbered, label=lst:whole]{code-demo.py}
+
+\begin{terminal}[title=zsh]
+$ ax build
+>>> 1 + 1
+2
+\end{terminal}
+
+\iosample{1 2 \\ 3 4}{[3, 7] \\ done}
+\iosample{}{[89.2, 74.8] \\}
+
+\begin{codeblock}[lang=Agda, title=Nat.agda]
+data ℕ : Set where
+  zero : ℕ
+  suc  : ℕ → ℕ  -- successor
+{- block
+   comment -}
+\end{codeblock}
+
+\begin{codeblock}[lang=Datalog]
+# reachability
+path(X, Y) :- edge(X, Y).
+path(X, Z) :- path(X, Y), edge(Y, Z), not blocked(Z).
+\end{codeblock}
+
+\begin{codeblock}[lang=Stata]
+* first stage
+use "supas.dta", clear
+reg yeduc high##young if young == 1, r   // robust
+\end{codeblock}
+
+\begin{codeblock}[lang=SQL]
+SELECT name FROM pokemon WHERE hp > 150; -- strong
+\end{codeblock}
+
+\begin{verbatim}
+plain verbatim stays as it was
+\end{verbatim}
+\end{document}

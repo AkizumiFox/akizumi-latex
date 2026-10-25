@@ -1,0 +1,701 @@
+% akizumi-code.sty -- code beyond the basic blocks of akizumi-core: numbered
+% blocks and a list of them, code kinds, inline highlighting that also works
+% inside other commands' arguments, terminal and input / output boxes, line
+% ranges and a search path, more languages, styled verbatim, and an opt-in
+% minted engine. Loaded by akizumi-core (documents and slides).
+%
+% Options (class options, or \usetheme options in slides):
+%   code     = listings | minted   (default listings. minted needs Pygments,
+%              i.e. latexminted or pygmentize, and shell escape; without
+%              them it warns and stays with listings)
+%   verbatim = plain | styled      (default plain; styled puts verbatim on
+%              the code background)
+%
+%   \begin{codeblock}[numbered, label=lst:fit, title=fit.py, lang=Python] ...
+%   \begin{codeblock}[kind=example, lines=3-9] ...  \listofcodes
+%   \begin{code}[label=...]{python}{Title} ... \end{code}   numbered block
+%   \inputcode[lang=C++, lines=10-24]{main.cpp}   \codedir{src/,code/}
+%   \inputcode[output]{run.txt}    program output: no numbers, no colour
+%   \begin{terminal}[title=bash] $ make ... \end{terminal}
+%   \iosample{1 2 \\ 3 4}{3 \\ 7}  input and output side by side
+%   \code{x_1}  \code[cpp]{std::vector<int>}  also in \section{...} etc.
+%   \akizumiNewCodeKind[env=example, counter=code]{example}{Example}{範例}
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-code}[2026/10/25 v0.8 Aaron Lin code blocks]
+\RequirePackage{varwidth}
+
+\ExplSyntaxOn
+\bool_new:N \g__akizumi_code_minted_bool
+\bool_new:N \l__akizumi_code_styledverb_bool
+\keys_define:nn { akizumi/code }
+  {
+    code     .choices:nn = { listings, minted }
+      { \bool_gset:Nn \g__akizumi_code_minted_bool { \int_compare_p:n { \l_keys_choice_int = 2 } } },
+    code     .initial:n = listings,
+    verbatim .choices:nn = { plain, styled }
+      { \bool_set:Nn \l__akizumi_code_styledverb_bool { \int_compare_p:n { \l_keys_choice_int = 2 } } },
+    verbatim .initial:n = plain,
+  }
+\ProcessKeyOptions [ akizumi/code ]
+% The classes hand unknown options to article / book, which lists them as
+% unused; they are used here.
+\clist_clear:N \l_tmpa_clist
+\clist_map_inline:Nn \@unusedoptionlist
+  { \str_case:nnF {#1} { { code } { } { verbatim } { } } { \clist_put_right:Nn \l_tmpa_clist {#1} } }
+\cs_gset_eq:NN \@unusedoptionlist \l_tmpa_clist
+
+% ---------- minted: only when asked for and when it can run ----------
+% Shell escape 1 (-shell-escape): ask latexminted, then pygmentize. 2
+% (restricted, the default): TeX Live 2024+ allows latexminted, which brings
+% its own Pygments; kpsewhich tells whether this installation allows it.
+\msg_new:nnn { akizumi } { minted-missing }
+  { code=minted~needs~#1.~Using~listings~instead. }
+\tl_new:N \l__akizumi_code_probe_tl
+\tl_new:N \l__akizumi_code_missing_tl
+\cs_new_protected:Npn \__akizumi_code_shell:n #1
+  { \sys_get_shell:nnN {#1} { \cctab_select:N \c_str_cctab } \l__akizumi_code_probe_tl }
+\cs_new_protected:Npn \__akizumi_code_probe_minted:
+  {
+    \tl_clear:N \l__akizumi_code_probe_tl
+    \tl_set:Nn \l__akizumi_code_missing_tl { Pygments~(latexminted~or~pygmentize) }
+    \int_case:nnF { \c_sys_shell_escape_int }
+      {
+        { 1 }
+          {
+            \__akizumi_code_shell:n { latexminted~--version }
+            \tl_if_blank:VT \l__akizumi_code_probe_tl { \__akizumi_code_shell:n { pygmentize~-V } }
+          }
+        { 2 }
+          {
+            \__akizumi_code_shell:n { kpsewhich~-var-value~shell_escape_commands }
+            \str_if_in:NnTF \l__akizumi_code_probe_tl { latexminted }
+              {
+                \tl_clear:N \l__akizumi_code_probe_tl
+                \__akizumi_code_shell:n { latexminted~--version }
+              }
+              {
+                \tl_clear:N \l__akizumi_code_probe_tl
+                \tl_set:Nn \l__akizumi_code_missing_tl { shell~escape~(build~with~-shell-escape) }
+              }
+          }
+      }
+      { \tl_set:Nn \l__akizumi_code_missing_tl { shell~escape~(build~with~-shell-escape) } }
+    \tl_if_blank:VT \l__akizumi_code_probe_tl
+      {
+        \msg_warning:nnV { akizumi } { minted-missing } \l__akizumi_code_missing_tl
+        \bool_gset_false:N \g__akizumi_code_minted_bool
+      }
+  }
+\cs_generate_variant:Nn \msg_warning:nnn { nnV }
+\bool_if:NT \g__akizumi_code_minted_bool { \__akizumi_code_probe_minted: }
+\bool_if:NT \g__akizumi_code_minted_bool
+  {
+    \tcbuselibrary { minted }
+    \setminted { style = perldoc }
+    \cs_set:Npn \theFancyVerbLine
+      { \scriptsize \ttfamily \color { codenumber } \arabic { FancyVerbLine } }
+  }
+
+% ---------- language names ----------
+% Either engine accepts the other's names: lang=cpp and lang=C++ both work.
+\cs_new:Npn \__akizumi_code_lst_lang:n #1
+  {
+    \str_case_e:nnF { \str_casefold:n {#1} }
+      {
+        { cpp } { C++ }  { cxx } { C++ }  { cs } { [Sharp]C }  { csharp } { [Sharp]C }
+        { py } { Python }  { python3 } { Python }  { hs } { Haskell }
+        { dl } { Datalog }  { do } { Stata }
+        { sh } { bash }  { shell } { bash }  { zsh } { bash }  { console } { bash }
+        { tex } { [LaTeX]TeX }  { latex } { [LaTeX]TeX }
+        { text } { }  { none } { }  { plain } { }
+      }
+      {#1}
+  }
+\cs_new:Npn \__akizumi_code_minted_lang:n #1
+  {
+    \str_case_e:nnF { \str_casefold:n {#1} }
+      {
+        { c++ } { cpp }  { cxx } { cpp }  { [sharp]c } { csharp }  { cs } { csharp }
+        { py } { python }  { python3 } { python }  { hs } { haskell }
+        { datalog } { prolog }  { dl } { prolog }  { do } { stata }
+        { sh } { bash }  { shell } { bash }  { zsh } { bash }
+        { tex } { latex }  { [latex]tex } { latex }
+        { } { text }  { none } { text }  { plain } { text }
+      }
+      { \str_casefold:n {#1} }
+  }
+\cs_generate_variant:Nn \__akizumi_code_lst_lang:n { V }
+\cs_generate_variant:Nn \__akizumi_code_minted_lang:n { V }
+
+% ---------- listings definitions: Agda, Datalog, Stata ----------
+% Haskell and SQL come with listings.
+\lstdefinelanguage{Agda}{
+  morekeywords={abstract,codata,coinductive,constructor,data,do,
+    field,forall,hiding,import,in,inductive,infix,infixl,infixr,instance,let,
+    macro,module,mutual,open,overlap,pattern,postulate,
+    primitive,private,public,quote,record,renaming,rewrite,Set,Prop,syntax,
+    tactic,unquote,using,variable,where,with},
+  sensitive=true,
+  morecomment=[l]{--}, morecomment=[n]{\{-}{-\}}, morestring=[b]"}
+% Datalog as the user's books write it: rules end with ".", "%" is modulo,
+% comments start with "#" or "//".
+\lstdefinelanguage{Datalog}{
+  morekeywords={not,in,extensional,intensional},
+  sensitive=true,
+  morecomment=[l]{\#}, morecomment=[l]{//}, morecomment=[s]{/*}{*/},
+  morestring=[b]",
+  literate={:-}{{{\color{accent}:-}}}2 {?-}{{{\color{accent}?-}}}2}
+\lstdefinelanguage{Stata}{
+  morekeywords={append,bysort,by,capture,cd,clear,cls,collapse,count,describe,
+    destring,di,display,do,drop,egen,else,end,ereturn,estimates,esttab,exit,
+    export,foreach,format,forvalues,gen,generate,global,graph,histogram,if,
+    import,in,ivreg2,ivregress,keep,label,list,local,log,logit,margins,matrix,
+    merge,noisily,outreg2,predict,preserve,probit,program,quietly,recode,reg,
+    regress,rename,replace,reshape,restore,return,run,save,scalar,scatter,
+    set,sort,sum,summarize,tab,tabulate,test,tostring,tsset,twoway,use,using,
+    while,xtreg,xtset},
+  sensitive=true,
+  morecomment=[l]{//}, morecomment=[s]{/*}{*/}, morecomment=[f][commentstyle][0]{*},
+  morestring=[b]"}
+% Terminal sessions: lines starting with a prompt in ink, output muted.
+\lstdefinelanguage{akizumi-terminal}{
+  moredelim=[l][\color{ink}]{\$\ }, moredelim=[l][\color{ink}]{>>>\ },
+  moredelim=[l][\color{ink}]{...\ }, moredelim=[l][\color{ink}]{\#\ }}
+
+\ExplSyntaxOff
+% ---------- words ----------
+%            key            en                 zh          ja           ko
+\akizumi@s  {listcodes}    {List of Listings} {程式碼列表}{コード一覧}{코드 목록}
+\akizumi@s  {codeinput}    {input}            {輸入}      {入力}      {입력}
+\akizumi@s  {codeoutput}   {output}           {輸出}      {出力}      {출력}
+\ExplSyntaxOn
+
+% ---------- kinds: counters, names, cross-references ----------
+% \akizumiNewCodeKind[ja=..., ko=..., plural=..., counter=<kind>, within=<counter>|none,
+%   env=<environment>]{key}{English}{中文}
+% counter=<kind> shares that kind's numbers. within defaults to chapter in
+% books, section in notes. env=<name> defines \begin{name}[opts]{lang}{title};
+% env=code takes over the built-in \begin{code}; an existing environment of
+% that name (example, say) is replaced.
+\prop_new:N \g__akizumi_code_kinds_prop
+\tl_new:N \g__akizumi_code_envkind_tl
+\tl_new:N \l__akizumi_code_ja_tl
+\tl_new:N \l__akizumi_code_ko_tl
+\tl_new:N \l__akizumi_code_plural_tl
+\tl_new:N \l__akizumi_code_share_tl
+\tl_new:N \l__akizumi_code_within_tl
+\tl_new:N \l__akizumi_code_env_tl
+\msg_new:nnn { akizumi } { code-kind-exists } { Code~kind~`#1'~already~exists. }
+\msg_new:nnn { akizumi } { code-kind-unknown } { Unknown~code~kind~`#1'. }
+\keys_define:nn { akizumi/codekind }
+  {
+    ja      .tl_set:N = \l__akizumi_code_ja_tl,
+    ko      .tl_set:N = \l__akizumi_code_ko_tl,
+    plural  .tl_set:N = \l__akizumi_code_plural_tl,
+    counter .tl_set:N = \l__akizumi_code_share_tl,
+    within  .tl_set:N = \l__akizumi_code_within_tl,
+    env     .tl_set:N = \l__akizumi_code_env_tl,
+  }
+\NewDocumentCommand \akizumiNewCodeKind { O{} m m m }
+  {
+    \prop_if_in:NnT \g__akizumi_code_kinds_prop {#2}
+      { \msg_error:nnn { akizumi } { code-kind-exists } {#2} }
+    \tl_set:Nn \l__akizumi_code_ja_tl {#4}
+    \tl_set:Nn \l__akizumi_code_ko_tl {#3}
+    \tl_set:Nn \l__akizumi_code_plural_tl {#3s}
+    \tl_clear:N \l__akizumi_code_share_tl
+    \tl_set:Nn \l__akizumi_code_within_tl { auto }
+    \tl_clear:N \l__akizumi_code_env_tl
+    \keys_set:nn { akizumi/codekind } {#1}
+    \__akizumi_code_new_kind:nnn {#2} {#3} {#4}
+  }
+\cs_new_protected:Npn \__akizumi_code_new_kind:nnn #1#2#3
+  {
+    \prop_gput:Nnn \g__akizumi_code_kinds_prop {#1} {}
+    \use:e
+      {
+        \exp_not:N \akizumi@s { akizumicode#1 } { \exp_not:n {#2} } { \exp_not:n {#3} }
+          { \exp_not:V \l__akizumi_code_ja_tl } { \exp_not:V \l__akizumi_code_ko_tl }
+      }
+    \newcounter { akizumicode#1 }
+    \tl_if_empty:NTF \l__akizumi_code_share_tl
+      {
+        \str_if_eq:VnT \l__akizumi_code_within_tl { auto }
+          {
+            \cs_if_exist:NTF \c@chapter
+              { \tl_set:Nn \l__akizumi_code_within_tl { chapter } }
+              {
+                \@ifclassloaded { akizumi-note }
+                  { \tl_set:Nn \l__akizumi_code_within_tl { section } }
+                  { \tl_set:Nn \l__akizumi_code_within_tl { none } }
+              }
+          }
+        \str_if_eq:VnF \l__akizumi_code_within_tl { none }
+          { \exp_args:NnV \counterwithin { akizumicode#1 } \l__akizumi_code_within_tl }
+      }
+      {
+        \prop_if_in:NVF \g__akizumi_code_kinds_prop \l__akizumi_code_share_tl
+          { \msg_error:nnV { akizumi } { code-kind-unknown } \l__akizumi_code_share_tl }
+        \cs_gset_eq:cc { c@akizumicode#1 } { c@akizumicode \l__akizumi_code_share_tl }
+        \cs_gset:cpe { theakizumicode#1 }
+          { \exp_not:c { theakizumicode \l__akizumi_code_share_tl } }
+        \cs_gset:cpe { theHakizumicode#1 }
+          { \exp_not:c { theHakizumicode \l__akizumi_code_share_tl } }
+      }
+    \use:e
+      {
+        \exp_not:N \__akizumi_code_crefname:nn { akizumicode#1 }
+          { \exp_not:V \l__akizumi_code_plural_tl }
+      }
+    \tl_if_empty:NF \l__akizumi_code_env_tl
+      { \exp_args:NV \__akizumi_code_new_env:nn \l__akizumi_code_env_tl {#1} }
+  }
+\cs_generate_variant:Nn \msg_error:nnn { nnV }
+\cs_generate_variant:Nn \msg_error:nnnn { nnne }
+\cs_generate_variant:Nn \prop_if_in:NnF { NV }
+\cs_new_protected:Npn \__akizumi_code_crefname:nn #1#2
+  {
+    \@ifpackageloaded { cleveref }
+      { \__akizumi_code_crefname_now:nn {#1} {#2} }
+      { \AddToHook { package/cleveref/after } { \__akizumi_code_crefname_now:nn {#1} {#2} } }
+  }
+\cs_new_protected:Npn \__akizumi_code_crefname_now:nn #1#2
+  {
+    \ifakizumi@cjk
+      \crefname {#1} { \akizumi@str {#1} } { \akizumi@str {#1} }
+    \else
+      \crefname {#1} { \akizumi@str {#1} } {#2}
+    \fi
+  }
+\cs_new_protected:Npn \__akizumi_code_new_env:nn #1#2
+  {
+    \str_if_eq:nnTF {#1} { code }
+      { \tl_gset:Nn \g__akizumi_code_envkind_tl {#2} }
+      {
+        \cs_if_exist:cT {#1}
+          {
+            \RemoveFromHook { env/#1/before } [ tcolorbox ]
+            \RemoveFromHook { env/#1/after } [ tcolorbox ]
+            \RemoveFromHook { env/#1/before } [ akizumi-core ]
+          }
+        \DeclareDocumentEnvironment {#1} { O{} m m }
+          { \tcblisting { akizumi/code, kind = {#2}, lang = {##2}, title = {##3}, ##1, akizumi/code~finish } }
+          { \endtcblisting }
+        \AddToHook { env/#1/before } { \Needspace { 6\baselineskip } }
+      }
+  }
+
+% ---------- blocks: numbered, kind, label, lines, output ----------
+% Extra keys for codeblock and \inputcode. kind, numbered and label number the
+% block ("Listing 2.1" in the title bar) and put it in \listofcodes.
+\bool_new:N \l__akizumi_code_numbered_bool
+\bool_new:N \l__akizumi_code_numbers_bool
+\bool_new:N \l__akizumi_code_output_bool
+\bool_new:N \l__akizumi_code_plain_bool
+\tl_new:N \l__akizumi_code_kind_tl
+\tl_new:N \l__akizumi_code_label_tl
+\tl_new:N \l__akizumi_code_lang_tl
+\tl_new:N \l__akizumi_code_first_tl
+\tl_new:N \l__akizumi_code_last_tl
+\tl_new:N \l__akizumi_code_opts_tl
+\tl_new:N \l__akizumi_code_title_tl
+\seq_new:N \l__akizumi_code_lines_seq
+\cs_new_protected:Npn \__akizumi_code_reset:
+  {
+    \bool_set_false:N \l__akizumi_code_numbered_bool
+    \bool_set_true:N \l__akizumi_code_numbers_bool
+    \bool_set_false:N \l__akizumi_code_output_bool
+    \bool_set_false:N \l__akizumi_code_plain_bool
+    \tl_set:Nn \l__akizumi_code_kind_tl { code }
+    \tl_clear:N \l__akizumi_code_label_tl
+    \tl_clear:N \l__akizumi_code_lang_tl
+    \tl_clear:N \l__akizumi_code_first_tl
+    \tl_clear:N \l__akizumi_code_last_tl
+  }
+\cs_new_protected:Npn \__akizumi_code_lines:n #1
+  {
+    \seq_set_split:Nnn \l__akizumi_code_lines_seq { - } {#1}
+    \tl_set:Ne \l__akizumi_code_first_tl { \seq_item:Nn \l__akizumi_code_lines_seq { 1 } }
+    \tl_set:Ne \l__akizumi_code_last_tl { \seq_item:Nn \l__akizumi_code_lines_seq { 2 } }
+  }
+\cs_new_protected:Npn \__akizumi_code_finish:
+  {
+    \bool_if:NT \l__akizumi_code_numbered_bool
+      {
+        \prop_if_in:NVF \g__akizumi_code_kinds_prop \l__akizumi_code_kind_tl
+          {
+            \msg_error:nnV { akizumi } { code-kind-unknown } \l__akizumi_code_kind_tl
+            \tl_set:Nn \l__akizumi_code_kind_tl { code }
+          }
+        \__akizumi_code_number:V \l__akizumi_code_kind_tl
+      }
+    % language, numbers and line range for the engine in use; output and
+    % terminal text has no numbers and always goes through listings
+    \bool_if:NT \l__akizumi_code_output_bool { \tl_clear:N \l__akizumi_code_lang_tl }
+    \bool_if:NT \l__akizumi_code_plain_bool { \bool_set_false:N \l__akizumi_code_numbers_bool }
+    \bool_if:NTF \l__akizumi_code_numbers_bool
+      { \tcbset { leftupper = 2.4em } } { \tcbset { leftupper = 0.8em } }
+    \bool_if:nTF { \g__akizumi_code_minted_bool && ! \l__akizumi_code_plain_bool }
+      {
+        \tl_set:Ne \l__akizumi_code_opts_tl
+          {
+            tabsize = 4, fontsize = \exp_not:N \small, breaklines, autogobble,
+            numbersep = 1em, breaksymbolleft = \exp_not:N \usebox { \exp_not:N \akizumi@hookbox },
+            linenos = \bool_if:NTF \l__akizumi_code_numbers_bool { true } { false }
+            \tl_if_empty:NF \l__akizumi_code_first_tl { , firstline = \l__akizumi_code_first_tl }
+            \tl_if_empty:NF \l__akizumi_code_last_tl { , lastline = \l__akizumi_code_last_tl }
+          }
+        \tcbset
+          {
+            listing~engine = minted,
+            minted~language/.expanded = { \__akizumi_code_minted_lang:V \l__akizumi_code_lang_tl },
+            minted~options/.expand~once = \l__akizumi_code_opts_tl,
+          }
+      }
+      {
+        \tl_set:Ne \l__akizumi_code_opts_tl
+          {
+            % no lang: keep whatever \lstset chose, except for output
+            \bool_lazy_or:nnT
+              { ! \tl_if_empty_p:N \l__akizumi_code_lang_tl } { \l__akizumi_code_plain_bool }
+              { language = { \__akizumi_code_lst_lang:V \l__akizumi_code_lang_tl } , }
+            numbers =\bool_if:NTF \l__akizumi_code_numbers_bool { left } { none }
+            \tl_if_empty:NF \l__akizumi_code_first_tl
+              { , firstline = \l__akizumi_code_first_tl , firstnumber = 1 }
+            \tl_if_empty:NF \l__akizumi_code_last_tl { , lastline = \l__akizumi_code_last_tl }
+          }
+        \bool_if:NT \g__akizumi_code_minted_bool { \tcbset { listing~engine = listings } }
+        \tcbset { listing~options~app/.expand~once = \l__akizumi_code_opts_tl }
+      }
+  }
+% Title bar "Listing 2.1  fit.py"; the counter steps for real (with anchor,
+% label and list entry) where the box starts, as tcolorbox's own counters do.
+\cs_new_protected:Npn \__akizumi_code_number:n #1
+  {
+    \stepcounter { akizumicode#1 }
+    \tl_set_eq:NN \l__akizumi_code_title_tl \kvtcb@title
+    \protected@edef \kvtcb@title
+      {
+        { \exp_not:N \sffamily \exp_not:N \bfseries \exp_not:N \color { accent }
+          \akizumi@str { akizumicode#1 } ~ \use:c { theakizumicode#1 } }
+        \tl_if_empty:NF \l__akizumi_code_title_tl
+          { \exp_not:N \quad \exp_not:V \l__akizumi_code_title_tl }
+      }
+    \use:e
+      {
+        \exp_not:N \preto \exp_not:N \kvtcb@phantom
+          {
+            \exp_not:N \addtocounter { akizumicode#1 } { -1 }
+            \exp_not:N \refstepcounter { akizumicode#1 }
+            \tl_if_empty:NF \l__akizumi_code_label_tl
+              { \exp_not:N \label { \exp_not:V \l__akizumi_code_label_tl } }
+            \exp_not:N \addcontentsline { loc } { akizumicode }
+              {
+                \exp_not:N \protect \exp_not:N \numberline { \use:c { theakizumicode#1 } }
+                \tl_if_empty:NTF \l__akizumi_code_title_tl
+                  { \akizumi@str { akizumicode#1 } }
+                  { \exp_not:V \l__akizumi_code_title_tl }
+              }
+          }
+      }
+  }
+\cs_generate_variant:Nn \__akizumi_code_number:n { V }
+\tcbset{
+  akizumi/code/.append~style={akizumi/code~reset},
+  akizumi/code~reset/.code={\__akizumi_code_reset:},
+  akizumi/code~finish/.code={\__akizumi_code_finish:},
+  numbered/.is~choice,
+  numbered/true/.code={\bool_set_true:N \l__akizumi_code_numbered_bool},
+  numbered/false/.code={\bool_set_false:N \l__akizumi_code_numbered_bool},
+  numbered/.default=true,
+  kind/.code={\tl_set:Nn \l__akizumi_code_kind_tl {#1}\bool_set_true:N \l__akizumi_code_numbered_bool},
+  lang/.code={\tl_set:Nn \l__akizumi_code_lang_tl {#1}},
+  numbers/true/.code={\bool_set_true:N \l__akizumi_code_numbers_bool},
+  numbers/false/.code={\bool_set_false:N \l__akizumi_code_numbers_bool},
+  lines/.code={\__akizumi_code_lines:n {#1}},
+  output/.code={\bool_set_true:N \l__akizumi_code_output_bool
+    \bool_set_true:N \l__akizumi_code_plain_bool \tcbset{akizumi/output}},
+  akizumi/terminal/.code={\bool_set_true:N \l__akizumi_code_plain_bool
+    \tl_set:Nn \l__akizumi_code_lang_tl {akizumi-terminal}
+    \tcbset{listing~options~app={basicstyle=\ttfamily\small\color{mute}}}},
+  % program output: white, hairline frame, plain text
+  akizumi/output/.style={frame~style={fill=rule}, colback=white, colframe=rule, boxrule=0.4pt,
+    toprule=0.4pt, bottomrule=0.4pt, leftrule=0.4pt, rightrule=0.4pt},
+}
+% label is codeblock's own: it numbers the block (tcolorbox's label would not).
+\tcbset{akizumi/code/.append~style={label/.code={\tl_set:Nn \l__akizumi_code_label_tl {##1}
+  \bool_set_true:N \l__akizumi_code_numbered_bool}}}
+
+\DeclareTCBListing{codeblock}{ O{} }{akizumi/code, #1, akizumi/code~finish}
+
+% \inputcode looks for the file as given, then in each \codedir folder.
+\seq_new:N \g__akizumi_code_dirs_seq
+\tl_new:N \l__akizumi_code_file_tl
+\msg_new:nnn { akizumi } { code-file-missing } { Code~file~`#1'~not~found~(\codedir:~#2). }
+\NewDocumentCommand \codedir { m }
+  {
+    \seq_gset_from_clist:Nn \g__akizumi_code_dirs_seq {#1}
+    \seq_gset_map_e:NNn \g__akizumi_code_dirs_seq \g__akizumi_code_dirs_seq
+      { \__akizumi_code_slash:n {##1} }
+  }
+\cs_new:Npn \__akizumi_code_slash:n #1
+  { #1 \str_if_eq:eeF { \str_item:nn {#1} { -1 } } { / } { / } }
+\cs_new_protected:Npn \__akizumi_code_find:n #1
+  {
+    \tl_clear:N \l__akizumi_code_file_tl
+    \file_if_exist:nTF {#1}
+      { \tl_set:Nn \l__akizumi_code_file_tl {#1} }
+      {
+        \seq_map_inline:Nn \g__akizumi_code_dirs_seq
+          { \file_if_exist:nT { ##1 #1 } { \tl_set:Nn \l__akizumi_code_file_tl { ##1 #1 } \seq_map_break: } }
+      }
+    \tl_if_empty:NT \l__akizumi_code_file_tl
+      {
+        \msg_error:nnne { akizumi } { code-file-missing } {#1}
+          { \seq_use:Nn \g__akizumi_code_dirs_seq { ,~ } }
+        \tl_set:Nn \l__akizumi_code_file_tl {#1}
+      }
+  }
+\RenewDocumentCommand \inputcode { O{} m }
+  {
+    \__akizumi_code_find:n {#2}
+    \exp_args:Ne \tcbinputlisting
+      {
+        akizumi/code, listing~file = { \exp_not:V \l__akizumi_code_file_tl },
+        \exp_not:n { #1, akizumi/code~finish }
+      }
+  }
+
+% ---------- \begin{code}[opts]{lang}{title}: numbered block ----------
+% LaTeX runs \code for \begin{code}, so \code tells the two apart: the
+% environment's before-hook raises a flag that \code lowers at once.
+\tl_gset:Nn \g__akizumi_code_envkind_tl { code }
+\bool_new:N \g__akizumi_code_env_bool
+\AddToHook { env/code/before } { \bool_gset_true:N \g__akizumi_code_env_bool }
+\cs_new_protected:Npn \__akizumi_code_env:nnn #1#2#3
+  {
+    \exp_args:Ne \tcblisting
+      {
+        akizumi/code, kind = { \exp_not:V \g__akizumi_code_envkind_tl },
+        \exp_not:n { lang = {#2}, title = {#3}, #1, akizumi/code~finish }
+      }
+  }
+\cs_new_eq:NN \endcode \endtcblisting
+\AddToHook { env/code/before } { \Needspace { 6\baselineskip } }
+
+% ---------- inline: \code[lang]{...} ----------
+% Read verbatim when possible: \, #, %, _, ^, &, ~, $ are plain characters,
+% braces must balance, and \code|...| works as with \verb. Inside another
+% command's argument (a title, a theorem note, a frame) the text was read
+% already: it is turned back into characters, and \_ \# \% \& \$ \{ \}
+% \textbackslash give the characters themselves. With a language the text
+% is highlighted (\lstinline or \mintinline).
+\tl_new:N \l__akizumi_code_inline_tl
+\tl_new:N \l__akizumi_code_ilang_tl
+\tl_new:N \l__akizumi_code_delim_tl
+\cs_new_protected:Npn \__akizumi_code_inline_catcodes:
+  {
+    \char_set_catcode_other:N \\
+    \char_set_catcode_other:N \#
+    \char_set_catcode_other:N \%
+    \char_set_catcode_other:N \_
+    \char_set_catcode_other:N \^
+    \char_set_catcode_other:N \&
+    \char_set_catcode_other:N \~
+    \char_set_catcode_other:N \$
+    \char_set_catcode_other:n { 32 }
+  }
+\RenewDocumentCommand \code { o }
+  {
+    \bool_if:NTF \g__akizumi_code_env_bool
+      {
+        \bool_gset_false:N \g__akizumi_code_env_bool
+        \IfValueTF {#1} { \__akizumi_code_env_args:nnn {#1} } { \__akizumi_code_env_args:nnn { } }
+      }
+      {
+        \tl_set:Ne \l__akizumi_code_ilang_tl { \IfValueT {#1} {#1} }
+        \group_begin:
+        \__akizumi_code_inline_catcodes:
+        \peek_catcode:NTF \c_group_begin_token
+          { \__akizumi_code_inline:n }
+          { \__akizumi_code_inline_delim:N }
+      }
+  }
+\cs_new_protected:Npn \__akizumi_code_env_args:nnn #1#2#3 { \__akizumi_code_env:nnn {#1} {#2} {#3} }
+\cs_new_protected:Npn \__akizumi_code_inline_delim:N #1
+  {
+    \char_set_catcode_other:N \{
+    \char_set_catcode_other:N \}
+    \cs_set_protected:Npn \__akizumi_code_tmp:w ##1 #1 { \__akizumi_code_inline:n {##1} }
+    \__akizumi_code_tmp:w
+  }
+\cs_new_protected:Npn \__akizumi_code_tmp:w { }
+\cs_new_protected:Npn \__akizumi_code_inline:n #1
+  {
+    \regex_match:nnTF { \c{.*} | \cP. | \cU. | \cD. | \cA. | \cM. | \cT. } {#1}
+      {
+        \tl_set:Ne \l__akizumi_code_inline_tl { \tl_to_str:n {#1} }
+        \__akizumi_code_unescape:
+      }
+      { \tl_set:Ne \l__akizumi_code_inline_tl { \tl_to_str:n {#1} } }
+    \use:e
+      {
+        \group_end:
+        \tl_set:Nn \exp_not:N \l__akizumi_code_inline_tl
+          { \exp_not:V \l__akizumi_code_inline_tl }
+      }
+    \__akizumi_code_inline_typeset:
+  }
+\cs_new_protected:Npn \__akizumi_code_unescape:
+  {
+    % running headers and the contents add \protect
+    \regex_replace_all:nnN { \\protect\ ? } { } \l__akizumi_code_inline_tl
+    \regex_replace_all:nnN { \\text(backslash|asciitilde|asciicircum)\ ? }
+      { \\text\1 } \l__akizumi_code_inline_tl
+    \regex_replace_all:nnN { \\textbackslash } { \\ } \l__akizumi_code_inline_tl
+    \regex_replace_all:nnN { \\textasciitilde } { \~ } \l__akizumi_code_inline_tl
+    \regex_replace_all:nnN { \\textasciicircum } { \^ } \l__akizumi_code_inline_tl
+    % \tl_to_str puts a space after every control word
+    \regex_replace_all:nnN { (\\[A-Za-z]+)\ ([^A-Za-z]|\Z) } { \1\2 } \l__akizumi_code_inline_tl
+    \regex_replace_all:nnN { \\([\#\$\%\&_\{\}\~\^\ ]) } { \1 } \l__akizumi_code_inline_tl
+    \regex_replace_all:nnN { \#\# } { \# } \l__akizumi_code_inline_tl
+  }
+% minted takes the text as it is (fvextra reads arguments already read);
+% listings reads it afresh (\scantokens) between delimiters not in it.
+\cs_new_protected:Npn \__akizumi_code_inline_typeset:
+  {
+    \tl_if_blank:VTF \l__akizumi_code_ilang_tl
+      { \texttt { \l__akizumi_code_inline_tl } }
+      {
+        \bool_if:NTF \g__akizumi_code_minted_bool
+          {
+            \use:e
+              {
+                \exp_not:N \mintinline
+                  { \__akizumi_code_minted_lang:V \l__akizumi_code_ilang_tl }
+                  { \exp_not:V \l__akizumi_code_inline_tl }
+              }
+          }
+          { \__akizumi_code_inline_lst: }
+      }
+  }
+\cs_new_protected:Npn \__akizumi_code_inline_lst:
+  {
+    \tl_clear:N \l__akizumi_code_delim_tl
+    \clist_map_inline:nn { |, !, @, ", ', +, =, /, :, ;, ?, * }
+      {
+        \str_if_in:NnF \l__akizumi_code_inline_tl {##1}
+          { \tl_set:Nn \l__akizumi_code_delim_tl {##1} \clist_map_break: }
+      }
+    \tl_if_empty:NTF \l__akizumi_code_delim_tl
+      { \texttt { \l__akizumi_code_inline_tl } }
+      {
+        \group_begin:
+        \int_set:Nn \tex_endlinechar:D { -1 }
+        % fancyhdr's \nouppercase (running headers) breaks listings
+        \cs_set_eq:NN \uppercase \tex_uppercase:D
+        \cs_set_eq:NN \lowercase \tex_lowercase:D
+        \tl_set:Ne \l__akizumi_code_inline_tl
+          {
+            \token_to_str:N \lstinline
+            [ basicstyle = \token_to_str:N \ttfamily ,
+              language = { \__akizumi_code_lst_lang:V \l__akizumi_code_ilang_tl } ]
+            \l__akizumi_code_delim_tl \l__akizumi_code_inline_tl \l__akizumi_code_delim_tl
+          }
+        \exp_args:NV \tex_scantokens:D \l__akizumi_code_inline_tl
+        \group_end:
+      }
+  }
+% PDF bookmarks: the text, without the language.
+\AtBeginDocument
+  {
+    \cs_if_exist:NT \pdfstringdefDisableCommands
+      {
+        \pdfstringdefDisableCommands
+          {
+            \def\code#1{\ifx[#1\expandafter\akizumi@code@pdfopt\else#1\fi}%
+            \def\akizumi@code@pdfopt#1]#2{#2}%
+          }
+      }
+  }
+
+% ---------- terminal, output, input / output samples ----------
+%   \begin{terminal}[title=zsh] ... \end{terminal}   prompts ($ , >>> , # ) in ink
+\DeclareTCBListing{terminal}{ O{} }{akizumi/code, akizumi/terminal, #1, akizumi/code~finish}
+\AddToHook{env/terminal/before}{\Needspace{4\baselineskip}}
+
+% \iosample{input lines, \\ between}{output lines}: two boxes side by side,
+% each as wide as its content (at most half the line); an empty side is left
+% out. \\ is a plain line break here, so "\\ [1, 2]" is safe.
+\dim_new:N \l__akizumi_code_io_dim
+\box_new:N \l__akizumi_code_io_box
+\tcbset{akizumi/io/.style={akizumi/output, enhanced, nobeforeafter, box~align=top,
+  boxsep=0pt, left=0.7em, right=0.7em, top=0.45em, bottom=0.45em, arc=0pt,
+  coltitle=mute, colbacktitle=rule!45!wash, fonttitle=\ttfamily\footnotesize,
+  titlerule=0pt, toptitle=0.2em, bottomtitle=0.2em, lefttitle=0.7em}}
+\cs_new_protected:Npn \__akizumi_code_io_text:n #1
+  { \ttfamily \small \raggedright \skip_set:Nn \parskip { 0pt } \cs_set:Npn \\ { \par } \everypar { \strut } \ignorespaces #1 \par }
+\cs_new_protected:Npn \__akizumi_code_io_box:nnn #1#2#3
+  {
+    \hbox_set:Nn \l__akizumi_code_io_box
+      { \begin{varwidth}{ \dim_eval:n {#3} } \__akizumi_code_io_text:n {#2} \end{varwidth} }
+    \dim_set:Nn \l__akizumi_code_io_dim { \box_wd:N \l__akizumi_code_io_box }
+    \hbox_set:Nn \l__akizumi_code_io_box { \ttfamily \footnotesize #1 }
+    \dim_set:Nn \l__akizumi_code_io_dim
+      { \dim_max:nn { \l__akizumi_code_io_dim } { \box_wd:N \l__akizumi_code_io_box } + 1.4em + 0.8pt }
+    \begin{tcolorbox}[akizumi/io, title={#1}, width=\l__akizumi_code_io_dim]
+      \__akizumi_code_io_text:n {#2}
+    \end{tcolorbox}
+  }
+\NewDocumentCommand \iosample { +m +m }
+  {
+    \par \addvspace { 0.8em }
+    \group_begin:
+    \centering \noindent
+    \tl_if_blank:nTF {#1}
+      { \tl_if_blank:nF {#2} { \__akizumi_code_io_box:nnn { \akizumi@str{codeoutput} } {#2} { \linewidth - 1.6em } } }
+      {
+        \tl_if_blank:nTF {#2}
+          { \__akizumi_code_io_box:nnn { \akizumi@str{codeinput} } {#1} { \linewidth - 1.6em } }
+          {
+            \__akizumi_code_io_box:nnn { \akizumi@str{codeinput} } {#1} { 0.46\linewidth - 1.6em }
+            \hspace { 1.2em }
+            \__akizumi_code_io_box:nnn { \akizumi@str{codeoutput} } {#2} { 0.46\linewidth - 1.6em }
+          }
+      }
+    \par
+    \group_end:
+    \addvspace { 0.8em }
+  }
+
+% ---------- \listofcodes ----------
+\cs_new:Npn \listcodename { \akizumi@str { listcodes } }
+\cs_new:Npn \l@akizumicode { \@dottedtocline { 1 } { 0pt } { 2.8em } }
+\NewDocumentCommand \listofcodes { }
+  {
+    \cs_if_exist:NTF \chapter
+      { \chapter* { \listcodename } \markboth { \listcodename } { \listcodename } }
+      { \section* { \listcodename } }
+    \@starttoc { loc }
+  }
+
+% ---------- styled verbatim (verbatim=styled) ----------
+\bool_if:NT \l__akizumi_code_styledverb_bool
+  {
+    \tcolorboxenvironment { verbatim }
+      { enhanced~jigsaw, breakable, colback=wash, frame~hidden, arc=0pt, boxrule=0pt,
+        left=0.8em, right=0.8em, top=0.55em, bottom=0.55em,
+        before~skip=0.8em, after~skip=0.8em }
+    \AddToHook { env/verbatim/begin }
+      {
+        \cs_set:Npn \verbatim@font { \normalfont \ttfamily \small }
+        \skip_set:Nn \topsep { 0pt } \skip_set:Nn \partopsep { 0pt } \skip_set:Nn \parskip { 0pt }
+      }
+  }
+\ExplSyntaxOff
+
+% The built-in kind: "Listing 1.2" / 程式碼 1.2, used by numbered, label and
+% \begin{code}.
+\akizumiNewCodeKind[ja=コード, ko=코드, plural=Listings]{code}{Listing}{程式碼}
+
+\endinput

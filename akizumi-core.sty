@@ -404,6 +404,9 @@
 \DeclareTCBInputListing{\inputcode}{ O{} m }{akizumi/code, listing file={#2}, #1}
 \AddToHook{env/codeblock/before}{\Needspace{6\baselineskip}}
 \NewDocumentCommand{\code}{v}{\texttt{#1}}
+% Numbered blocks, \listofcodes, kinds, inline highlighting, terminal and
+% input / output boxes, code=minted, verbatim=styled: akizumi-code.sty.
+\RequirePackage{akizumi-code}
 
 % ---------- left bars (theorems, proofs, solutions; docs and slides) ----------
 \colorlet{accentsoft}{accent!35}

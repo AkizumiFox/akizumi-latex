@@ -145,9 +145,22 @@ build/
 
 for _stream in (sys.stdout, sys.stderr):
     try:
-        _stream.reconfigure(errors="replace")
+        # Windows pipes and files default to the ANSI code page, which cannot
+        # hold Chinese; a console handles Unicode by itself.
+        if WINDOWS and not _stream.isatty():
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        else:
+            _stream.reconfigure(errors="replace")
     except (AttributeError, ValueError):
         pass
+
+# Templates, skeletons, preambles and projects are UTF-8 on every system;
+# Windows would otherwise read and write text files in its ANSI code page.
+_read_text, _write_text = Path.read_text, Path.write_text
+Path.read_text = lambda self, encoding="utf-8", errors=None: _read_text(
+    self, encoding=encoding, errors=errors)
+Path.write_text = lambda self, data, encoding="utf-8", errors=None, newline=None: _write_text(
+    self, data, encoding=encoding, errors=errors, newline=newline)
 
 
 def _enable_windows_ansi():
@@ -1034,10 +1047,13 @@ def cmd_selftest(a):
             result(code == 0, f"專案 {kind:<7}")
             if code:
                 print(out)
-        code, out, _ = run_with_spinner(ax + ["both"], "專案 both", cwd=tmp / "t-hw")
-        result(code == 0 and (tmp / "t-hw" / "main-solutions.pdf").exists(), "專案 both")
-        if code:
-            print(out)
+        if (tmp / "t-hw").is_dir():
+            code, out, _ = run_with_spinner(ax + ["both"], "專案 both", cwd=tmp / "t-hw")
+            result(code == 0 and (tmp / "t-hw" / "main-solutions.pdf").exists(), "專案 both")
+            if code:
+                print(out)
+        else:
+            result(False, "專案 both（作業專案沒有建立成功）")
         shutil.rmtree(tmp, ignore_errors=True)
     print()
     if failed:

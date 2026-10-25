@@ -383,13 +383,18 @@
 \newtheorem{theorem}{Theorem}
 \newtheorem*{theorem*}{Theorem}
 \crefname{theorem}{Theorem}{Theorems}
-% \akizumi@thm{env}{Name}{Plural}: numbered on the shared theorem counter, plus
-% an unnumbered env*. cleveref cannot tell envs sharing a counter apart, so
-% each one aliases the counter to its own type while it is open.
+% \akizumi@thm{env}{Name}{Plural}: numbered together with theorem, plus an
+% unnumbered env*. Not \newtheorem{env}[theorem]: the LaTeX kernel turned that
+% into a counter alias in 2026-06, which clashes with thmtools. Instead env
+% gets its own counter name whose count register *is* theorem's, so the
+% numbers are shared, cleveref reads the type from the counter name, and
+% \theH... keeps hyperref anchors unique. Works with old and new kernels.
 \def\akizumi@thm#1#2#3{%
-  \newtheorem{#1}[theorem]{#2}\newtheorem*{#1*}{#2}%
-  \crefname{#1}{#2}{#3}%
-  \AddToHook{env/#1/begin}{\crefalias{theorem}{#1}}}
+  \newtheorem{#1}{#2}\newtheorem*{#1*}{#2}%
+  \expandafter\let\csname c@#1\endcsname\c@theorem
+  \expandafter\def\csname the#1\endcsname{\thetheorem}%
+  \expandafter\def\csname theH#1\endcsname{\theHtheorem}%
+  \crefname{#1}{#2}{#3}}
 \akizumi@thm{lemma}{Lemma}{Lemmas}
 \akizumi@thm{proposition}{Proposition}{Propositions}
 \akizumi@thm{corollary}{Corollary}{Corollaries}

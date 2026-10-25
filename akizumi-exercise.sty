@@ -1,0 +1,310 @@
+% akizumi-exercise.sty -- exercises, solutions and sample problems for books
+% and notes (exercise and sample-problem also work in hw and exam). Loaded by
+% akizumi-core for documents; options come from \documentclass.
+%
+%   \begin{exercise}[title] ... \end{exercise}       numbered, cref-able
+%   \begin{solution} ... \end{solution}               after an exercise (or
+%                                                    an exercises item)
+%   \begin{exercises}[title] \item ... \end{exercises} end-of-section list;
+%                     items share the exercise counter, nested lists are (a) (b)
+%   \begin{example-problem}[title=..., source=...]    sample problem (例題)
+%   \begin{parts} \item ... \end{parts}               (a), (b), ... as in hw
+%   \printsolutions                                   print collected solutions now
+%
+% Options:  solutions = inline | chapter | end | hide   (default inline;
+%                  true = inline, false = hide, so hw's solutions=false agrees)
+%             chapter: collected and printed at the end of each chapter (each
+%                  section in notes); end: at the end of the document, or
+%                  where \printsolutions is. Exercise and solution link both ways.
+%           exercisewithin = chapter | section | none
+%                  (default chapter in books, section in notes, none otherwise)
+% hw and exam keep their own solution environment and parts.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-exercise}[2026/10/25 v0.8 Aaron Lin exercises]
+
+\newif\ifakizumi@sol@collect
+\ExplSyntaxOn
+\int_new:N \l__akizumi_solmode_int  % 1 inline, 2 chapter, 3 end, 4 hide
+\tl_new:N \l__akizumi_exwithin_tl
+\keys_define:nn { akizumi/exercise }
+  {
+    solutions .choices:nn = { inline, chapter, end, hide, true, false }
+      {
+        \int_case:nnF { \l_keys_choice_int }
+          { { 5 } { \int_set:Nn \l__akizumi_solmode_int { 1 } }
+            { 6 } { \int_set:Nn \l__akizumi_solmode_int { 4 } } }
+          { \int_set_eq:NN \l__akizumi_solmode_int \l_keys_choice_int }
+      },
+    solutions .default:n = inline,
+    solutions .initial:n = inline,
+    exercisewithin .choices:nn = { chapter, section, none }
+      { \tl_set_eq:NN \l__akizumi_exwithin_tl \l_keys_choice_tl },
+  }
+\ProcessKeyOptions [ akizumi/exercise ]
+% book and note hand unknown options on to the base class, which lists
+% them as unused by bare name; they are ours.
+\clist_clear:N \l_tmpb_clist
+\clist_map_inline:Nn \@unusedoptionlist
+  {
+    \seq_set_split:Nnn \l_tmpa_seq { = } {#1}
+    \str_case_e:nnF { \seq_item:Nn \l_tmpa_seq { 1 } }
+      { { solutions } { } { exercisewithin } { } }
+      { \clist_put_right:Nn \l_tmpb_clist {#1} }
+  }
+\tl_set:Nx \@unusedoptionlist { \clist_use:Nn \l_tmpb_clist { , } }
+% Command-line override shared with hw / exam: \def\akizumisolutions{true|false}
+\cs_if_exist:NT \akizumisolutions
+  {
+    \str_if_eq:VnTF \akizumisolutions { false }
+      { \int_set:Nn \l__akizumi_solmode_int { 4 } }
+      { \int_compare:nNnT \l__akizumi_solmode_int = 4 { \int_set:Nn \l__akizumi_solmode_int { 1 } } }
+  }
+\tl_if_empty:NT \l__akizumi_exwithin_tl
+  {
+    \cs_if_exist:NTF \c@chapter { \tl_set:Nn \l__akizumi_exwithin_tl { chapter } }
+      { \@ifclassloaded { akizumi-note } { \tl_set:Nn \l__akizumi_exwithin_tl { section } }
+          { \tl_set:Nn \l__akizumi_exwithin_tl { none } } }
+  }
+\cs_new:Npn \akizumi@solmode { \int_use:N \l__akizumi_solmode_int }
+\tl_set:Nx \akizumi@exwithin { \tl_use:N \l__akizumi_exwithin_tl }
+\ExplSyntaxOff
+\ifnum\akizumi@solmode=2 \akizumi@sol@collecttrue\fi
+\ifnum\akizumi@solmode=3 \akizumi@sol@collecttrue\fi
+% the unit solutions=chapter flushes at: chapter, else section
+\@ifundefined{c@chapter}{\def\akizumi@solunit{section}}{\def\akizumi@solunit{chapter}}
+
+% ---------- names ----------
+%                key             en               zh      ja         ko
+\akizumi@tn     {exercise}      {Exercise}       {習題}  {演習}     {연습문제}
+\akizumi@tn     {exercises}     {Exercises}      {習題}  {演習問題} {연습문제}
+\akizumi@tn     {exampleproblem}{Sample Problem} {例題}  {例題}     {예제}
+\akizumi@tn     {solutions}     {Solutions}      {解答}  {解答}     {풀이}
+% "Solution on p. 12": English with English theorem names, like \akizumi@tn
+\ifakizumi@nativethm
+  \akizumi@n    {solpage} {Solution on p.~}{} {解答見第~}{~頁} {解答~}{~ページ} {풀이~}{쪽}
+\else
+  \@namedef{akizumi@b@solpage}{Solution on p.~}\@namedef{akizumi@a@solpage}{}
+\fi
+
+% ---------- counters: \akizumi@ex@prefix is "3." within chapter 3 ----------
+\def\akizumi@ex@within#1{%
+  \ifx\akizumi@exwithin\akizumi@none@str
+    \expandafter\def\csname the#1\endcsname{\arabic{#1}}%
+    \expandafter\def\csname theH#1\endcsname{\arabic{#1}}%
+  \else
+    \@addtoreset{#1}{\akizumi@exwithin}%
+    \expandafter\edef\csname the#1\endcsname{%
+      \expandafter\noexpand\csname the\akizumi@exwithin\endcsname.\noexpand\arabic{#1}}%
+    \expandafter\edef\csname theH#1\endcsname{%
+      \expandafter\noexpand\csname theH\akizumi@exwithin\endcsname.\noexpand\arabic{#1}}%
+  \fi}
+\def\akizumi@none@str{none}
+\ifx\akizumi@exwithin\akizumi@none@str
+  \def\akizumi@ex@prefix{}\def\akizumi@ex@Hprefix{}
+\else
+  \edef\akizumi@ex@prefix{\expandafter\noexpand\csname the\akizumi@exwithin\endcsname.}
+  \edef\akizumi@ex@Hprefix{\expandafter\noexpand\csname theH\akizumi@exwithin\endcsname.}
+\fi
+
+% ---------- exercise ----------
+\theoremstyle{akizumi-claim}
+\newtheorem{exercise}{\akizumi@str{exercise}}
+\akizumi@ex@within{exercise}
+\akizumi@crefname{exercise}{Exercises}
+\akizumi@onebar{exercise}{1pt}{asidebar}
+
+% The exercise a following solution belongs to: number, link target, id.
+\newif\ifakizumi@ex@linked
+\def\akizumi@ex@curnum{}\def\akizumi@ex@curhref{}\def\akizumi@ex@curid{}
+\def\akizumi@sol@target{}
+\def\akizumi@ex@mark{%
+  \xdef\akizumi@ex@curnum{\theexercise}%
+  \xdef\akizumi@ex@curid{\theHexercise}%
+  \xdef\akizumi@ex@curhref{\@currentHref}%
+  \gdef\akizumi@sol@target{ex}%
+  \global\akizumi@ex@linkedfalse}
+\addtotheorempostheadhook[exercise]{\akizumi@ex@mark}
+% "Solution on p. 12" at the end of the exercise (needs the label from the
+% previous run); otherwise the solution's own spot carries it.
+\def\akizumi@sol@haslabel{\@ifundefined{r@akizumi@sol:\akizumi@ex@curid}\@secondoftwo\@firstoftwo}
+\def\akizumi@sol@putlink{\akizumi@sol@haslabel{\global\akizumi@ex@linkedtrue\akizumi@sol@link}{}}
+\def\akizumi@sol@link{%
+  {\unskip\nobreak\hfil\penalty50\hskip1em\null\nobreak\hfil
+   \hyperref[akizumi@sol:\akizumi@ex@curid]{\sffamily\small
+     \akizumi@num{solpage}{\pageref*{akizumi@sol:\akizumi@ex@curid}}}%
+   \parfillskip\z@\finalhyphendemerits\z@\par}}
+\AddToHook{env/exercise/end}{%
+  \ifakizumi@sol@collect\ifakizumi@ex@linked\else\akizumi@sol@putlink\fi\fi}
+
+% ---------- exercises: a list whose items continue the exercise count ----------
+% Items step their own counter, which starts where exercise is and hands the
+% number back, so \cref, solutions and later exercises carry on from it.
+\newlist{akizumi@exlist}{enumerate}{1}
+\DeclareRobustCommand{\akizumi@ex@itemlabel}[1]{%
+  \global\c@exercise\c@akizumi@exlisti\akizumi@ex@mark
+  {\sffamily\bfseries\color{accent}#1}}
+\setlist[akizumi@exlist]{
+  label=\akizumi@ex@itemlabel{\akizumi@ex@prefix\arabic*}, ref=\akizumi@ex@prefix\arabic*,
+  align=left, leftmargin=2.6em, labelwidth=2em, labelsep=0.6em,
+  itemsep=0.5em, topsep=0.6em,
+  before={\setcounter{akizumi@exlisti}{\value{exercise}}\setlist[enumerate,1]{label=(\alph*)}}}
+\edef\theHakizumi@exlisti{\unexpanded\expandafter{\akizumi@ex@Hprefix}\noexpand\arabic{akizumi@exlisti}}
+\crefalias{akizumi@exlisti}{exercise}
+\ExplSyntaxOn
+\tl_new:N \l__akizumi_extitle_tl
+\tl_new:N \l__akizumi_exrest_tl
+\bool_new:N \l__akizumi_extitle_bool
+\keys_define:nn { akizumi/exercises }
+  {
+    title .code:n =
+      { \bool_set_true:N \l__akizumi_extitle_bool \tl_set:Nn \l__akizumi_extitle_tl {#1} },
+    title .default:n = \akizumi@str{exercises},
+  }
+\NewDocumentEnvironment { exercises } { O{} }
+  {
+    \bool_set_false:N \l__akizumi_extitle_bool
+    \keys_set_known:nnN { akizumi/exercises } {#1} \l__akizumi_exrest_tl
+    \bool_if:NT \l__akizumi_extitle_bool
+      {
+        \par\addvspace{1.2em}\Needspace{3\baselineskip}
+        \noindent{\sffamily\bfseries\color{accent}\l__akizumi_extitle_tl}\par\nobreak
+      }
+    \use:x { \exp_not:N \begin{akizumi@exlist} [ \exp_not:V \l__akizumi_exrest_tl ] }
+  }
+  { \end{akizumi@exlist} }
+\ExplSyntaxOff
+
+% ---------- solution ----------
+% inline: in place, thin left rule (as in hw). hide: dropped. chapter / end:
+% each solution's source is written to \jobname-sol.tex and read back later;
+% the solution after a sample problem always stays inline.
+\def\akizumi@sol@label{{\sffamily\color{mute}\bfseries\akizumi@str{solution}\akizumi@thmpunct}\enspace}
+\newenvironment{akizumi@solinline}
+  {\begin{tcolorbox}[akizumi/bar={0.8pt}{rule}]\akizumi@sol@label\ignorespaces}
+  {\unskip\end{tcolorbox}}
+\newwrite\akizumi@solout
+\newif\ifakizumi@sol@open
+\def\akizumi@sol@group{}
+\def\akizumi@sol@open{%
+  \ifakizumi@sol@open\else
+    \immediate\openout\akizumi@solout=\jobname-sol.tex\relax
+    \global\akizumi@sol@opentrue\gdef\akizumi@sol@group{}%
+  \fi}
+\def\akizumi@sol@write#1{\immediate\write\akizumi@solout{#1}}
+\def\akizumi@sol@writeline{\akizumi@sol@write{\the\verbatim@line}}
+% end mode: a "Chapter 3" heading whenever the chapter changes
+\def\akizumi@sol@groupmark{%
+  \ifnum\akizumi@solmode=3
+    \ifx\akizumi@exwithin\akizumi@none@str\else
+      \protected@edef\akizumi@tmp{\csname the\akizumi@exwithin\endcsname}%
+      \ifx\akizumi@tmp\akizumi@sol@group\else
+        \global\let\akizumi@sol@group\akizumi@tmp
+        \akizumi@sol@write{\string\akizumi@solgroup{\akizumi@exwithin}{\akizumi@tmp}}%
+      \fi
+    \fi
+  \fi}
+\def\akizumi@sol@collectstart{%
+  \ifakizumi@ex@linked\else\akizumi@sol@putlink\fi
+  \akizumi@sol@open\akizumi@sol@groupmark
+  \akizumi@sol@write{\string\akizumi@solbegin{\akizumi@ex@curnum}{\akizumi@ex@curhref}{\akizumi@ex@curid}}%
+  \let\do\@makeother\dospecials\catcode`\^^M\active
+  \let\verbatim@processline\akizumi@sol@writeline
+  \verbatim@start}
+\def\akizumi@sol@collectend{\akizumi@sol@write{\string\akizumi@solend}\@esphack}
+\def\akizumi@sol@hidestart{%
+  \let\do\@makeother\dospecials\catcode`\^^M\active
+  \let\verbatim@startline\relax\let\verbatim@addtoline\@gobble
+  \let\verbatim@processline\relax\let\verbatim@finish\relax
+  \verbatim@}
+% \akizumi@sol@next is the last token of \begin{solution}, so the verbatim
+% reader sees the line that follows.
+\def\akizumi@sol@choose{%
+  \def\akizumi@tmp{ex}%
+  \ifx\akizumi@sol@target\akizumi@tmp\let\akizumi@tmp\akizumi@solmode\else\def\akizumi@tmp{1}\fi
+  \ifcase\akizumi@tmp\or
+    \let\akizumi@sol@next\akizumi@solinline\let\endsolution\endakizumi@solinline
+  \or\@bsphack\let\akizumi@sol@next\akizumi@sol@collectstart\let\endsolution\akizumi@sol@collectend
+  \or\@bsphack\let\akizumi@sol@next\akizumi@sol@collectstart\let\endsolution\akizumi@sol@collectend
+  \or\@bsphack\let\akizumi@sol@next\akizumi@sol@hidestart\let\endsolution\@esphack
+  \fi}
+\@ifclassloaded{akizumi-hw}{}{\@ifundefined{solution}{%
+  \ifnum\akizumi@solmode>\@ne\RequirePackage{verbatim}\fi
+  \newenvironment{solution}{\akizumi@sol@choose\akizumi@sol@next}{}}{}}
+
+% Reading the file back. \akizumi@solbegin{3.2}{<anchor>}{<id>} ... \akizumi@solend
+\newcommand{\akizumi@solbegin}[3]{%
+  \begin{tcolorbox}[akizumi/bar={0.8pt}{rule}]%
+  \def\akizumi@ex@curid{#3}\phantomsection\label{akizumi@sol:#3}%
+  {\sffamily\bfseries\hyperlink{#2}{\akizumi@str{exercise}~#1}\akizumi@thmpunct}\enspace\ignorespaces}
+\newcommand{\akizumi@solend}{\unskip\end{tcolorbox}}
+\newcommand{\akizumi@solgroup}[2]{%
+  \ifx\akizumi@solunit\akizumi@chapter@str
+    \section*{\akizumi@num{#1}{#2}}\else\subsection*{\akizumi@num{#1}{#2}}\fi}
+\def\akizumi@chapter@str{chapter}
+% Headings: chapter mode adds one level below the unit, end mode one at its level.
+\newcommand{\akizumi@sol@heading}{%
+  \ifnum\akizumi@solmode=3
+    \ifx\akizumi@solunit\akizumi@chapter@str
+      \chapter*{\akizumi@str{solutions}}\addcontentsline{toc}{chapter}{\akizumi@str{solutions}}%
+      \markboth{\akizumi@str{solutions}}{}%
+    \else
+      \section*{\akizumi@str{solutions}}\addcontentsline{toc}{section}{\akizumi@str{solutions}}%
+    \fi
+  \else
+    \ifx\akizumi@solunit\akizumi@chapter@str
+      \section*{\akizumi@str{solutions}}\addcontentsline{toc}{section}{\akizumi@str{solutions}}%
+      \markright{\akizumi@str{solutions}}%
+    \else
+      \subsection*{\akizumi@str{solutions}}\addcontentsline{toc}{subsection}{\akizumi@str{solutions}}%
+    \fi
+  \fi}
+\newcommand{\printsolutions}{%
+  \ifakizumi@sol@open
+    \immediate\closeout\akizumi@solout\global\akizumi@sol@openfalse
+    \akizumi@sol@heading
+    \begingroup\makeatletter\@@input\jobname-sol.tex\relax\endgroup
+  \fi}
+\ifakizumi@sol@collect
+  \ifnum\akizumi@solmode=2 \AddToHook{cmd/\akizumi@solunit/before}{\printsolutions}\fi
+  \AtEndDocument{\printsolutions}
+\fi
+\ifnum\akizumi@solmode=4 \renewcommand{\printsolutions}{}\fi
+\ifnum\akizumi@solmode=1 \renewcommand{\printsolutions}{}\fi
+
+% ---------- sample problem: [title=..., source=...] or [title] ----------
+\newcounter{exampleproblem}
+\akizumi@ex@within{exampleproblem}
+\akizumi@crefname{exampleproblem}{Sample Problems}
+\ExplSyntaxOn
+\tl_new:N \l__akizumi_eptitle_tl
+\tl_new:N \l__akizumi_epsource_tl
+\keys_define:nn { akizumi/exampleproblem }
+  {
+    title  .tl_set:N = \l__akizumi_eptitle_tl,
+    source .tl_set:N = \l__akizumi_epsource_tl,
+  }
+\NewDocumentEnvironment { example-problem } { O{} }
+  {
+    \tl_clear:N \l__akizumi_eptitle_tl \tl_clear:N \l__akizumi_epsource_tl
+    \tl_if_in:nnTF {#1} { = }
+      { \keys_set:nn { akizumi/exampleproblem } {#1} }
+      { \tl_set:Nn \l__akizumi_eptitle_tl {#1} }
+    \begin{tcolorbox}[akizumi/bar={1pt}{asidebar}]
+    \refstepcounter{exampleproblem}
+    \gdef\akizumi@sol@target{ep}
+    \noindent{\sffamily\bfseries\color{accent}\akizumi@str{exampleproblem}\nobreakspace\theexampleproblem}
+    \tl_if_empty:NF \l__akizumi_eptitle_tl
+      { \quad{\sffamily\color{mute}\l__akizumi_eptitle_tl} }
+    \tl_if_empty:NF \l__akizumi_epsource_tl
+      { \hfill{\sffamily\small\color{mute}\l__akizumi_epsource_tl} }
+    \par\nobreak\vspace{0.2em}
+  }
+  { \end{tcolorbox} }
+\ExplSyntaxOff
+\AddToHook{env/example-problem/before}{\Needspace{4\baselineskip}}
+
+% ---------- parts: (a), (b), ... (hw and exam have their own) ----------
+\@ifclassloaded{akizumi-hw}{}{\@ifundefined{parts}{%
+  \newenvironment{parts}{\begin{enumerate}[label=(\alph*)]}{\end{enumerate}}}{}}
+
+\endinput

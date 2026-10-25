@@ -1,0 +1,123 @@
+% akizumi-tikz.sty -- TikZ libraries, pgfplots and semantic diagram styles.
+% Loaded by akizumi-core (documents and slides); reads class options:
+%   tikz  = basic | full  (full, or bare `tikz`: also 3d, angles, quotes,
+%           decorations, patterns, fit, backgrounds, shapes, tikzmark,
+%           automata, intersections; default basic)
+%   plots = true | false  (pgfplots, compat=1.18, akizumi cycle list and
+%           colormap; default false)
+%
+%   arrays      \node[akizumi/cell] {3};  akizumi/hlcell, akizumi/hlcell2, akizumi/index
+%   flowcharts  akizumi/start, akizumi/process, akizumi/decision, akizumi/io, akizumi/group
+%   automata    [akizumi/automaton] picture; akizumi/state, akizumi/accepting
+%   game trees  akizumi/game/decision, /chance, /terminal, /branch, /action,
+%               /payoff, /infoset
+%   physics     \pic {akizumi/current in};  \pic {akizumi/current out};  akizumi/wire
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-tikz}[2026/10/25 v0.8 Aaron Lin TikZ styles]
+
+\ExplSyntaxOn
+\bool_new:N \l__akizumi_tikzfull_bool
+\bool_new:N \l__akizumi_plots_bool
+\keys_define:nn { akizumi/tikz }
+  {
+    tikz  .choices:nn = { basic, full }
+      { \bool_set:Nn \l__akizumi_tikzfull_bool { \int_compare_p:n { \l_keys_choice_int = 2 } } },
+    tikz  .default:n = full,
+    plots .bool_set:N = \l__akizumi_plots_bool,
+    plots .default:n = true,
+  }
+\ProcessKeyOptions [ akizumi/tikz ]
+\newif\ifakizumi@tikzfull
+\newif\ifakizumi@plots
+\bool_if:NT \l__akizumi_tikzfull_bool { \akizumi@tikzfulltrue }
+\bool_if:NT \l__akizumi_plots_bool { \akizumi@plotstrue }
+% The classes hand unknown options on to article, which reports them as unused.
+\clist_map_inline:nn { tikz, tikz=basic, tikz=full, plots, plots=true, plots=false }
+  { \exp_args:NNe \clist_remove_all:Nn \@unusedoptionlist { \tl_to_str:n {#1} } }
+\ExplSyntaxOff
+
+\RequirePackage{tikz}
+\usetikzlibrary{shapes.geometric}  % diamond and trapezium for the flowchart styles
+\ifakizumi@tikzfull
+  \usetikzlibrary{3d, angles, quotes, decorations.pathreplacing, decorations.markings,
+    patterns, fit, backgrounds, shapes, tikzmark, automata, intersections}
+\fi
+
+% Two extra hues for plots, after accent and warn.
+\definecolor{plotgreen}{HTML}{1A7F37}
+\definecolor{plotpurple}{HTML}{8250DF}
+
+\tikzset{
+  % arrays and grids: cells share borders when placed 0.9cm apart
+  akizumi/cell/.style={draw=mute, fill=white, minimum width=0.9cm, minimum height=0.9cm,
+    inner sep=1pt, font=\ttfamily\small, text=ink},
+  akizumi/hlcell/.style={akizumi/cell, draw=accent, fill=accent!12, thick},
+  akizumi/hlcell2/.style={akizumi/cell, draw=warn, fill=warn!14, thick},
+  akizumi/index/.style={font=\sffamily\scriptsize, text=mute},
+  % flowcharts
+  akizumi/flownode/.style={draw=mute, thick, fill=white, minimum height=0.9cm, align=center,
+    font=\sffamily\small, text=ink, inner sep=4pt},
+  akizumi/start/.style={akizumi/flownode, rounded corners=0.45cm, fill=wash,
+    minimum width=2.2cm},
+  akizumi/process/.style={akizumi/flownode, rounded corners=2pt, minimum width=2.4cm},
+  akizumi/decision/.style={akizumi/flownode, diamond, aspect=2, draw=accent,
+    minimum width=2.4cm, minimum height=1.1cm, inner sep=1pt},
+  akizumi/io/.style={akizumi/flownode, trapezium, trapezium left angle=70,
+    trapezium right angle=110, trapezium stretches body, minimum width=2.2cm},
+  akizumi/group/.style={draw=rule, dashed, rounded corners=6pt, inner sep=8pt, fill=wash},
+  % automata (initial/accepting arrows and `edge` loops need tikz=full)
+  akizumi/state/.style={circle, draw=accent, thick, fill=white, minimum size=0.9cm,
+    inner sep=1pt, font=\small, text=ink},
+  akizumi/accepting/.style={akizumi/state, double, double distance=1.2pt},
+  akizumi/automaton/.style={every state/.style={akizumi/state},
+    accepting/.style={double, double distance=1.2pt}, >={Stealth[length=4pt]},
+    every edge/.append style={draw=mute, thick}, node distance=2.2cm, auto},
+  % extensive-form game trees
+  akizumi/game/decision/.style={circle, fill=ink, inner sep=1.6pt},
+  akizumi/game/chance/.style={circle, draw=ink, thick, fill=white, inner sep=1.6pt},
+  akizumi/game/terminal/.style={circle, fill=mute, inner sep=1.1pt},
+  akizumi/game/branch/.style={draw=ink, thick, -{Stealth[length=4pt]}},
+  akizumi/game/action/.style={font=\small, inner sep=2pt},
+  akizumi/game/payoff/.style={font=\small, text=ink},
+  akizumi/game/infoset/.style={draw=mute, dashed, thick},
+  % physics: wires and currents into / out of the page
+  akizumi/wire/.style={draw=ink, very thick},
+  % \pic[accent] {...} colors the symbol; the disc is filled white over wires
+  akizumi/current in/.pic={
+    \fill[white] (0,0) circle (0.18);
+    \draw[thick, pic actions] (0,0) circle (0.18)
+      (-0.127,-0.127) -- (0.127,0.127) (-0.127,0.127) -- (0.127,-0.127);},
+  akizumi/current out/.pic={
+    \fill[white] (0,0) circle (0.18);
+    \draw[thick, pic actions] (0,0) circle (0.18);
+    \fill (0,0) circle (0.055);},
+}
+\ifakizumi@tikzfull
+  \tikzset{akizumi/automaton/.append style={initial text=,
+    every initial by arrow/.style={akizumi/arrow}, every edge quotes/.append style={font=\small}}}
+\fi
+
+\ifakizumi@plots
+  \RequirePackage{pgfplots}
+  \pgfplotsset{compat=1.18}
+  \pgfplotscreateplotcyclelist{akizumi}{
+    {accent, thick, mark=none},
+    {warn, thick, mark=none},
+    {plotgreen, thick, mark=none},
+    {plotpurple, thick, mark=none},
+    {mute, thick, mark=none},
+    {accent, thick, dashed, mark=none},
+    {warn, thick, dashed, mark=none},
+    {plotgreen, thick, dashed, mark=none},
+  }
+  \pgfplotsset{
+    colormap={akizumi}{color=(wash) color=(accent!45) color=(accent) color=(accent!55!ink)},
+    every axis/.append style={cycle list name=akizumi, colormap name=akizumi,
+      axis line style={mute}, tick style={mute}, major grid style={rule},
+      every axis label/.append style={text=ink},
+      legend style={draw=rule, fill=white, font=\small, text=ink},
+      legend cell align=left},
+  }
+\fi
+
+\endinput

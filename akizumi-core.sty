@@ -15,6 +15,7 @@
 %           layout = normal | margin      (margin: wide right margin for sidenotes)
 %           byline = false | true  (author and date under the title; default
 %                  false: they go in the first page's header instead)
+%           tikz = basic | full, plots  (TikZ libraries, pgfplots; see akizumi-tikz.sty)
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{akizumi-core}[2026/10/25 v0.8 Aaron Lin shared style]
 
@@ -424,6 +425,8 @@
   akizumi/note/.style={font=\sffamily\scriptsize, text=mute},
   akizumi/alert/.style={text=warn},
 }
+% akizumi-tikz: tikz=full libraries, plots (pgfplots), semantic diagram styles
+\RequirePackage{akizumi-tikz}
 
 % Everything below is for documents only; beamerthemeAkizumi handles slides.
 \@ifclassloaded{beamer}{\endinput}{}

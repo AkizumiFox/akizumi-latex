@@ -1,0 +1,15 @@
+% !TEX program = xelatex
+% akizumi-tikz defaults: semantic styles work without tikz=full; no pgfplots
+\documentclass[lang=zh]{akizumi-hw}
+\begin{document}
+\begin{tikzpicture}[x=0.9cm]
+  \node[akizumi/cell] at (0,0) {0}; \node[akizumi/hlcell] at (1,0) {1};
+  \node[akizumi/decision] at (4,0) {判斷};
+  \node[akizumi/io] at (7,0) {輸入};
+  \node[akizumi/state] at (10,0) {$q$}; \node[akizumi/accepting] at (11.5,0) {$f$};
+  \node[akizumi/game/decision] at (13,0) {}; \pic at (14,0) {akizumi/current out};
+\end{tikzpicture}
+\makeatletter
+\@ifpackageloaded{pgfplots}{\PackageError{test}{pgfplots loaded by default}{}}{}
+\makeatother
+\end{document}

@@ -2246,7 +2246,7 @@ _ax() {{
   elif [[ $words[2] == (build|both|open|count) ]]; then _files -g '*.tex'
   elif [[ $words[2] == migrate ]]; then compadd -- --output --in-place --kind --dry-run --force; _files -g '*.tex'
   elif [[ $words[2] == completion ]]; then compadd -- zsh bash powershell
-  elif [[ $words[2] == selftest ]]; then compadd -- all examples projects
+  elif [[ $words[2] == selftest ]]; then compadd -- all examples tests projects
   fi
 }}
 compdef _ax ax""")
@@ -2366,9 +2366,13 @@ def akizumi_names(kind):
         text = f.read_text()
         if name != "akizumi-compat.sty":  # its CJK and li give way to the document's own
             names.update({k: v for k, v in defined_names(text).items() if k not in names})
-        for m in re.finditer(r"\\(?:RequirePackage|usepackage|usetheme)(?:\[[^\]]*\])?\{([^}]*)\}",
-                             "\n".join(_strip_comment(l) for l in text.splitlines())):
+        body = "\n".join(_strip_comment(l) for l in text.splitlines())
+        for m in re.finditer(r"\\(?:RequirePackage|usepackage|usetheme)(?:\[[^\]]*\])?\{([^}]*)\}", body):
+            line = body[body.rfind("\n", 0, m.start()) + 1:m.start()]
+            optional_load = re.search(r"\\if(?!x\b)[A-Za-z@]", line)  # e.g. \ifakizumi@units: an option
             for p in (p.strip() for p in m.group(1).split(",")):
+                if optional_load and not (p.startswith("akizumi") or p == "Akizumi"):
+                    continue
                 if p.startswith("akizumi") or p == "Akizumi":
                     todo.append("beamerthemeAkizumi.sty" if p == "Akizumi" else p + ".sty")
                 elif p:
@@ -2997,16 +3001,8 @@ def cmd_selftest(a):
                 "\\section{Introduction}", "\\printnotation\n\\section{Introduction}\n"
                 "積分\\index{積分}、一致\\index{一致}、mesh\\index{partition!mesh}"
                 "\\nota{$\\abs{x}$}{絕對值 |x|}\n\\printindex"))
-            # this checkout's templates, not the installed ones
-            old = os.environ.get("TEXINPUTS")
-            os.environ["TEXINPUTS"] = f"{REPO}{os.pathsep}"
-            try:
-                code, out, _ = run_with_spinner(ax + ["build"], T("專案 索引", "project index"), cwd=d)
-            finally:
-                if old is None:
-                    os.environ.pop("TEXINPUTS", None)
-                else:
-                    os.environ["TEXINPUTS"] = old
+            # TEXINPUTS already puts this checkout first (see above)
+            code, out, _ = run_with_spinner(ax + ["build"], T("專案 索引", "project index"), cwd=d)
             ind = d / "build" / "main.ind"
             nota = d / "build" / "main-notation.ind"
             if code == 0 and not (ind.exists() and "\\hyperpage" in ind.read_text()

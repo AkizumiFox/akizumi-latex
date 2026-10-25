@@ -206,6 +206,7 @@
 % Subtitle under the title; info items centred on one line, label muted.
 % An item without "=" is shown as is.
 \newcommand{\akizumi@subtitle}{}
+\providecommand{\subtitle}[1]{\gdef\akizumi@subtitle{#1}}  % same as akizumisetup{subtitle=}
 \ExplSyntaxOn
 \seq_new:N \l__akizumi_info_seq
 \keys_define:nn { akizumi/meta }

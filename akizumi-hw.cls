@@ -44,7 +44,7 @@
 \akizumi@setgeometry{margin=2.5cm, top=2.3cm, headsep=0.8cm, headheight=15pt}
 
 % ---------- title: "Homework 3", kicker "ODE · Due 2026/10/28" ----------
-\title{\akizumi@str{\akizumi@kind}\ifx\akizumi@number\@empty\else\ \akizumi@number\fi}
+\title{\akizumi@str{hwkind-\akizumi@kind}\ifx\akizumi@number\@empty\else\ \akizumi@number\fi}
 \AtBeginDocument{%
   \ifx\akizumi@kicker\@empty
     \edef\akizumi@kicker{\unexpanded\expandafter{\akizumi@course}%

@@ -1,0 +1,21 @@
+% !TEX program = xelatex
+% integration of merged features: exercise names follow thmname=, parts/subparts
+% outside hw, book cover subtitle printed once, math + logic together
+\documentclass[lang=zh, thmnames=native]{akizumi-book}
+\usepackage{akizumi-logic}
+\akizumisetup{thmname={exercise=練習, exampleproblem=範例}, subtitle={副標題 Subtitle}}
+\title{Integration}\author{A}
+\begin{document}
+\maketitle
+\chapter{One}
+\begin{exercise}\label{ex:a}
+Let $f\colon\R\to\R$; show $A \limp B$ by \RuleImpI. Parts:
+\begin{parts}[itemsep=0pt]
+\item first \begin{subparts}\item sub\end{subparts}
+\end{parts}
+\end{exercise}
+\begin{solution} Done. \end{solution}
+\begin{example-problem}[title=T] Problem. \end{example-problem}
+See \cref{ex:a}.
+\begin{theorem} $\E[X]=\Var(X)$ \end{theorem}
+\end{document}

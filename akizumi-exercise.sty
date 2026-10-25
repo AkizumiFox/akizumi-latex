@@ -8,7 +8,7 @@
 %   \begin{exercises}[title] \item ... \end{exercises} end-of-section list;
 %                     items share the exercise counter, nested lists are (a) (b)
 %   \begin{example-problem}[title=..., source=...]    sample problem (例題)
-%   \begin{parts} \item ... \end{parts}               (a), (b), ... as in hw
+%   \begin{parts}[keys] \item ... \end{parts}         (a), (b), ... as in hw (also subparts)
 %   \printsolutions                                   print collected solutions now
 %
 % Options:  solutions = inline | chapter | end | hide   (default inline;
@@ -303,8 +303,13 @@
 \ExplSyntaxOff
 \AddToHook{env/example-problem/before}{\Needspace{4\baselineskip}}
 
-% ---------- parts: (a), (b), ... (hw and exam have their own) ----------
-\@ifclassloaded{akizumi-hw}{}{\@ifundefined{parts}{%
-  \newenvironment{parts}{\begin{enumerate}[label=(\alph*)]}{\end{enumerate}}}{}}
+% ---------- parts: (a), (b), ... and subparts (i), (ii), ... ----------
+% Same as akizumi-problems (hw); the optional argument takes enumitem keys.
+% hw loads akizumi-problems, exam has its own.
+\@ifclassloaded{akizumi-hw}{}{%
+  \@ifundefined{parts}{%
+    \NewDocumentEnvironment{parts}{O{}}{\begin{enumerate}[label=(\alph*),#1]}{\end{enumerate}}}{}%
+  \@ifundefined{subparts}{%
+    \NewDocumentEnvironment{subparts}{O{}}{\begin{enumerate}[label=(\roman*),#1]}{\end{enumerate}}}{}}
 
 \endinput

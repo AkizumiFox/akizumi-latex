@@ -14,5 +14,6 @@ Main folder only; \verb|\thechapterdir| is empty: [\thechapterdir].
 \chapterdir{}
 \chapter{After}
 Back in the main folder: [\thechapterdir]. See \cref{ch:folders}.
-\IfFileExists{chapterdir-section.tex}{\PackageError{test}{chapter folder still searched}{}}{}
+% "./": only \input@path may find it, not a TEXMF tree that holds this repo
+\IfFileExists{./chapterdir-section.tex}{\PackageError{test}{chapter folder still searched}{}}{}
 \end{document}

@@ -156,8 +156,11 @@
     {\akizumi@bylinetrue\Large
      \ifx\akizumi@subtitle\@empty\else
        \let\akizumi@maintitle\@title
+       \edef\akizumi@coversub{\unexpanded\expandafter{\akizumi@subtitle}}%
        \def\@title{\akizumi@maintitle\par\vspace{0.4em}%
-         {\mdseries\LARGE\color{mute}\akizumi@subtitle\par}}%
+         {\mdseries\LARGE\color{mute}\akizumi@coversub\par}}%
+       % the core title block's \akizumi@aftertitle would print it again
+       \let\akizumi@subtitle\@empty
      \fi
      \akizumi@titleblock}
     \vfill

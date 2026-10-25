@@ -726,10 +726,11 @@
   }
 \ExplSyntaxOff
 
+% ---------- exercises and solutions (akizumi-exercise.sty) ----------
+% before akizumi-theorems, so thmname= can rename exercise and its words too
+\RequirePackage{akizumi-exercise}
 % theorem options, extra kinds, \akizumiNewTheorem (thmcounter=, thmwithin=, ...)
 \RequirePackage{akizumi-theorems}
-% ---------- exercises and solutions (akizumi-exercise.sty) ----------
-\RequirePackage{akizumi-exercise}
 % Chinese report layout: par, secnum, fontsize, kai, subtitle / info, ...
 \RequirePackage{akizumi-zhlayout}
 % ---------- index and list of notation (index=true) ----------

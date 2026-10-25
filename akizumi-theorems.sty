@@ -66,7 +66,8 @@
   {
     theorem, lemma, proposition, corollary, claim, definition, assumption, example,
     remark, proof, solution, axiom, conjecture, property, remarks, conclusion,
-    problem, notationthm
+    problem, notationthm,
+    exercise, exercises, exampleproblem, solutions  % akizumi-exercise
   }
 \ProcessKeyOptions [ akizumi/theorems ]
 % The classes hand options they do not know to article / book / exam by key
@@ -324,6 +325,13 @@
     {remark}{remark}{Remarks}
   }
   { \__akizumi_thm_core:nnn #1 }
+% akizumi-exercise's exercise (loaded just before): renamable, and its cref
+% name follows thmname/exercise=; its own numbering stays (exercisewithin=).
+\cs_if_exist:cT { thmt@original@exercise }
+  {
+    \__akizumi_thm_lazyname:n { exercise }
+    \prop_gput:Nnn \g__akizumi_thm_key_prop { exercise } { exercise }
+  }
 
 % ---------- extra kinds ----------
 \akizumi@tn {axiom}       {Axiom}       {公理}  {公理}  {공리}

@@ -17,20 +17,47 @@ against the same files as `ax build`.
 """
 
 import argparse
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 SKELETONS = REPO / "skeletons"
-CACHE = Path.home() / "Library" / "Caches" / "ax"
-USER_CONFIG = Path.home() / ".config" / "ax" / "config.json"
+WINDOWS = os.name == "nt"
+MACOS = sys.platform == "darwin"
+
+
+def _cache_root():
+    # Must match the Perl in LATEXMKRC below.
+    if MACOS:
+        return Path.home() / "Library" / "Caches" / "ax"
+    if WINDOWS:
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(base) / "ax" / "Cache"
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "ax"
+
+
+def _config_dir():
+    if WINDOWS:
+        base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+        return Path(base) / "ax"
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "ax"
+
+
+CACHE = _cache_root()
+CONFIG_DIR = _config_dir()
+USER_CONFIG = CONFIG_DIR / "config.json"
+AX = Path(__file__).resolve()
+# How to run this script from any shell; Windows ignores the shebang.
+AX_CMD = '"%s" "%s"' % (sys.executable, AX)
 PROJECT_CONFIG = ".ax.json"
 # Template file names; versions before v0.6 used the aaron- prefix.
 TEMPLATE_GLOBS = ("akizumi-*.sty", "akizumi-*.cls", "beamerthemeAkizumi.sty",
@@ -46,24 +73,35 @@ KINDS = {
     "paper": "article",
 }
 
-LATEXMKRC = """\
-# Written by ax. Builds into build/; `ax build` copies the PDF out only when
-# the run succeeds.
-$pdf_mode = {pdf_mode};
+LATEXMKRC = r"""# Written by ax. Builds into build/; `ax build` copies the PDF out only when
+# the run succeeds. No machine-specific paths: the same file works on macOS,
+# Linux and Windows.
+$pdf_mode = @PDF_MODE@;
 $out_dir = 'build';
 $aux_dir = 'build';
-# SyncTeX lets Skim jump between the PDF and the source (Cmd-Shift-click).
+# SyncTeX: jump between PDF and source (Skim, SumatraPDF, Zathura, editors).
 push @extra_xelatex_options, '-synctex=1';
 push @extra_pdflatex_options, '-synctex=1';
 
-# Template version pinned in .ax.json (empty when frozen or not found).
-# Absolute paths: editors started from the Dock do not have ~/bin on PATH.
-my $ax_path = `'{ax}' texinputs 2>/dev/null`;
-chomp $ax_path;
-ensure_path('TEXINPUTS', "$ax_path//") if $ax_path;
-$biber = "'$ENV{{HOME}}/bin/biber' %O %S" if -x "$ENV{{HOME}}/bin/biber";
+# Template version pinned in .ax.json, unpacked in ax's cache.
+my $ax_pin = '';
+if (open(my $fh, '<', '.ax.json')) {
+  local $/; my $json = <$fh>; close $fh;
+  ($ax_pin) = $json =~ /"template"\s*:\s*"([^"]+)"/;
+}
+if ($ax_pin && $ax_pin !~ /^(latest|frozen)$/) {
+  my $cache = $^O eq 'darwin'  ? "$ENV{HOME}/Library/Caches/ax"
+            : $^O eq 'MSWin32' ? "$ENV{LOCALAPPDATA}/ax/Cache"
+            : ($ENV{XDG_CACHE_HOME} || "$ENV{HOME}/.cache") . "/ax";
+  my $dir = "$cache/$ax_pin";
+  # First build of this version on this machine: ax unpacks it.
+  if (!-e "$dir/akizumi-core.sty" && !-e "$dir/aaron-core.sty") { my $out = `ax texinputs`; }
+  ensure_path('TEXINPUTS', "$dir//");
+}
 
-$pdf_previewer = 'open -a Skim' if -d '/Applications/Skim.app';
+# macOS only: TeX Live's biber does not start with current Command Line Tools.
+$biber = "'$ENV{HOME}/bin/biber' %O %S" if $^O eq 'darwin' && -x "$ENV{HOME}/bin/biber";
+$pdf_previewer = 'open -a Skim' if $^O eq 'darwin' && -d '/Applications/Skim.app';
 """
 
 # Cursor / VS Code (LaTeX Workshop): build with latexmk so latexmkrc decides
@@ -93,6 +131,30 @@ build/
 
 
 # ---------- small helpers ----------
+
+def write_build_files(target, kind):
+    """latexmkrc and Cursor / VS Code settings; ax new and ax upgrade."""
+    target = Path(target)
+    (target / "latexmkrc").write_text(
+        LATEXMKRC.replace("@PDF_MODE@", "1" if kind == "paper" else "5"))
+    (target / ".vscode").mkdir(exist_ok=True)
+    (target / ".vscode" / "settings.json").write_text(
+        json.dumps(EDITOR_SETTINGS, indent=2) + "\n")
+
+
+def copy_pdf(src, dest):
+    """Replace dest with src in one step, so a viewer never sees half a file.
+    Returns False when dest is locked (Windows viewers such as Acrobat)."""
+    fd, tmp = tempfile.mkstemp(dir=str(Path(dest).parent), prefix=".ax-", suffix=".pdf")
+    os.close(fd)
+    shutil.copyfile(src, tmp)
+    try:
+        os.replace(tmp, dest)
+        return True
+    except PermissionError:
+        os.unlink(tmp)
+        return False
+
 
 def die(msg):
     print(f"ax: {msg}", file=sys.stderr)
@@ -132,7 +194,7 @@ def template_dir(pin):
     if not pin or pin in ("latest", "frozen"):
         return None
     target = CACHE / pin
-    if (target / "akizumi-core.sty").exists():
+    if (target / "akizumi-core.sty").exists() or (target / "aaron-core.sty").exists():
         return target
     if git("rev-parse", "-q", "--verify", f"refs/tags/{pin}").returncode:
         return None
@@ -142,7 +204,11 @@ def template_dir(pin):
                              capture_output=True)
     if archive.returncode:
         return None
-    subprocess.run(["tar", "-x", "-C", str(tmp)], input=archive.stdout, check=True)
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as t:
+        try:
+            t.extractall(tmp, filter="data")
+        except TypeError:  # Python before 3.12
+            t.extractall(tmp)
     if target.exists():
         shutil.rmtree(tmp)
     else:
@@ -184,6 +250,22 @@ def ask(prompt):
         return ""
 
 
+def user_preamble(kind):
+    """The user's own preamble lines for a new project: preamble.tex (every
+    kind except paper, which follows a venue template) and preamble-KIND.tex,
+    both in the config directory. Copied into main.tex, so the project stays
+    self-contained."""
+    parts = []
+    names = ([] if kind == "paper" else ["preamble.tex"]) + [f"preamble-{kind}.tex"]
+    for name in names:
+        f = CONFIG_DIR / name
+        if f.exists():
+            text = f.read_text().strip()
+            if text:
+                parts.append(f"% --- from {name} ---\n{text}")
+    return "\n".join(parts)
+
+
 def cmd_new(a):
     user = load_json(USER_CONFIG)
     interactive = sys.stdin.isatty()
@@ -202,6 +284,13 @@ def cmd_new(a):
             die(f"unknown kind {choice!r}")
     if a.kind not in KINDS:
         die(f"unknown kind {a.kind!r}; choose from " + ", ".join(KINDS))
+    # config.json "defaults": {"slides": {"progress": true}, "note": {"layout": "margin"}}
+    for key, value in user.get("defaults", {}).get(a.kind, {}).items():
+        if key in ("lang", "text", "paper", "layout", "course", "author", "id"):
+            if getattr(a, key, None) is None:
+                setattr(a, key, value)
+        elif key in ("bib", "progress", "git") and value and not getattr(a, key):
+            setattr(a, key, True)
     if a.dir is None:
         if not interactive:
             die("ax new needs a DIR")
@@ -276,6 +365,9 @@ def cmd_new(a):
         lines.append(f"\\title{{{title}}}")
     if author:
         lines.append(f"\\author{{{author}}}")
+    extra = "" if a.no_preamble else user_preamble(a.kind)
+    if extra:
+        lines += ["", extra]
 
     body = (SKELETONS / f"{a.kind}.tex").read_text()
     bibend = ""
@@ -291,11 +383,7 @@ def cmd_new(a):
     (target / "figures").mkdir(exist_ok=True)
     (target / "figures" / ".gitkeep").touch()
     (target / "main.tex").write_text("\n".join(lines) + "\n\n" + body)
-    (target / "latexmkrc").write_text(LATEXMKRC.format(
-        pdf_mode=1 if a.kind == "paper" else 5, ax=REPO / "bin" / "ax"))
-    (target / ".vscode").mkdir(exist_ok=True)
-    (target / ".vscode" / "settings.json").write_text(
-        json.dumps(EDITOR_SETTINGS, indent=2) + "\n")
+    write_build_files(target, a.kind)
     (target / ".gitignore").write_text(GITIGNORE)
     if a.bib:
         (target / "refs.bib").write_text("% BibTeX entries go here.\n")
@@ -396,10 +484,10 @@ def safe_build(main, jobname=None, pretex=None, quiet=False):
     log = Path("build") / f"{job}.log"
     if result.returncode == 0 and built.exists():
         dest = Path(f"{job}.pdf")
-        fd, tmp = tempfile.mkstemp(dir=".", prefix=f".{job}-", suffix=".pdf")
-        os.close(fd)
-        shutil.copyfile(built, tmp)
-        os.replace(tmp, dest)
+        if not copy_pdf(built, dest):
+            print(f"ok  {built}  ({dest} is open in a viewer that locks it; "
+                  f"close it or open {built} instead)")
+            return True
         if not quiet:
             notes = warnings_summary(log)
             print(f"ok  {dest}" + (f"  ({'; '.join(notes)})" if notes else ""))
@@ -432,6 +520,12 @@ def cmd_explain(a):
         print("  no LaTeX error in the log; see the latexmk output above", file=sys.stderr)
 
 
+def cmd_copypdf(a):
+    """Called by latexmk after a successful run in ax watch."""
+    if not copy_pdf(a.src, a.dest):
+        print(f"  {a.dest} is locked by a viewer; the new PDF is {a.src}", file=sys.stderr)
+
+
 def cmd_build(a):
     sys.exit(0 if safe_build(main_file(a.file)) else 1)
 
@@ -440,8 +534,8 @@ def cmd_watch(a):
     main = main_file(a.file)
     print("watching; Ctrl-C to stop")
     cmd = ["latexmk", "-pvc", "-interaction=nonstopmode", "-file-line-error",
-           "-e", "$success_cmd = 'cp -f %D %R.pdf';",
-           "-e", "$failure_cmd = 'ax explain %R';", str(main)]
+           "-e", f"$success_cmd = q({AX_CMD} copypdf %D %R.pdf);",
+           "-e", f"$failure_cmd = q({AX_CMD} explain %R);", str(main)]
     try:
         sys.exit(subprocess.call(cmd))
     except KeyboardInterrupt:
@@ -501,6 +595,10 @@ def cmd_upgrade(a):
     new_dir = template_dir(tags[0])
     if new_dir and (new_dir / "akizumi-core.sty").exists():
         rename_aaron(Path(cfg.get("main", "main.tex")).parent)
+    rc = Path("latexmkrc")
+    if not rc.exists() or rc.read_text().startswith("# Written by ax"):
+        write_build_files(".", cfg.get("kind"))
+        print("  refreshed latexmkrc and .vscode/settings.json")
     print(f"templates {old} -> {tags[0]}; check with ax build")
 
 
@@ -569,15 +667,15 @@ def cmd_doctor(a):
     r = run("biber", "--version")
     biber_ok = bool(r) and r.returncode == 0
     report(biber_ok, "biber", (r.stdout.strip().splitlines() or [""])[-1] if biber_ok else
-           "fails to start; see README, 'Known issue: biber'")
+           "fails to start; see docs/reference.md, troubleshooting")
     report(bool(shutil.which("ax")), "ax on PATH",
-           "" if shutil.which("ax") else "editors calling latexmk will not see pinned versions")
-    report(Path("/Applications/Skim.app").exists(), "Skim", "optional viewer for ax watch")
+           "" if shutil.which("ax") else "run install.py, then open a new terminal")
+    report(bool(shutil.which("git")), "git", "" if shutil.which("git") else "needed for template versions")
 
     print("templates")
     r = run("kpsewhich", "akizumi-core.sty")
     found = r.stdout.strip() if r else ""
-    report(bool(found), "akizumi-core.sty installed", found or "run install.sh")
+    report(bool(found), "akizumi-core.sty installed", found or "run install.py")
     tags = template_tags()
     report(bool(tags), "version tags", ", ".join(tags[:5]) or "none: git tag the repo")
 
@@ -585,11 +683,21 @@ def cmd_doctor(a):
     for f in ("Lato-Regular.ttf", "NewCM10-Book.otf", "bboldx.sty"):
         r = run("kpsewhich", f)
         report(bool(r and r.stdout.strip()), f)
-    for family in ("PingFang TC", "Songti TC", "JetBrains Mono"):
-        r = run("fc-list", family, "family")
-        ok = bool(r and r.stdout.strip())
-        report(ok, family, "" if ok else "falls back to Noto CJK / Fandol" if "TC" in family
-               else "falls back to Latin Modern Mono")
+    # First choice per system; akizumi-core falls back along the same chain.
+    if MACOS:
+        families = ("PingFang TC", "Songti TC")
+    elif WINDOWS:
+        families = ("Microsoft JhengHei", "MingLiU")
+    else:
+        families = ("Noto Sans CJK TC", "Noto Serif CJK TC")
+    if shutil.which("fc-list"):
+        for family in families + ("JetBrains Mono",):
+            r = run("fc-list", family, "family")
+            ok = bool(r and r.stdout.strip())
+            print(f"  {'ok ' if ok else '-- '}  {family}" + ("" if ok else
+                  "  not installed; falls back (see docs/reference.md)"))
+    else:
+        print("  --   system fonts not checked (no fc-list); CJK falls back automatically")
 
     cfg = project_config()
     if cfg:
@@ -606,6 +714,55 @@ def cmd_doctor(a):
     sys.exit(1 if problems else 0)
 
 
+def cmd_config(a):
+    print(f"config directory  {CONFIG_DIR}")
+    print(f"  config.json     {'present' if USER_CONFIG.exists() else 'not created'}")
+    for name in ["preamble.tex"] + [f"preamble-{k}.tex" for k in KINDS]:
+        if (CONFIG_DIR / name).exists():
+            print(f"  {name:<20} used by ax new")
+    print(f"template cache    {CACHE}")
+    print(f"template repo     {REPO}")
+
+
+def cmd_selftest(a):
+    """Rebuild the examples and build one fresh project of each kind."""
+    failed = []
+    if a.part in ("all", "examples"):
+        ex = REPO / "examples"
+        shutil.rmtree(ex / "build", ignore_errors=True)
+        for name in ("hw", "note", "exam", "slides", "book"):
+            r = subprocess.run(["latexmk", "-r", "latexmkrc", "-halt-on-error",
+                                "-interaction=nonstopmode", f"{name}.tex"],
+                               cwd=ex, capture_output=True)
+            ok = r.returncode == 0
+            print(f"example {name:<7} {'ok' if ok else 'FAILED'}", flush=True)
+            if not ok:
+                failed.append(name)
+                print_error(ex / "build" / f"{name}.log")
+    if a.part in ("all", "projects"):
+        tmp = Path(tempfile.mkdtemp(prefix="ax-selftest-"))
+        ax = [sys.executable, str(AX)]
+        for kind in KINDS:
+            d = tmp / f"t-{kind}"
+            r = subprocess.run(ax + ["new", kind, str(d), "--title", "Test", "--no-preamble"],
+                               stdin=subprocess.DEVNULL, capture_output=True, text=True)
+            if r.returncode == 0:
+                r = subprocess.run(ax + ["build"], cwd=d, capture_output=True, text=True)
+            ok = r.returncode == 0
+            print(f"project {kind:<7} {'ok' if ok else 'FAILED'}", flush=True)
+            if not ok:
+                failed.append(kind)
+                print(r.stdout + r.stderr)
+        r = subprocess.run(ax + ["both"], cwd=tmp / "t-hw", capture_output=True, text=True)
+        ok = r.returncode == 0 and (tmp / "t-hw" / "main-solutions.pdf").exists()
+        print(f"project both    {'ok' if ok else 'FAILED'}", flush=True)
+        if not ok:
+            failed.append("both")
+            print(r.stdout + r.stderr)
+        shutil.rmtree(tmp, ignore_errors=True)
+    sys.exit(1 if failed else 0)
+
+
 # ---------- command line ----------
 
 HELP_COMMANDS = """\
@@ -618,6 +775,8 @@ HELP_COMMANDS = """\
   upgrade   改用最新的模板版本
   freeze    把模板檔複製進專案，從此不依賴模板 repo
   pack      打包成 zip 上傳 Overleaf
+  config    顯示設定檔、preamble、快取的位置
+  selftest  重編所有範例、建立並編譯每種專案（改模板後用）
 
 """
 
@@ -664,6 +823,8 @@ def main():
     n.add_argument("--progress", action="store_true", help="簡報底部加進度條")
     n.add_argument("--pin", help="模板版本，預設最新的 tag")
     n.add_argument("--git", action="store_true", help="建立 git repo 並做第一個 commit")
+    n.add_argument("--no-preamble", action="store_true",
+                   help="不加入設定資料夾裡的 preamble.tex / preamble-種類.tex")
     n.add_argument("--force", action="store_true", help="資料夾已存在且不是空的也照樣建立")
     n.set_defaults(func=cmd_new)
 
@@ -679,8 +840,18 @@ def main():
                              ("pack", cmd_pack, "打包成 zip 上傳 Overleaf")):
         sub.add_parser(name, help=text, description=text).set_defaults(func=func)
 
-    # internal: latexmkrc asks for the pinned template path; ax watch explains failures
+    sub.add_parser("config", help="設定檔位置", description="顯示設定檔、preamble、快取的位置").set_defaults(func=cmd_config)
+    t = sub.add_parser("selftest", help="測試模板與 ax", description="重編所有範例、建立並編譯每種專案")
+    t.add_argument("part", nargs="?", choices=["all", "examples", "projects"], default="all")
+    t.set_defaults(func=cmd_selftest)
+
+    # internal: latexmkrc asks for the pinned template path; ax watch explains
+    # failures and copies the PDF out after successful runs
     sub.add_parser("texinputs").set_defaults(func=cmd_texinputs)
+    c = sub.add_parser("copypdf")
+    c.add_argument("src")
+    c.add_argument("dest")
+    c.set_defaults(func=cmd_copypdf)
     e = sub.add_parser("explain")
     e.add_argument("job")
     e.set_defaults(func=cmd_explain)

@@ -12,7 +12,7 @@
 %           paper  = a4 | letter | pad    (pad: 3:4 page for reading on a tablet)
 %           layout = normal | margin      (margin: wide right margin for sidenotes)
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{akizumi-core}[2026/10/21 v0.6 Aaron Lin shared style]
+\ProvidesPackage{akizumi-core}[2026/10/21 v0.7 Aaron Lin shared style]
 
 \RequirePackage{iftex}
 \RequireXeTeX
@@ -93,20 +93,30 @@
   {}
 
 \RequirePackage{xeCJK}
-% PingFang and Songti ship with macOS only. Elsewhere fall back to Noto CJK TC,
-% then to Fandol (always in TeX Live), with a warning instead of a hard error.
+% Traditional Chinese fonts, first one installed wins:
+%   sans   PingFang (macOS) > Noto Sans CJK TC > Microsoft JhengHei (Windows) > Fandol
+%   serif  Songti (macOS)   > Noto Serif CJK TC > MingLiU (Windows) > Fandol
+% Fandol is always in TeX Live but aimed at Simplified Chinese, so falling back
+% to it gives a warning (some Traditional glyphs may be missing).
 \newcommand{\akizumi@cjkserif}{STSongti-TC-Regular}
 \newcommand{\akizumi@cjkserifbold}{STSongti-TC-Bold}
 \IfFontExistsTF{\akizumi@cjkfont}{}{%
   \IfFontExistsTF{Noto Sans CJK TC}
     {\def\akizumi@cjkfont{Noto Sans CJK TC}\def\akizumi@cjkboldfont{Noto Sans CJK TC Bold}}
-    {\def\akizumi@cjkfont{FandolHei-Regular.otf}\def\akizumi@cjkboldfont{FandolHei-Bold.otf}}%
-  \PackageWarningNoLine{akizumi-core}{CJK sans font not found; using \akizumi@cjkfont}}
+    {\IfFontExistsTF{Microsoft JhengHei}
+      {\def\akizumi@cjkfont{Microsoft JhengHei}\def\akizumi@cjkboldfont{Microsoft JhengHei Bold}}
+      {\def\akizumi@cjkfont{FandolHei-Regular.otf}\def\akizumi@cjkboldfont{FandolHei-Bold.otf}%
+       \PackageWarningNoLine{akizumi-core}{No Traditional Chinese sans font found;
+         using Fandol. Install Noto Sans CJK TC for full coverage}}}}
 \IfFontExistsTF{\akizumi@cjkserif}{}{%
   \IfFontExistsTF{Noto Serif CJK TC}
     {\def\akizumi@cjkserif{Noto Serif CJK TC}\def\akizumi@cjkserifbold{Noto Serif CJK TC Bold}}
-    {\def\akizumi@cjkserif{FandolSong-Regular.otf}\def\akizumi@cjkserifbold{FandolSong-Bold.otf}}%
-  \PackageWarningNoLine{akizumi-core}{CJK serif font not found; using \akizumi@cjkserif}}
+    {\IfFontExistsTF{MingLiU}
+      % MingLiU has no bold; borrow the sans bold
+      {\def\akizumi@cjkserif{MingLiU}\edef\akizumi@cjkserifbold{\akizumi@cjkboldfont}}
+      {\def\akizumi@cjkserif{FandolSong-Regular.otf}\def\akizumi@cjkserifbold{FandolSong-Bold.otf}%
+       \PackageWarningNoLine{akizumi-core}{No Traditional Chinese serif font found;
+         using Fandol. Install Noto Serif CJK TC for full coverage}}}}
 % Chinese has no italic, so \emph / \textit on CJK text falls back to the bold
 % weight; Latin text in the same \emph still gets Lato Italic.
 % Serif body pairs with Songti TC; sans body and all structure use PingFang.

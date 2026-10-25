@@ -2,7 +2,7 @@
 %   \documentclass[lang=zh]{akizumi-note}
 %   \akizumisetup{course=ODE, kicker={ODE · Lecture 3}}
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{akizumi-note}[2026/10/21 v0.6 Aaron Lin notes]
+\ProvidesClass{akizumi-note}[2026/10/21 v0.7 Aaron Lin notes]
 
 \ExplSyntaxOn
 \tl_new:N \l__akizumi_size_tl

@@ -4,24 +4,31 @@
 
 ## 安裝
 
-需要 MacTeX（TeX Live 2026）和 Command Line Tools（`xcode-select --install`）。
+macOS、Linux、Windows 都可以用。三者都需要 **TeX Live**、**git**、**Python 3**：
+
+| 系統 | 先裝 |
+|---|---|
+| macOS | [MacTeX](https://tug.org/mactex/)、`xcode-select --install`（git） |
+| Linux | [TeX Live](https://tug.org/texlive/)（或發行版的 `texlive-full`）、git、python3；中文字型建議 `fonts-noto-cjk` |
+| Windows | [TeX Live](https://tug.org/texlive/windows.html)、[Git for Windows](https://git-scm.com/)、[Python](https://www.python.org/)（安裝時勾 py launcher） |
+
+MiKTeX 沒有測試過，請用 TeX Live。
 
 ```sh
-git clone https://github.com/AkizumiFox/akizumi-latex.git ~/w/akizumi-latex
-cd ~/w/akizumi-latex
-./install.sh
+git clone https://github.com/AkizumiFox/akizumi-latex.git akizumi-latex
+cd akizumi-latex
+python3 install.py        # Windows：py install.py
 ```
 
-`install.sh` 把模板掛進 TeX、把 `ax` 連到 `~/bin`。`~/bin` 要在 `PATH` 裡，不在的話它會提示。
+`install.py` 把模板掛進 TeX，並讓終端機找得到 `ax`：macOS 放在 `~/bin`，Linux 放在 `~/.local/bin`，Windows 會把 repo 的 `bin` 資料夾加進 PATH。裝完**開一個新的終端機**，跑 `ax doctor`，沒有 `BAD` 就完成了。
 
-設定作者資料（之後每個新專案自動填入，三個欄位都可省略）：
+設定作者資料：`ax config` 會顯示設定資料夾在哪裡（macOS、Linux 是 `~/.config/ax/`，Windows 在 `%APPDATA%\ax\`），在裡面建 `config.json`：
 
-```sh
-mkdir -p ~/.config/ax
-echo '{"author": "Aaron Lin", "id": "B12345678", "lang": "zh"}' > ~/.config/ax/config.json
+```json
+{"author": "Aaron Lin", "id": "B12345678", "lang": "zh"}
 ```
 
-最後跑 `ax doctor`，全部 `ok` 就完成了。
+三個欄位都可省略，之後每個新專案會自動填入。
 
 ## 開始一份文件
 
@@ -30,7 +37,7 @@ ax new hw ode-hw3 --course 常微分方程 --number 3
 cursor ode-hw3
 ```
 
-在 Cursor 打開 `main.tex`，按 `Cmd+Option+V` 打開 PDF 預覽；之後每次存檔都會重新編譯並更新預覽。序言已經填好，直接寫內容即可：
+在 Cursor 打開 `main.tex`，按 `Cmd+Option+V`（Windows、Linux：`Ctrl+Alt+V`）打開 PDF 預覽；之後每次存檔都會重新編譯並更新預覽。序言已經填好，直接寫內容即可：
 
 ```latex
 \begin{problem}[一階線性方程]
@@ -72,7 +79,32 @@ cursor ode-hw3
 
 不是用 `ax new` 建的資料夾會沿用全域的 pdflatex 配方而編譯失敗；從任何一個 `ax` 專案把 `.vscode/` 和 `latexmkrc` 複製過去即可。
 
-PDF 和原始碼互相跳轉：在原始碼按 `Cmd+Option+J` 跳到 PDF 對應的位置；在 PDF 上雙擊跳回原始碼。
+PDF 和原始碼互相跳轉：在原始碼按 `Cmd+Option+J`（`Ctrl+Alt+J`）跳到 PDF 對應的位置；在 PDF 上雙擊跳回原始碼。
+
+同一個專案可以放進 git，在 macOS、Linux、Windows 之間來回編譯；專案裡沒有任何只屬於某台電腦的路徑。
+
+## 自訂 preamble
+
+在設定資料夾（`ax config` 顯示的位置）放這些檔案，`ax new` 會把內容複製進新專案的 `main.tex`：
+
+| 檔案 | 套用到 |
+|---|---|
+| `preamble.tex` | 每一種新專案（`paper` 除外，它跟著會議模板） |
+| `preamble-hw.tex`、`preamble-slides.tex`⋯ | 只有那一種 |
+
+每種文件的預設選項寫在 `config.json` 的 `defaults`，命令列給的選項優先：
+
+```json
+{
+  "author": "Aaron Lin",
+  "defaults": {
+    "slides": {"progress": true, "lang": "en"},
+    "note": {"layout": "margin"}
+  }
+}
+```
+
+內容是建立時複製進去的，所以之後改 preamble 不會影響舊專案。單次不要套用：`ax new ... --no-preamble`。
 
 ## 舊文件不會壞
 

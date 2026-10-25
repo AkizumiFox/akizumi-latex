@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7 — 2026-10-25
+
+- Runs on macOS, Linux and Windows. `install.py` replaces `install.sh` (junction plus user PATH on Windows; `~/.local/bin` on Linux). `bin/ax.cmd` starts ax on Windows.
+- Project `latexmkrc` has no machine-specific paths: it reads the pinned version from `.ax.json` and finds the cache per system, so one project builds on all three. `ax upgrade` refreshes `latexmkrc` and `.vscode/settings.json` written by ax.
+- Traditional Chinese fonts: PingFang / Songti, then Noto CJK TC, then Microsoft JhengHei / MingLiU, then Fandol (with a warning).
+- Your own preamble: `preamble.tex` and `preamble-KIND.tex` in the config folder are copied into new projects; `config.json` `defaults` sets options per kind; `--no-preamble`.
+- `ax config` shows where config, preambles and the cache live; `ax selftest` replaces the Makefile checks; `ax watch` no longer needs `cp`; `ax build` explains a PDF locked by a viewer.
+- GitHub Actions builds everything on Linux and Windows on demand and on version tags.
+- Fix: projects pinned to versions before v0.6 no longer re-extract the version on every build.
+
 ## v0.6 — 2026-10-25
 
 - Renamed the package from aaron to akizumi: `akizumi-core.sty`, `akizumi-hw.cls`, … , `beamerthemeAkizumi.sty` (`\usetheme{Akizumi}`), `\akizumisetup`, `\akizumisep`, `\akizumirule`, TikZ styles `akizumi/box` etc., `bin/akizumi-both`. The TeX tree link is now `akizumi-latex`.

@@ -3,7 +3,7 @@
 %   \akizumisetup{course=ODE, number=3, due=2026/10/28, id=B12345678}
 %   \begin{problem}[optional title] ... \begin{solution} ... \end{solution} \end{problem}
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{akizumi-hw}[2026/10/21 v0.6 Aaron Lin homework]
+\ProvidesClass{akizumi-hw}[2026/10/21 v0.7 Aaron Lin homework]
 
 \newif\ifakizumi@solutions \akizumi@solutionstrue
 \ExplSyntaxOn

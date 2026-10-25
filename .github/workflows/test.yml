@@ -1,0 +1,69 @@
+# Build every example and one ax project of each kind on Linux and Windows.
+# macOS is tested locally. Runs on demand (Actions tab, or
+# `gh workflow run test`) and when a version tag is pushed.
+name: test
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # ax pins template versions by git tag
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: teatimeguest/setup-texlive-action@v3
+        with:
+          cache: true
+          packages: |
+            scheme-basic
+            collection-xetex
+            collection-latexextra
+            collection-fontsrecommended
+            collection-bibtexextra
+            latexmk
+            biber
+            lato
+            newcomputermodern
+            bboldx
+            fandol
+            xecjk
+
+      - name: Noto CJK fonts (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+
+      - name: Install
+        run: python install.py
+
+      - name: ax on PATH for later steps
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then echo "$GITHUB_WORKSPACE\\bin" >> "$GITHUB_PATH";
+          else echo "$HOME/.local/bin" >> "$GITHUB_PATH"; fi
+
+      - name: ax doctor
+        run: ax doctor
+        continue-on-error: true
+
+      - name: ax selftest
+        run: python bin/ax selftest
+
+      - name: Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.os }}
+          path: examples/build/*.log

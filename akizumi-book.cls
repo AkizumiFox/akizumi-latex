@@ -6,7 +6,7 @@
 %   \mainmatter \chapter{Introduction} \chaptertoc ...
 %   \appendix \chapter{Proofs} ...  \backmatter \printbibliography
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{akizumi-book}[2026/10/21 v0.6 Aaron Lin book]
+\ProvidesClass{akizumi-book}[2026/10/21 v0.7 Aaron Lin book]
 
 \ExplSyntaxOn
 \tl_new:N \l__akizumi_size_tl

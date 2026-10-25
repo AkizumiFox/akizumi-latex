@@ -342,41 +342,56 @@ akizumi-book.cls        論文、書
 beamerthemeAkizumi.sty  簡報
 skeletons/            ax new 用的內文骨架
 examples/             每種文件的完整範例，兼當測試
-bin/                  ax、akizumi-both、biber 修正
+bin/                  ax（ax.cmd 給 Windows）、akizumi-both、biber 修正（macOS）
+install.py            安裝（三個系統共用）
+.github/workflows/    在 Linux、Windows 上自動測試
 ```
 
 改完模板後：
 
 ```sh
-make check      # 從頭重編 examples/ 裡所有範例，有錯就停下並印出錯誤
-make test-ax    # 在暫存資料夾用 ax 建立並編譯每一種專案
+ax selftest             # 重編 examples/ 的所有範例，再用 ax 建立並編譯每一種專案
+ax selftest examples    # 只重編範例（同 make check）
+ax selftest projects    # 只測 ax 專案（同 make test-ax）
 ```
+
+Linux 與 Windows 的測試在 GitHub Actions 上跑：推送版本 tag 時自動執行，也可以手動 `gh workflow run test`，結果在 repo 的 Actions 頁面。
 
 發佈新版本（讓新專案用上、舊專案可以 `ax upgrade`）：
 
 1. 更新 `CHANGELOG.md`。
 2. 把各檔 `\ProvidesPackage` / `\ProvidesClass` 裡的版本號改掉。
-3. `make check && make test-ax`。
-4. `git commit`，然後 `git tag -a v0.5 -m v0.5`。
+3. `ax selftest`。
+4. `git commit`，然後 `git tag -a v0.8 -m v0.8 && git push && git push --tags`（推 tag 會觸發 Linux、Windows 測試）。
 
 沒有打 tag 的修改只影響 `examples/` 和直接用模板的文件，不會影響已經固定版本的專案。
 
 ## 疑難排解
 
-**`ax doctor` 說 biber 有問題，或參考文獻全是問號**
-TeX Live 2026 的 biber 啟動時呼叫 `lipo -extract_family`，新版 Command Line Tools 已經移除這個參數，錯誤訊息是 `extracting arm64 binary with lipo failed`。`install.sh` 偵測到時會把 `bin/biber` 連到 `~/bin/biber`：它用 `lipo -thin` 取出本機架構的版本執行，TeX Live 更新 biber 時會自動重新取出。等 TeX Live 修好後刪掉 `~/bin/biber` 即可。
+**`ax doctor` 說 biber 有問題，或參考文獻全是問號（macOS）**
+TeX Live 2026 的 biber 啟動時呼叫 `lipo -extract_family`，新版 Command Line Tools 已經移除這個參數，錯誤訊息是 `extracting arm64 binary with lipo failed`。`install.py` 偵測到時會把 `bin/biber` 連到 `~/bin/biber`：它用 `lipo -thin` 取出本機架構的版本執行，TeX Live 更新 biber 時會自動重新取出。等 TeX Live 修好後刪掉 `~/bin/biber` 即可。Linux、Windows 沒有這個問題。
 
 **改了模板，專案的 PDF 沒變**
 專案固定在舊版本（見〈版本固定〉）。跑 `ax upgrade`；或者模板的修改還沒打 tag。
 
 **換到另一台電腦，中文字型不一樣**
-蘋方、宋體只有 macOS 有。找不到時會依序改用 Noto CJK TC、TeX Live 內建的 Fandol，並在 log 裡警告，不會編譯失敗。
+每個系統用找得到的第一個字型：
+
+| 用途 | 依序嘗試 |
+|---|---|
+| 無襯線（標題、標籤、簡報） | 蘋方（macOS）→ Noto Sans CJK TC → 微軟正黑體（Windows）→ Fandol |
+| 襯線（內文） | 宋體（macOS）→ Noto Serif CJK TC → 細明體（Windows，粗體借用正黑體）→ Fandol |
+
+Fandol 一定有（TeX Live 內建），但主要是簡體字型，用到它時 log 會警告，部分繁體字可能缺字。想在各系統看起來一致，就在每台電腦裝 [Noto CJK](https://github.com/notofonts/noto-cjk)（Linux：`fonts-noto-cjk`）。
 
 **編譯時出現 `XeTeX is required to compile this document.`**
 用了 pdfLaTeX。終端機請用 `ax build` 或 `latexmk`（會讀 `latexmkrc`）；編輯器設定見 README〈在 Cursor 裡寫〉。
 
 **`ax` 找不到**
-`~/bin` 不在 `PATH` 裡。在 `~/.zshrc` 加上 `export PATH="$HOME/bin:$PATH"`，重開終端機。
+先開一個新的終端機（`install.py` 改的 PATH 只對新視窗生效）。還是找不到的話：macOS 把 `~/bin`、Linux 把 `~/.local/bin` 加進 `PATH`（`~/.zshrc` 或 `~/.bashrc` 加 `export PATH="$HOME/bin:$PATH"`）；Windows 重新執行 `py install.py`。
+
+**Windows：`ax build` 說 PDF 被鎖住**
+有些閱讀器（例如 Acrobat）開著 PDF 時會鎖住檔案，`ax` 換不掉它，新的 PDF 會留在 `build/main.pdf`。改用不鎖檔的閱讀器（SumatraPDF、Cursor 內建預覽）即可。
 
 **其他錯誤**
 先跑 `ax doctor`。完整的編譯紀錄在 `build/main.log`。

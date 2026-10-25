@@ -1,0 +1,23 @@
+% !TEX program = xelatex
+% exercises: default solutions=inline in a note; verbatim inside an inline solution
+\documentclass{akizumi-note}
+\begin{document}
+\section{Loops}
+\begin{exercises}[title=Drills]
+\item What does this print?
+\begin{codeblock}[lang=Python]
+print([i * i for i in range(3)])
+\end{codeblock}
+\begin{solution}
+\verb|[0, 1, 4]|.
+\end{solution}
+\item No solution here.
+\end{exercises}
+\begin{exercise}[Off by one]\label{ex:off}
+Explain \cref{ex:off}.
+\end{exercise}
+\begin{solution}
+It refers to itself.
+\end{solution}
+\printsolutions
+\end{document}

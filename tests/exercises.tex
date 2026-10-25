@@ -1,0 +1,67 @@
+% !TEX program = xelatex
+% exercises: book, solutions=chapter (collected per chapter, linked both ways)
+\documentclass[solutions=chapter]{akizumi-book}
+\begin{document}
+\tableofcontents
+\chapter{Sets}
+\section{Basics}
+\begin{exercise}[Union]\label{ex:union}
+Compute $A\cup B$ for $A=[-2,1)$ and $B=(0,3]$.
+\end{exercise}
+\begin{solution}
+$A\cup B=[-2,3]$; see also \cref{ex:list-b}. A hash: \#, verbatim: \verb|a_b#c|.
+% a comment line inside the solution
+
+Second paragraph with $\sum_{i=1}^n i$.
+\end{solution}
+
+\begin{example-problem}[title=Two Sum, source=LeetCode 1]\label{ep:twosum}
+Given an array and a target, find two indices whose values add up to it.
+\end{example-problem}
+\begin{solution}
+Hash map, $O(n)$. Always inline after a sample problem.
+\end{solution}
+
+\section{Exercises}
+\begin{exercises}[title]
+\label{drills:sets}
+\item Let $A=\{1,2\}$ and $B=\{a,b,c\}$.
+  \begin{enumerate}
+  \item List $A\times B$.
+  \item Show $A\times B\neq B\times A$.
+  \end{enumerate}
+  \begin{solution}
+  (a) Six pairs. (b) $(1,a)\notin B\times A$.
+  \end{solution}
+\item\label{ex:list-b} An exercise with no solution.
+\item Parts environment:
+  \begin{parts}
+  \item first \item second
+  \end{parts}
+\end{exercises}
+Refs: \cref{ex:union}, \cref{ex:list-b}, \cref{ep:twosum}, \cref{ex:union,ex:list-b},
+list label \ref{drills:sets}.
+
+\begin{exercise}
+Continues the count after the list.
+\end{exercise}
+\begin{solution}
+Done.
+\end{solution}
+
+\chapter{Functions}
+\begin{exercise}
+Restarts at 2.1.
+\end{exercise}
+\begin{solution}
+\begin{codeblock}[lang=Python]
+print("verbatim survives # % {")
+\end{codeblock}
+\end{solution}
+\begin{exercise}
+A solution nested inside its exercise gets one link.
+\begin{solution}
+Nested.
+\end{solution}
+\end{exercise}
+\end{document}

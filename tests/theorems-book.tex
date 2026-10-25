@@ -1,0 +1,40 @@
+% !TEX program = xelatex
+% theorems in a book: thmcounter=split, chapter numbering, English cref
+% plurals, manual numbers, \listoftheorems with the extra kinds
+\documentclass[thmcounter=split]{akizumi-book}
+\akizumiNewTheorem{rudinunit}{Unit}{}{}{}[style=definition, bar=0.8pt, barcolor=mute]
+\ExplSyntaxOn
+\cs_new_protected:Npn \expect #1#2
+  {
+    \tl_set:Ne \l_tmpa_tl {#1}
+    \tl_if_eq:NnF \l_tmpa_tl {#2}
+      { \PackageError { test } { got~`\l_tmpa_tl'~instead~of~`#2' } { } }
+  }
+\ExplSyntaxOff
+\usepackage{refcount}
+\newcommand{\checkref}[2]{\expect{\getrefnumber{#1}}{#2}}
+\begin{document}
+\chapter{One}
+\begin{theorem}\label{t1} A. \end{theorem}
+\begin{lemma}\label{l1} B. \end{lemma}
+\begin{theorem}\label{t2} C. \end{theorem}
+\begin{definition}\label{d1} D. \end{definition}
+\begin{conjecture}[Goldbach]\label{cj} E. \end{conjecture}
+\begin{rudinunit}[number=2.17]\label{u1} Manual. \end{rudinunit}
+\begin{rudinunit}\label{u2} Auto. \end{rudinunit}
+\begin{example}\label{e1} Numbered. \end{example}
+
+\cref{t1,t2}; \cref{l1}; \cref{d1}; \cref{cj}; \cref{u1,u2}; \cref{e1}.
+
+\chapter{Two}
+\begin{theorem}\label{t3} Reset per chapter. \end{theorem}
+
+\listoftheorems
+
+\makeatletter
+\@ifundefined{r@t1}{}{%
+  \checkref{t1}{1.1}\checkref{l1}{1.1}\checkref{t2}{1.2}\checkref{d1}{1.1}%
+  \checkref{cj}{1.1}\checkref{u1}{2.17}\checkref{u2}{1.1}\checkref{e1}{1.1}%
+  \checkref{t3}{2.1}}
+\makeatother
+\end{document}

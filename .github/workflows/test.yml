@@ -24,10 +24,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: teatimeguest/setup-texlive-action@v3
+      - uses: zauguin/install-texlive@v4
         with:
-          cache: true
-          packages: |
+          packages: >
             scheme-basic
             collection-xetex
             collection-latexextra

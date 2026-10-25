@@ -223,7 +223,7 @@
                        {tip}          {Tip}              {提示}      {ヒント}        {팁}
   {}
 \csname __akizumi_co_provide:nnnnnn\endcsname
-                       {warning}      {Warning}          {注意}      {注意}          {주의}
+                       {warning}      {Warning}          {注意}      {警告}          {주의}
   {bar=1.6pt, color=warn, labelcolor=warn}
 \csname __akizumi_co_provide:nnnnnn\endcsname
                        {pitfall}      {Pitfall}          {常見錯誤}  {落とし穴}      {함정}
@@ -234,6 +234,10 @@
 \csname __akizumi_co_provide:nnnnnn\endcsname
                        {chapterguide} {Chapter guide}    {本章導覽}  {この章の案内}  {장 안내}
   {bar=1.6pt, head=block, tint}
+% no chapters (notes, slides): the guide is not a chapter's
+\@ifundefined{c@chapter}{%
+  \akizumi@s  {callout-chapterguide}     {Guide} {導覽} {案内} {안내}%
+  \akizumi@tn {callout-chapterguide@thm} {Guide} {導覽} {案内} {안내}}{}
 \csname __akizumi_co_provide:nnnnnn\endcsname
                        {setup}        {}                 {}          {}              {}
   {color=rule, labelcolor=ink, tint=wash}

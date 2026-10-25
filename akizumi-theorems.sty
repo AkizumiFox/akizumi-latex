@@ -246,8 +246,13 @@
       {
         \str_if_eq:nnT {#3} { remark }
           {
-            \cs_gset_eq:cc { akizumi@thmorig@#1 } { #1* }
+            % \cref to it gives the name alone ("Remark"); the starred form's
+            % dummy counter would otherwise have no cref name (??)
+            \cs_gset_protected:cpn { akizumi@thmorig@#1 }
+              { \crefalias { thmt@dummyctr } { akizumi@un@#1 } \use:c { #1* } }
             \cs_gset_eq:cc { end#1 } { end#1* }
+            \crefformat { akizumi@un@#1 } { ##2 \akizumi@str {#2} ##3 }
+            \Crefformat { akizumi@un@#1 } { ##2 \akizumi@str {#2} ##3 }
           }
       }
   }

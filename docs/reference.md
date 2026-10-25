@@ -107,7 +107,7 @@ Characteristic functions agree on every line through the origin.
 
 ```latex
 % \akizumiNewTheorem{環境}{英文}{中文}{日文}{韓文}[選項]，留空的名稱用英文
-\akizumiNewTheorem{tool}{Tool}{工具}{道具}{도구}[counter=own, prefix=T]  % T1, T2, ...
+\akizumiNewTheorem{tool}{Tool}{工具}{道具}{도구}[counter=own, prefix=T, within=none]  % T1, T2, ...
 \akizumiNewTheorem{unit}{Unit}{}{}{}[style=definition]
 ```
 
@@ -146,7 +146,7 @@ Characteristic functions agree on every line through the origin.
 | tip | Tip / 提示 | 細淡藍線 |
 | warning、pitfall | Warning / 注意、Pitfall / 常見錯誤 | 粗橘線、橘色標籤 |
 | note | Note / 附註 | 細灰線、黑色標籤 |
-| chapterguide | Chapter guide / 本章導覽 | 標籤獨立一行、淡藍底；`\guidehead{...}` 是框內小標 |
+| chapterguide | Chapter guide / 本章導覽（講義、投影片：Guide / 導覽） | 標籤獨立一行、淡藍底；`\guidehead{...}` 是框內小標 |
 | setup | （無） | 淡灰底；給了 `[標題]` 就只顯示標題 |
 
 `[...]` 是標題，接在名稱後面，和定理一樣。名稱跟著 `lang=`（日文、韓文也有）；`proofidea` 例外，跟著 `thmnames=`，才會和後面的 Proof 一致。中文名稱後面不加句點。這些環境預設不編號。
@@ -319,7 +319,7 @@ for x in xs: ...
 
 ```latex
 \codedir{src/, code/}                        % \inputcode 找不到檔案時依序找這些資料夾
-\inputcode[lang=cpp, lines=10-24]{main.cpp}  % 只印第 10–24 行（行號從 1 起）
+\inputcode[lang=cpp, lines=10-24]{main.cpp}  % 只印第 10–24 行，行號照原檔（10–24）
 \inputcode[output, title=輸出]{run.txt}       % 程式輸出：白底細框、無行號、不上色
 ```
 
@@ -752,7 +752,7 @@ $A\cup B=[-2,3]$。
 | `ax watch --status` / `--log` / `--stop` | 背景監看有沒有在跑、上次編譯成功或失敗（失敗時附第一個錯誤）／即時看輸出／停止。背景監看在跑時 `ax build`、`ax both` 會提醒兩邊會搶 `build/` |
 | `ax open` | 用系統預設的閱讀器打開 PDF；`--solutions` 打開解答 |
 | `ax both` | 作業／考卷：`main.pdf`（題目）和 `main-solutions.pdf`（解答） |
-| `ax build --chapter N` | 只編第 N 章，輸出 `main-chN.pdf`，`main.pdf` 不動。章號、頁碼和跨章引用沿用上一次完整編譯的結果，所以先跑過一次 `ax build`。`N` 可以是章號、附錄字母（`A`）、`\include` 的檔名或資料夾名；`--chapter 3,5` 一次編兩章。`ax watch --chapter N` 同理 |
+| `ax build --chapter N` | 只編第 N 章，輸出 `main-chN.pdf`，`main.pdf` 不動。章號、頁碼和跨章引用沿用上一次完整編譯的結果，所以先跑過一次 `ax build`。`N` 可以是章號、附錄字母（`A`）、`\include` 的檔名或資料夾名；`--chapter 3,5` 一次編兩章，輸出 `main-ch3+5.pdf`。`ax watch --chapter N` 同理 |
 | `ax count` | 數字數：英文字數加中日韓字數（中日韓逐字算，韓文也是），不算指令、數學、程式碼、`\label`／`\ref`／`\cite`、註解和前言；會跟著 `\input`／`\include`／`\subfile`（和 `\chapterdir`）走，多個檔案時逐檔列出。`--limit 3000` 超過就提醒 |
 | `ax doctor` | 檢查工具、字型、模板安裝和版本，最後列出有問題的項目和修法；也會看有沒有 upmendex（索引的中日韓排序）。在專案裡還會檢查 `prebuild` 用到的程式、用了 `svg` 套件或 `\includesvg` 時的 inkscape（以及有沒有開 `shell_escape`）、專案 `\usepackage` 的套件是否都找得到（不在 TeX Live 裡的，例如 `stata.sty`，要放進專案資料夾），以及重新定義了哪些 akizumi-math 巨集、哪些檔案用單字母 `\def` 蓋掉了重音指令 |
 | `ax upgrade` | 把專案換到最新的模板版本，順便更新 `latexmkrc` 和編輯器設定 |

@@ -361,7 +361,7 @@
               { language = { \__akizumi_code_lst_lang:V \l__akizumi_code_lang_tl } , }
             numbers =\bool_if:NTF \l__akizumi_code_numbers_bool { left } { none }
             \tl_if_empty:NF \l__akizumi_code_first_tl
-              { , firstline = \l__akizumi_code_first_tl , firstnumber = 1 }
+              { , firstline = \l__akizumi_code_first_tl , firstnumber = \l__akizumi_code_first_tl }
             \tl_if_empty:NF \l__akizumi_code_last_tl { , lastline = \l__akizumi_code_last_tl }
           }
         \bool_if:NT \g__akizumi_code_minted_bool { \tcbset { listing~engine = listings } }

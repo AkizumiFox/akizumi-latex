@@ -185,6 +185,14 @@ use File::Spec;
 $makeindex = 'internal ax_makeindex %O -o %D %S';
 sub ax_makeindex {
   (my $ist = $_[-1]) =~ s/\.idx$/.ist/;
+  # An index with no entries (\index but no \nota, or the other way round):
+  # the indexers exit with an error on it, so write an empty .ind instead.
+  if (-z $_[-1]) {
+    my ($ind) = map { $_[$_ + 1] } grep { $_[$_] eq '-o' } 0 .. $#_ - 1;
+    ($ind = $_[-1]) =~ s/\.idx$/.ind/ unless $ind;
+    if (open(my $fh, '>', $ind)) { print $fh "\\begin{theindex}\n\n\\end{theindex}\n"; close $fh; }
+    return 0;
+  }
   if (grep { -f "$_/upmendex" || -f "$_/upmendex.exe" } File::Spec->path()) {
     return system('upmendex', (-f $ist ? ('-s', $ist) : ()), @_);
   }
@@ -398,7 +406,22 @@ def load_json(path):
 
 
 def project_config():
-    return load_json(PROJECT_CONFIG)
+    """The project's .ax.json; {} when there is none. A file that is not valid
+    JSON stops ax with the line at fault, instead of passing for no project."""
+    try:
+        text = Path(PROJECT_CONFIG).read_text()
+    except OSError:
+        return {}
+    try:
+        cfg = json.loads(text)
+    except ValueError as e:
+        die(T(f"{Path(PROJECT_CONFIG).resolve()} 不是有效的 JSON（第 {getattr(e, 'lineno', '?')} 行：{getattr(e, 'msg', e)}）",
+              f"{Path(PROJECT_CONFIG).resolve()} is not valid JSON (line {getattr(e, 'lineno', '?')}: {getattr(e, 'msg', e)})"),
+            T("修正這個檔案；格式見 docs/reference.md 的 .ax.json 一節",
+              "Fix the file; its format is in the .ax.json section of docs/reference.md"))
+    if not isinstance(cfg, dict):
+        die(T(f"{PROJECT_CONFIG} 要是一個 JSON 物件（{{...}}）", f"{PROJECT_CONFIG} must be a JSON object ({{...}})"))
+    return cfg
 
 
 def save_project_config(cfg):
@@ -560,6 +583,10 @@ def parse_problems(spec, kind):
                f"--problems is for homework only; skipped for {KIND_NAME[kind]}"))
         return []
     groups = []
+    if not spec.strip():
+        die(T("--problems 是空的", "--problems is empty"),
+            T("寫題數，例如 --problems 5；或分組，例如 --problems B4,C2",
+              "Give a count, e.g. --problems 5, or groups, e.g. --problems B4,C2"))
     for item in spec.replace(" ", "").split(","):
         m = re.fullmatch(r"([A-Za-z]*)(\d+)", item)
         if not m or int(m.group(2)) < 1 or int(m.group(2)) > 99:
@@ -568,6 +595,16 @@ def parse_problems(spec, kind):
                   "Give a count, e.g. --problems 5, or groups, e.g. --problems B4,C2"))
         if any(m.group(1) == g for g, _ in groups):
             die(T(f"--problems 的 {m.group(1) or '題數'} 重複了", f"--problems repeats {m.group(1) or 'the count'}"))
+        # file names: no prefix means p1, p2, ...; B1 and b1 are the same file
+        # on macOS and Windows
+        stem = (m.group(1) or "p").lower()
+        clash = [g for g, _ in groups if (g or "p").lower() == stem]
+        if clash:
+            die(T(f"--problems 的 {clash[0] or '題數'} 和 {m.group(1) or '題數'} 會用到同樣的檔名（{stem}1.tex …）",
+                  f"--problems {clash[0] or 'count'} and {m.group(1) or 'count'} would use the same files "
+                  f"({stem}1.tex, ...)"),
+                T("每組用不同的字母；只寫題數時檔名是 p1、p2 …",
+                  "Give each group its own letter; a bare count uses p1, p2, ..."))
         groups.append((m.group(1), int(m.group(2))))
     return groups
 
@@ -802,6 +839,18 @@ def cmd_new(a):
     if a.code == "minted" and a.kind == "paper":
         warn(T("論文不支援 --code minted，已略過", "--code minted is not available for papers; skipped"))
         a.code = None
+    if a.kind == "paper":
+        # a venue template on pdfLaTeX: these akizumi options do not apply
+        ignored = [f"--{k}" for k in ("thmnames", "text", "paper", "layout") if getattr(a, k, None)]
+        ignored += ["--progress"] if a.progress else []
+        ignored += [f"--lang {a.lang}"] if a.lang and a.lang != "en" else []
+        if ignored:
+            warn(T(f"論文用會議的模板（pdfLaTeX），{'、'.join(ignored)} 已略過",
+                   f"Papers use the venue's template (pdfLaTeX); {', '.join(ignored)} skipped"))
+        if (a.lang and a.lang != "en") or CJK_CHAR.search(a.title or ""):
+            note(T("  pdfLaTeX 排不了中日韓文字：中日韓文的論文或報告請改用 ax new note（XeLaTeX）",
+                   "  pdfLaTeX cannot set Chinese, Japanese or Korean text: for a paper or report "
+                   "in those languages use ax new note (XeLaTeX)"))
     if a.bib and a.kind in ("hw", "exam"):
         warn(T(f"{KIND_NAME[a.kind]}不支援 --bib，已略過", f"--bib is not available for {KIND_NAME[a.kind]}; skipped"))
         a.bib = False
@@ -812,7 +861,7 @@ def cmd_new(a):
         a.bib = True  # the venue's style loads natbib; refs.bib is expected
 
     # --- ax new hw --problems: one file per problem ---
-    problems = parse_problems(a.problems, a.kind) if a.problems else []
+    problems = parse_problems(a.problems, a.kind) if a.problems is not None else []
     if problems and pin != "latest":
         pinned = template_dir(pin)
         if pinned is not None and not (pinned / "akizumi-problems.sty").exists():
@@ -937,8 +986,8 @@ def cmd_new(a):
         note(T(f"  編譯時會讀共用 preamble {shared}", f"  Builds read the shared preamble {shared}"))
     if a.kind == "paper" and (a.venue or "plain") != "plain":
         v = PAPER_VENUES[a.venue]
-        warn(T(f"  {v['sty']}.sty 沒有附上：從 {v['where']} 下載到 {target}",
-               f"  {v['sty']}.sty is not included: download it from {v['where']} into {target}"))
+        warn(T(f"{v['sty']}.sty 沒有附上：從 {v['where']} 下載到 {target}",
+               f"{v['sty']}.sty is not included: download it from {v['where']} into {target}"))
     print(T("\n下一步：", "\nNext:"))
     print(f"  {cmd_text(f'cd {target}')}")
     keys = 'Cmd+Option+V' if MACOS else 'Ctrl+Alt+V'
@@ -1054,6 +1103,34 @@ MINTED_RE = re.compile(r"\\(?:documentclass|usetheme)\[[^\]]*\bcode\s*=\s*minted
                        r"|\\tcbuselibrary\{[^}]*\bminted\b")
 
 
+def fallback_latexmkrc(main):
+    """Outside a project, with no latexmkrc written by ax here: ax's own
+    settings (build/, XeLaTeX unless "% !TEX program" says otherwise), written
+    to the cache and given to latexmk with -r, which overrides a .latexmkrc."""
+    if Path(PROJECT_CONFIG).exists():
+        return []
+    rc = Path("latexmkrc")
+    try:
+        if rc.exists() and rc.read_text(errors="replace").startswith("# Written by ax"):
+            return []
+    except OSError:
+        pass
+    try:
+        first = Path(main).read_text(errors="replace").split("\n", 1)[0]
+    except OSError:
+        first = ""
+    mode = "1" if "pdflatex" in first else "4" if "lualatex" in first else "5"
+    path = CACHE / f"latexmkrc-{mode}"
+    text = LATEXMKRC.replace("@PDF_MODE@", mode)
+    try:
+        if not path.exists() or path.read_text() != text:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+    except OSError:
+        return []
+    return ["-r", str(path)]
+
+
 def latexmk(main, label, jobname=None, pretex=None, clean_first=False):
     need_tool("latexmk", T("請先安裝 TeX Live，再執行 ax doctor", "Install TeX Live, then run ax doctor"))
     base = ["latexmk", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error"]
@@ -1061,10 +1138,29 @@ def latexmk(main, label, jobname=None, pretex=None, clean_first=False):
         base.append(f"-jobname={jobname}")
     if pretex:
         base.append(f"-usepretex={pretex}")
-    base += latexmk_flags(main=main)
+    flags = latexmk_flags(main=main)
+    base += flags + fallback_latexmkrc(main)
+    # latexmk only looks at the sources: when the template version or the
+    # options (shell_escape) changed since the last build, rebuild in full
+    job = jobname or Path(main).stem
+    stamp_file = Path("build") / f".{job}.ax-stamp"
+    stamp = json.dumps({"template": project_config().get("template"), "flags": flags})
+    try:
+        old_stamp = stamp_file.read_text() if stamp_file.exists() else None
+    except OSError:
+        old_stamp = None
+    if (old_stamp is not None and old_stamp != stamp) or \
+            (old_stamp is None and (Path("build") / f"{job}.fdb_latexmk").exists()):
+        base.append("-g")
     if clean_first:
         subprocess.run(base[:1] + ["-C"] + base[4:] + [str(main)], capture_output=True)
-    return run_with_spinner(base + [str(main)], label)
+    code, output, secs = run_with_spinner(base + [str(main)], label)
+    if code == 0 and Path("build").is_dir():
+        try:
+            stamp_file.write_text(stamp)
+        except OSError:
+            pass
+    return code, output, secs
 
 
 def safe_build(main, jobname=None, pretex=None, label=None):
@@ -1100,7 +1196,8 @@ def safe_build(main, jobname=None, pretex=None, label=None):
             print(f"  {l.strip()}", file=sys.stderr)
     if Path(f"{job}.pdf").exists():
         note(T(f"  上一份 {job}.pdf 保留著，沒有被覆蓋", f"  The previous {job}.pdf is kept"), err=True)
-    note(T(f"  完整紀錄：{log}", f"  Full log: {log}"), err=True)
+    if log.exists():
+        note(T(f"  完整紀錄：{log}", f"  Full log: {log}"), err=True)
     return False
 
 
@@ -1154,6 +1251,10 @@ def latexmk_flags(cfg=None, main=None):
     -shell-escape when "shell_escape" is true or the main file uses code=minted;
     with minted, warns if Pygments is not found."""
     cfg = project_config() if cfg is None else cfg
+    if "shell_escape" in cfg and not isinstance(cfg["shell_escape"], bool):
+        warn(T(f'.ax.json 的 "shell_escape" 要寫 true 或 false（不加引號），現在是 {json.dumps(cfg["shell_escape"])}，當成 false',
+               f'"shell_escape" in .ax.json must be true or false (no quotes); it is '
+               f'{json.dumps(cfg["shell_escape"])}, read as false'))
     text = ""
     if main is not None:
         try:
@@ -1169,16 +1270,25 @@ def latexmk_flags(cfg=None, main=None):
     return ["-shell-escape"]
 
 
+# Lines that only a current latexmkrc has: "shell_escape", the indexer, and
+# the indexer's handling of an index with no entries.
+LATEXMKRC_MARKERS = ("shell_escape", "ax_makeindex", "-z $_[-1]")
+
+
 def refresh_latexmkrc(cfg):
-    """A latexmkrc written by an older ax does not read "shell_escape"; rewrite
-    it (it is ax's own file) so editors build like ax build does."""
+    """A latexmkrc written by an older ax lacks newer parts (it does not read
+    "shell_escape", or fails on an empty index); rewrite it (it is ax's own
+    file) so ax build and editors build the same way."""
     rc = Path("latexmkrc")
-    if cfg.get("shell_escape") is True and rc.exists():
+    if not rc.exists():
+        return
+    try:
         text = rc.read_text()
-        if text.startswith("# Written by ax") and "shell_escape" not in text:
-            rc.write_text(LATEXMKRC.replace("@PDF_MODE@", "1" if cfg.get("kind") == "paper" else "5"))
-            note(T('  已更新 latexmkrc，讓編輯器也照 "shell_escape" 編譯',
-                   '  Updated latexmkrc so editors also follow "shell_escape"'))
+    except OSError:
+        return
+    if text.startswith("# Written by ax") and not all(m in text for m in LATEXMKRC_MARKERS):
+        rc.write_text(LATEXMKRC.replace("@PDF_MODE@", "1" if cfg.get("kind") == "paper" else "5"))
+        note(T("  已更新 latexmkrc（舊版 ax 寫的）", "  Updated latexmkrc (written by an older ax)"))
 
 
 def prebuild_steps(cfg):
@@ -1373,6 +1483,7 @@ def pick_chapters(main, tokens):
 
 
 WATCH_CHAPTER = []  # latexmk options for ax watch --chapter
+WATCH_WHAT = []     # how ax watch --chapter names what it watches
 
 
 def chapter_job(main, tokens):
@@ -1380,7 +1491,8 @@ def chapter_job(main, tokens):
     entries, chosen = pick_chapters(main, tokens)
     tags = [e[1][0] if e[1] else re.sub(r"[^\w-]+", "_", Path(e[0]).parent.name or Path(e[0]).name)
             for e in chosen]
-    job = f"{main.stem}-ch{'-'.join(tags)}"
+    # main-ch2, main-ch1+3 (a dash would read as a range)
+    job = f"{main.stem}-ch{'+'.join(tags)}"
     build = Path("build")
     build.mkdir(exist_ok=True)
     others = [e for e in entries if e not in chosen]
@@ -1513,6 +1625,8 @@ def count_files(main):
 
 
 def cmd_count(a):
+    if a.limit is not None and a.limit < 1:
+        die(T(f"--limit 要是正整數，不是 {a.limit}", f"--limit must be a positive number, not {a.limit}"))
     main = main_file(a.file)
     rows = count_files(main)
     words = sum(r[1] for r in rows)
@@ -1526,7 +1640,8 @@ def cmd_count(a):
             print(f"  {str(path):<{width}}  {w:>8,}  {c:>8,}")
         print()
     ok(T(f"英文 {words:,} 字、中日韓 {cjk:,} 字，共 {total:,}",
-         f"{words:,} English words + {cjk:,} CJK characters = {total:,}"))
+         f"{words:,} English word{'' if words == 1 else 's'} + "
+         f"{cjk:,} CJK character{'' if cjk == 1 else 's'} = {total:,}"))
     note(T("  不算指令、數學、程式碼、\\label／\\ref／\\cite 和註解",
            "  Commands, math, code, \\label / \\ref / \\cite and comments are not counted"))
     if a.limit is not None:
@@ -1765,9 +1880,10 @@ def watch_background(main):
     else:
         proc = subprocess.Popen(watch_cmd(main, True), start_new_session=True, **kwargs)
     log.close()
-    WATCH_STATE.write_text(json.dumps({"pid": proc.pid, "started": time.time(), "main": str(main)}))
-    ok(T(f"背景開始監看 {cmd_text(str(main))}（PID {proc.pid}）：存檔就重編，成功才更新 PDF",
-         f"Watching {cmd_text(str(main))} in the background (PID {proc.pid}): rebuilds on save, "
+    what = WATCH_WHAT[0] if WATCH_WHAT else str(main)
+    WATCH_STATE.write_text(json.dumps({"pid": proc.pid, "started": time.time(), "main": what}))
+    ok(T(f"背景開始監看 {cmd_text(what)}（PID {proc.pid}）：存檔就重編，成功才更新 PDF",
+         f"Watching {cmd_text(what)} in the background (PID {proc.pid}): rebuilds on save, "
          "updates the PDF only on success"))
     note(T(f"  ax watch --status 看結果 {MARK['dot']} ax watch --log 看輸出 {MARK['dot']} ax watch --stop 停止",
            f"  ax watch --status for results {MARK['dot']} ax watch --log for output "
@@ -1876,8 +1992,10 @@ def cmd_watch(a):
     if not watcher():
         run_prebuild(a)  # once, before watching; not on every save
     if a.chapter:
-        job, pretex, _ = chapter_job(main, a.chapter)
+        job, pretex, label = chapter_job(main, a.chapter)
         WATCH_CHAPTER[:] = [f"-jobname={job}", f"-usepretex={pretex}"]
+        which = label.replace(T("編譯", "Building "), "", 1)  # 第 2 章 / chapter 2
+        WATCH_WHAT[:] = [T(f"{main}（{which}，{job}.pdf）", f"{main} ({which}, {job}.pdf)")]
     if a.bg:
         watch_background(main)
         return
@@ -1885,8 +2003,9 @@ def cmd_watch(a):
         die(T("背景已經有 ax watch 在跑", "A background ax watch is already running"),
             T("ax watch --log 看它的輸出，或 ax watch --stop 停掉再在前景監看",
               "ax watch --log shows its output; ax watch --stop stops it so you can watch here"))
-    print(T(f"監看 {cmd_text(str(main))}：存檔就重編，成功才更新 PDF。按 Ctrl-C 停止。",
-            f"Watching {cmd_text(str(main))}: rebuilds on save, updates the PDF only on "
+    what = WATCH_WHAT[0] if WATCH_WHAT else str(main)
+    print(T(f"監看 {cmd_text(what)}：存檔就重編，成功才更新 PDF。按 Ctrl-C 停止。",
+            f"Watching {cmd_text(what)}: rebuilds on save, updates the PDF only on "
             "success. Ctrl-C stops."))
     try:
         sys.exit(subprocess.call(watch_cmd(main)))
@@ -1970,6 +2089,13 @@ def cmd_upgrade(a):
     if old == tags[0]:
         ok(T(f"已經是最新的模板 {old}", f"Already on the newest template, {old}"))
         return
+    if old == "latest":
+        # latest is the repo as it is now, newer than any tag: moving to the
+        # newest tag would go back to older templates
+        ok(T(f"這個專案用 latest，已經跟著模板 repo 的最新內容（比最新的版本 {tags[0]} 還新），不用升級",
+             f"This project uses latest, which follows the template repo as it is now "
+             f"(newer than the newest version, {tags[0]}); nothing to upgrade"))
+        return
     if old == "frozen":
         for f in template_files("."):
             f.unlink()
@@ -1989,12 +2115,15 @@ def cmd_upgrade(a):
             f"  Run {cmd_text('ax build')} to check; what changed is in the template repo's CHANGELOG.md"))
 
 
+AARON_SWAPS = [(re.compile(r"(\\usetheme(?:\[[^\]]*\])?)\{Aaron\}"), r"\1{Akizumi}"),
+               (re.compile(r"beamerthemeAaron"), "beamerthemeAkizumi"),
+               (re.compile(r"aaron(?=[-/@a-z])"), "akizumi")]
+
+
 def rename_aaron(root):
     """v0.6 renamed the package from aaron to akizumi: rewrite the old names
     in the project's .tex files. 'Aaron Lin' in \\author is left alone."""
-    swaps = [(re.compile(r"(\\usetheme(?:\[[^\]]*\])?)\{Aaron\}"), r"\1{Akizumi}"),
-             (re.compile(r"beamerthemeAaron"), "beamerthemeAkizumi"),
-             (re.compile(r"aaron(?=[-/@a-z])"), "akizumi")]
+    swaps = AARON_SWAPS
     for tex in sorted(Path(root).rglob("*.tex")):
         if "build" in tex.parts:
             continue
@@ -2230,53 +2359,97 @@ def cmd_config(a):
 
 # ---------- shell completion ----------
 
+PARSER = None  # set by main(); completion reads each command's options from it
+
+
+def command_words():
+    """{command: (options, choices of its positional, takes a file)} from the
+    parser, so completion keeps up with new options."""
+    sub = next(x for x in PARSER._actions if isinstance(x, argparse._SubParsersAction))
+    out = {}
+    for name in PUBLIC_COMMANDS:
+        cp = sub.choices[name]
+        opts = [o for x in cp._actions for o in x.option_strings if o.startswith("--") and o != "--help"]
+        choices = [str(c) for x in cp._actions if not x.option_strings and x.choices for c in x.choices]
+        takes_file = any(x.dest == "file" for x in cp._actions)
+        out[name] = (opts, choices, takes_file)
+    return out
+
+
 def cmd_completion(a):
     cmds = " ".join(PUBLIC_COMMANDS)
     kinds = " ".join(KINDS)
-    opts = " ".join(NEW_OPTIONS)
+    words = command_words()
     if a.shell == "zsh":
         described = " ".join(f"'{c}:{HELP_LINES.get(c, '')}'" for c in PUBLIC_COMMANDS)
-        print(f"""#compdef ax
-_ax() {{
-  local -a cmds; cmds=({described})
+        cases = []
+        for c, (opts, choices, takes_file) in words.items():
+            if c == "new":
+                continue
+            body = " ".join(opts + choices)
+            line = f"compadd -- {body}" if body else ""
+            if takes_file:
+                line += ("; " if line else "") + "_files -g '*.tex'"
+            if line:
+                cases.append(f"    {c}) {line} ;;")
+        print("""#compdef ax
+_ax() {
+  local -a cmds; cmds=(%s)
   if (( CURRENT == 2 )); then _describe 'command' cmds
-  elif [[ $words[2] == new && CURRENT == 3 ]]; then compadd -- {kinds}
-  elif [[ $words[2] == new ]]; then compadd -- {opts}
-  elif [[ $words[2] == watch ]]; then compadd -- --bg --status --stop --log; _files -g '*.tex'
-  elif [[ $words[2] == (build|both|open|count) ]]; then _files -g '*.tex'
-  elif [[ $words[2] == migrate ]]; then compadd -- --output --in-place --kind --dry-run --force; _files -g '*.tex'
-  elif [[ $words[2] == completion ]]; then compadd -- zsh bash powershell
-  elif [[ $words[2] == selftest ]]; then compadd -- all examples tests projects
+  elif [[ $words[2] == new && CURRENT == 3 ]]; then compadd -- %s
+  elif [[ $words[2] == new ]]; then compadd -- %s
+  else
+    case $words[2] in
+%s
+    esac
   fi
-}}
-compdef _ax ax""")
+}
+compdef _ax ax""" % (described, kinds, " ".join(words["new"][0]), "\n".join(cases)))
     elif a.shell == "bash":
-        print(f"""_ax() {{
-  local cur=${{COMP_WORDS[COMP_CWORD]}}
-  if [ "$COMP_CWORD" -eq 1 ]; then COMPREPLY=($(compgen -W "{cmds}" -- "$cur"))
-  elif [ "${{COMP_WORDS[1]}}" = new ] && [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=($(compgen -W "{kinds}" -- "$cur"))
-  elif [ "${{COMP_WORDS[1]}}" = new ]; then COMPREPLY=($(compgen -W "{opts}" -- "$cur"))
-  elif [ "${{COMP_WORDS[1]}}" = completion ]; then COMPREPLY=($(compgen -W "zsh bash powershell" -- "$cur"))
-  elif [ "${{COMP_WORDS[1]}}" = watch ] && [[ "$cur" == -* ]]; then COMPREPLY=($(compgen -W "--bg --status --stop --log" -- "$cur"))
+        cases = []
+        for c, (opts, choices, _) in words.items():
+            if c == "new":
+                continue
+            if opts:
+                cases.append(f'    {c}) [[ "$cur" == -* ]] && COMPREPLY=($(compgen -W "{" ".join(opts)}" -- "$cur"))'
+                             + (f' || COMPREPLY=($(compgen -W "{" ".join(choices)}" -- "$cur"))' if choices else "")
+                             + " ;;")
+            elif choices:
+                cases.append(f'    {c}) COMPREPLY=($(compgen -W "{" ".join(choices)}" -- "$cur")) ;;')
+        print("""_ax() {
+  local cur=${COMP_WORDS[COMP_CWORD]}
+  if [ "$COMP_CWORD" -eq 1 ]; then COMPREPLY=($(compgen -W "%s" -- "$cur"))
+  elif [ "${COMP_WORDS[1]}" = new ] && [ "$COMP_CWORD" -eq 2 ]; then COMPREPLY=($(compgen -W "%s" -- "$cur"))
+  elif [ "${COMP_WORDS[1]}" = new ]; then COMPREPLY=($(compgen -W "%s" -- "$cur"))
+  else
+    case "${COMP_WORDS[1]}" in
+%s
+    esac
   fi
-}}
-complete -o default -F _ax ax""")
+}
+complete -o default -F _ax ax""" % (cmds, kinds, " ".join(words["new"][0]), "\n".join(cases)))
     else:
-        ps = lambda words: ", ".join(f"'{w}'" for w in words.split())
-        print(f"""Register-ArgumentCompleter -Native -CommandName ax -ScriptBlock {{
+        ps = lambda ws: ", ".join(f"'{w}'" for w in ws)
+        cases = []
+        for c, (opts, choices, _) in words.items():
+            if c == "new" or not (opts or choices):
+                continue
+            cases.append(f"  elseif ($words[1] -eq '{c}') {{ $list = @({ps(opts + choices)}) }}")
+        print("""Register-ArgumentCompleter -Native -CommandName ax -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
-  $words = @($commandAst.CommandElements | ForEach-Object {{ $_.ToString() }})
-  $n = $words.Count; if ($wordToComplete -eq '') {{ $n++ }}
-  if ($n -le 2) {{ $list = @({ps(cmds)}) }}
-  elseif ($words[1] -eq 'new' -and $n -eq 3) {{ $list = @({ps(kinds)}) }}
-  elseif ($words[1] -eq 'new') {{ $list = @({ps(opts)}) }}
-  elseif ($words[1] -eq 'completion') {{ $list = @('zsh', 'bash', 'powershell') }}
-  elseif ($words[1] -eq 'watch') {{ $list = @('--bg', '--status', '--stop', '--log') }}
-  else {{ return }}
-  $list | Where-Object {{ $_ -like "$wordToComplete*" }} | ForEach-Object {{
+  $words = @($commandAst.CommandElements | ForEach-Object { $_.ToString() })
+  $n = $words.Count; if ($wordToComplete -eq '') { $n++ }
+  if ($n -le 2) { $list = @(%s) }
+  elseif ($words[1] -eq 'new' -and $n -eq 3) { $list = @(%s) }
+  elseif ($words[1] -eq 'new') { $list = @(%s) }
+%s
+  else { return }
+  # files stay the default for the rest
+  if ($wordToComplete -notlike '-*' -and $words[1] -ne 'new' -and $words[1] -ne 'completion' -and $words[1] -ne 'selftest') { return }
+  $list | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
     [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
-  }}
-}}""")
+  }
+}""" % (ps(PUBLIC_COMMANDS), ps(KINDS), ps(words["new"][0]), "\n".join(cases)))
 
 
 # ---------- ax migrate, shared course preamble (akizumi-compat) ----------
@@ -2329,7 +2502,9 @@ def _strip_comment(line):
 CS_DEF = re.compile(
     r"\\(?P<how>newcommand|renewcommand|providecommand|DeclareRobustCommand|NewDocumentCommand|"
     r"RenewDocumentCommand|ProvideDocumentCommand|DeclareDocumentCommand|DeclareMathOperator|"
-    r"DeclarePairedDelimiter|DeclarePairedDelimiterX|def|gdef|edef|xdef|let)\*?\s*\{?\s*\\(?P<name>[A-Za-z@]+)")
+    r"DeclarePairedDelimiter|DeclarePairedDelimiterX|def|gdef|edef|xdef|let)\*?\s*\{?\s*"
+    # \expandafter\def\csname ...: the name is built, not written out
+    r"\\(?P<name>(?!(?:csname|expandafter|noexpand|global)(?![A-Za-z@]))[A-Za-z@]+)")
 ENV_DEF = re.compile(
     r"\\(?P<how>newenvironment|renewenvironment|NewDocumentEnvironment|RenewDocumentEnvironment|"
     r"DeclareTCBListing|newtheorem|newlist|akizumi@thm|akizumi@barenv)\*?\s*\{(?P<name>[A-Za-z*]+)\}")
@@ -2356,7 +2531,8 @@ def akizumi_names(kind):
     """Commands, environments and packages the templates define or load for
     `kind`, read from the template files themselves."""
     src = REPO
-    names, packages, todo, seen = {}, set(), [f"{KINDS.get(kind, 'akizumi-note')}.cls"], set()
+    first = "beamerthemeAkizumi.sty" if kind == "slides" else f"{KINDS.get(kind, 'akizumi-note')}.cls"
+    names, packages, todo, seen = {}, set(), [first], set()
     while todo:
         name = todo.pop()
         f = src / name
@@ -2380,6 +2556,36 @@ def akizumi_names(kind):
         if name.endswith(".cls"):
             todo.append("akizumi-core.sty")
     return names, packages
+
+
+# Names the LaTeX kernel and the standard classes define, which a preamble
+# may \renewcommand without any package.
+LATEX_KERNEL_NAMES = set("""thetable thefigure theequation thesection thesubsection thesubsubsection
+thechapter thepart thepage thefootnote theenumi theenumii labelitemi labelitemii labelenumi labelenumii
+figurename tablename contentsname refname bibname abstractname appendixname indexname partname
+chaptername listfigurename listtablename today baselinestretch arraystretch footnoterule
+familydefault rmdefault sfdefault ttdefault maketitle title author date and thanks
+cleardoublepage clearpage section subsection paragraph emph textbf""".split())
+
+_LATEX_SOURCES = {}
+
+
+def defined_by_latex(name, packages):
+    """Whether the LaTeX format or one of `packages` (those akizumi loads)
+    defines \\name, read from their files (best effort)."""
+    if not _LATEX_SOURCES:
+        files = ["latex.ltx", "fontmath.ltx", "fonttext.ltx"] + [f"{p}.sty" for p in sorted(packages)]
+        r = subprocess.run(["kpsewhich", *files], capture_output=True, text=True)
+        text = []
+        for f in r.stdout.split():
+            try:
+                text.append(Path(f).read_text(errors="replace"))
+            except OSError:
+                pass
+        _LATEX_SOURCES["text"] = "\n".join(text)
+    return re.search(r"\\(?:def|gdef|edef|let|newcommand\*?|renewcommand\*?|providecommand\*?|DeclareRobustCommand\*?|"
+                     r"DeclareMathSymbol|DeclareMathOperator\*?|DeclareTextSymbol|DeclareTextCommand)\s*\{?\s*\\"
+                     + re.escape(name) + r"(?![A-Za-z@])", _LATEX_SOURCES["text"]) is not None
 
 
 # One-letter commands LaTeX already has (accents and special letters):
@@ -2437,6 +2643,17 @@ def migrate_text(text, kind=None):
         die(T("找不到 \\begin{document}：ax migrate 只處理主檔", "No \\begin{document}: ax migrate works on main files"),
             T("被 \\input 的檔案不用轉，主檔轉好後照樣讀得到", "Files read with \\input need no migration"))
     pre, body = lines[:begin], lines[begin:]
+    # v0.6 renamed aaron to akizumi (\usetheme{Aaron}, \aaronsetup, ...)
+    renamed = False
+    for part in (pre, body):
+        for i, l in enumerate(part):
+            new = l
+            for pattern, repl in AARON_SWAPS:
+                new = pattern.sub(repl, new)
+            if new != l:
+                part[i], renamed = new, True
+    if renamed:
+        changes.append(T("舊名稱 aaron 改成 akizumi", "renamed aaron to akizumi"))
 
     # CJK wrappers, everywhere
     n = 0
@@ -2463,11 +2680,45 @@ def migrate_text(text, kind=None):
             break
     if cls_line is None:
         die(T("找不到 \\documentclass", "No \\documentclass found"))
-    if old_cls.startswith("akizumi-"):
+    if old_cls == "beamer" and kind not in (None, "slides"):
+        die(T(f"這是 beamer 簡報，只能轉成 slides，不能轉成 {kind}", f"This is a beamer deck: it converts to slides, not {kind}"),
+            T("拿掉 --kind，或寫 --kind slides", "Leave out --kind, or give --kind slides"))
+    if kind == "slides" and old_cls != "beamer":
+        die(T(f"--kind slides 只用在 beamer 簡報；這份是 {old_cls}", f"--kind slides is for beamer decks; this is {old_cls}"))
+    if old_cls == "beamer":
+        # keep beamer and its options (aspectratio, ...); the theme becomes Akizumi
+        kind = "slides"
+        lang = _guess_lang(body_text)
+        theme = f"\\usetheme{'[lang=' + lang + ']' if lang != 'en' else ''}{{Akizumi}}"
+        themes = [i for i, l in enumerate(pre)
+                  if re.match(r"\s*\\use(?:|color|font|inner|outer)theme\b", l)]
+        if any(re.match(r"\s*\\usetheme\s*(?:\[[^\]]*\])?\s*\{Akizumi\}", pre[i]) for i in themes):
+            themes, theme = [], None  # already on the Akizumi theme
+        for i in themes:
+            pre[i] = f"% ax migrate: {pre[i].strip()}"
+        if theme is None:
+            pass
+        elif themes:
+            pre[themes[0]] = theme + "\n" + pre[themes[0]]
+        else:
+            pre.insert(cls_line + 1, theme)
+        if theme:
+                changes.append(T(f"beamer 主題改成 {theme}" + ("（原本的主題已註解掉）" if themes else ""),
+                             f"beamer theme is now {theme}" + (" (the old themes are commented out)" if themes else "")))
+    elif old_cls.startswith("akizumi-"):
         kind = kind or next((k for k, c in KINDS.items() if c == old_cls), "note")
     else:
+        # chapters: \chapter lines, and \include'd files (one chapter each)
         chapters = len(re.findall(r"^\s*\\chapter\b", body_text, re.M))
-        assignment = re.search(r"Homework|Assignment|Problem Set|作業", text) and chapters <= 1
+        includes = len(re.findall(r"^\s*\\include\s*\{", "\n".join(_strip_comment(l) for l in body), re.M))
+        if old_cls in ("book", "memoir", "report", "scrbook", "scrreprt"):
+            chapters += includes
+        # homework: the word in the title or a heading, not anywhere in the text
+        heads = "\n".join(re.findall(
+            r"\\(?:title|subtitle|chapter|section|documentname|def\s*\\documentname|newcommand\s*\{?\\documentname\}?)"
+            r"\*?\s*(?:\[[^\]]*\])?\s*\{([^}\n]*)\}", text))
+        assignment = re.search(r"\b(?:Homework|Assignment|Problem Set)\b|作業\s*(?:[0-9０-９一二三四五六七八九十]|$)"
+                               r"|第\s*\S{1,3}\s*次作業", heads, re.I | re.M) and chapters <= 1
         kind = kind or ("hw" if problems or assignment else "book" if chapters >= 2 else "note")
         opts = []
         lang = _guess_lang(body_text)
@@ -2516,6 +2767,23 @@ def migrate_text(text, kind=None):
     if dropped_pkgs:
         changes.append(T(f"不再載入 {', '.join(dropped_pkgs)}（akizumi 已經有，或用不到）",
                          f"no longer loading {', '.join(dropped_pkgs)} (akizumi has them, or they are not needed)"))
+    if "math-notes" in dropped_pkgs:
+        # \renewcommand of what math-notes (or a package it loaded) defined,
+        # e.g. \backrefalt: give the name a definition first, so it still works
+        guarded = []
+        for i, l in enumerate(pre):
+            if l.lstrip().startswith("%"):
+                continue
+            m = re.search(r"\\renewcommand(\*?)\s*\{?\s*\\([A-Za-z]+)", l)
+            if m and "\\" + m.group(2) not in akz_names and m.group(2) not in LATEX_KERNEL_NAMES \
+                    and not defined_by_latex(m.group(2), akz_packages):
+                pre[i] = f"\\providecommand{m.group(1)}{{\\{m.group(2)}}}{{}}" + l
+                guarded.append("\\" + m.group(2))
+        if guarded:
+            notes.append(T(f"{', '.join(guarded)} 原本由 math-notes 提供，akizumi 沒有：先用 \\providecommand 定義，"
+                           "\\renewcommand 才不會出錯；用不到可以刪掉",
+                           f"{', '.join(guarded)} came from math-notes, which akizumi does not have: "
+                           "\\providecommand defines them first so the \\renewcommand works; delete them if unused"))
 
     # the document's own \newcommand of a name akizumi has: the document's
     # meaning wins, as it did before (files it \input's are only reported)
@@ -2536,6 +2804,25 @@ def migrate_text(text, kind=None):
     if renewed:
         changes.append(T(f"{', '.join(renewed)} 保留你自己的定義（改成 \\renewcommand；akizumi 也有）",
                          f"{', '.join(renewed)}: your own definition is kept (now \\renewcommand; akizumi has one too)"))
+
+    # memoir's line spacing commands -> setspace
+    if old_cls == "memoir":
+        spacing = {"setSpacing": "setstretch", "OnehalfSpacing": "onehalfspacing",
+                   "DoubleSpacing": "doublespacing", "SingleSpacing": "singlespacing",
+                   "OnehalfSpacing*": "onehalfspacing", "DoubleSpacing*": "doublespacing"}
+        pat = re.compile(r"\\(setSpacing|OnehalfSpacing\*?|DoubleSpacing\*?|SingleSpacing)(?![A-Za-z])")
+        used = False
+        for part in (pre, body):
+            for i, l in enumerate(part):
+                if l.lstrip().startswith("%"):
+                    continue
+                new = pat.sub(lambda m: "\\" + spacing[m.group(1)], l)
+                if new != l:
+                    part[i], used = new, True
+        if used:
+            pre.insert(cls_line + 1, "\\usepackage{setspace}")
+            changes.append(T("memoir 的行距指令改成 setspace 的（\\setSpacing → \\setstretch …）",
+                             "memoir's spacing commands now use setspace (\\setSpacing -> \\setstretch, ...)"))
 
     # memoir / math-notes course macros -> \akizumisetup, \author, \title
     setup, meta, labels, values, layout = [], [], [], {}, []
@@ -2642,17 +2929,61 @@ def migrate_text(text, kind=None):
     return "\n".join(pre + body), kind, changes, notes, set(renewed)
 
 
-def clash_report(path, text, kind, skip=()):
-    """(where, message) for each definition in the preamble or the local files
-    it reads that clashes with akizumi or with LaTeX's one-letter commands."""
-    names, _ = akizumi_names(kind)
-    report, seen = [], set()
+def local_preamble_files(path, text):
+    """[(file, content)]: the preamble of `text`, then the local .tex / .sty
+    files it reads (and the ones those read), as LaTeX would find them."""
+    out, seen = [], set()
     files = [(path, text.split("\\begin{document}")[0])]
     while files:
         f, content = files.pop(0)
         if f in seen:
             continue
         seen.add(f)
+        out.append((f, content))
+        for m in re.finditer(r"\\(?:input|include|usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}",
+                             "\n".join(_strip_comment(l) for l in content.splitlines())):
+            for name in m.group(1).split(","):
+                name = name.strip()
+                for cand in (name, name + ".tex", name + ".sty"):
+                    p = (path.parent / cand)
+                    if p.is_file() and p.suffix in (".tex", ".sty"):
+                        files.append((p, p.read_text(errors="replace")))
+                        break
+    return out
+
+
+# Packages akizumi loads that also count as loaded under another name.
+IMPLIED_PACKAGES = {"xcolor": ["color"], "graphicx": ["graphics"], "tikz": ["pgf"]}
+
+
+def option_passes(path, text, kind):
+    """\\PassOptionsToPackage lines for packages that local files load with
+    options but akizumi loads first (else: Option clash), and where."""
+    _, packages = akizumi_names(kind)
+    for p in list(packages):
+        packages.update(IMPLIED_PACKAGES.get(p, []))
+    passes, where = {}, []
+    for f, content in local_preamble_files(path, text)[1:]:
+        for no, line in enumerate(content.splitlines(), 1):
+            line = _strip_comment(line)
+            for m in re.finditer(r"\\(?:usepackage|RequirePackage)\s*\[([^\]]*)\]\s*\{([^}]*)\}", line):
+                opts = ",".join(o.strip() for o in m.group(1).split(",") if o.strip())
+                for pkg in (p.strip() for p in m.group(2).split(",")):
+                    if pkg in packages and opts:
+                        passes.setdefault(pkg, [])
+                        for o in opts.split(","):
+                            if o not in passes[pkg]:
+                                passes[pkg].append(o)
+                        where.append(f"{f.name}:{no} {pkg}")
+    return [f"\\PassOptionsToPackage{{{','.join(o)}}}{{{p}}}" for p, o in passes.items()], where
+
+
+def clash_report(path, text, kind, skip=()):
+    """(where, message) for each definition in the preamble or the local files
+    it reads that clashes with akizumi or with LaTeX's one-letter commands."""
+    names, _ = akizumi_names(kind)
+    report = []
+    for f, content in local_preamble_files(path, text):
         for no, line in enumerate(content.splitlines(), 1):
             line = _strip_comment(line)
             for m in list(CS_DEF.finditer(line)) + list(ENV_DEF.finditer(line)):
@@ -2676,16 +3007,6 @@ def clash_report(path, text, kind, skip=()):
                 elif m.re is CS_DEF and m["name"] in LATEX_LETTERS and how in ("def", "gdef", "edef", "let", "renewcommand"):
                     report.append((where, T(f"{name} 蓋掉 LaTeX 的同名指令（重音或特殊字母，如 \\c{{c}}、\\v{{s}}、\\S）",
                                             f"{name} replaces LaTeX's own (an accent or letter, e.g. \\c{{c}}, \\v{{s}}, \\S)")))
-        # local files read from the preamble
-        for m in re.finditer(r"\\(?:input|include|usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}",
-                             "\n".join(_strip_comment(l) for l in content.splitlines())):
-            for name in m.group(1).split(","):
-                name = name.strip()
-                for cand in (name, name + ".tex", name + ".sty"):
-                    p = (path.parent / cand)
-                    if p.is_file() and p.suffix in (".tex", ".sty"):
-                        files.append((p, p.read_text(errors="replace")))
-                        break
     return report
 
 
@@ -2694,6 +3015,14 @@ def cmd_migrate(a):
     if not src.is_file():
         die(T(f"找不到 {src}", f"{src} not found"))
     text = src.read_text(errors="replace")
+    if a.output and not a.in_place:
+        dest = Path(a.output)
+        if dest.exists() and dest.resolve() == src.resolve():
+            # -o naming the source itself: as --in-place, with the .bak
+            a.in_place = True
+        elif not dest.parent.is_dir():
+            die(T(f"資料夾 {dest.parent} 不存在", f"The folder {dest.parent} does not exist"),
+                T("先建立資料夾，或用 -o 指定別的位置", "Create it first, or give another place with -o"))
     new, kind, changes, notes, renewed = migrate_text(text, a.kind)
     if a.in_place:
         dest = src
@@ -2704,6 +3033,54 @@ def cmd_migrate(a):
     if dest.exists() and dest != src and not a.force and not a.dry_run:
         die(T(f"{dest} 已經存在", f"{dest} already exists"),
             T("加 --force 覆寫，或用 -o 指定別的檔名", "Add --force to overwrite it, or pick another name with -o"))
+
+    # local style files that load akizumi's packages with options of their own
+    passes, where = option_passes(src, new, kind)
+    if passes:
+        lines = new.split("\n")
+        at = next(i for i, l in enumerate(lines) if re.match(r"\s*\\documentclass", l))
+        lines[at:at] = passes
+        new = "\n".join(lines)
+        changes.append(T(f"{', '.join(sorted({w.split()[1] for w in where}))} 的選項改在 \\documentclass 前傳入"
+                         f"（{', '.join(where)}；否則 Option clash）",
+                         f"options of {', '.join(sorted({w.split()[1] for w in where}))} now passed before "
+                         f"\\documentclass ({', '.join(where)}; else an option clash)"))
+    # math-notes is no longer loaded: colors of its that the document uses
+    if "% ax migrate: " in new and re.search(r"% ax migrate: .*\{[^}]*\bmath-notes\b", new):
+        sty = src.parent / "math-notes.sty"
+        if not sty.is_file():
+            found = subprocess.run(["kpsewhich", "math-notes.sty"], capture_output=True, text=True).stdout.strip()
+            sty = Path(found) if found else None
+        if sty and sty.is_file():
+            # packages math-notes loaded that akizumi does not
+            _, akz_packages = akizumi_names(kind)
+            for p in list(akz_packages):
+                akz_packages.update(IMPLIED_PACKAGES.get(p, []))
+            sty_body = "\n".join(_strip_comment(l) for l in sty.read_text(errors="replace").splitlines())
+            missing = []
+            for m in re.finditer(r"\\(?:RequirePackage|usepackage)\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}", sty_body):
+                for pkg in (x.strip() for x in m.group(1).split(",")):
+                    if pkg and pkg not in akz_packages and pkg not in missing and pkg not in DROP_PACKAGES \
+                            and pkg not in new:
+                        missing.append(pkg)
+            if missing:
+                notes.append(T(f"math-notes 還載入了 akizumi 沒有的套件：{', '.join(missing)}；"
+                               "文件用到它們的指令（例如 natbib 的 \\citealp）時，自己加上 \\usepackage",
+                               f"math-notes also loaded packages akizumi does not: {', '.join(missing)}; "
+                               "if the document uses their commands (natbib's \\citealp, say), add a \\usepackage"))
+            live = "\n".join(_strip_comment(l) for l in new.split("\n"))
+            colors = [m.group(0) for m in re.finditer(r"\\definecolor\{(\w+)\}\{[^}]*\}\{[^}]*\}",
+                                                       sty.read_text(errors="replace"))
+                      if re.search(r"[{!,]\s*" + m.group(1) + r"\s*[}!,]", live)
+                      and not re.search(r"\\definecolor\{" + m.group(1) + r"\}", live)]
+            if colors:
+                lines = new.split("\n")
+                at = next(i for i, l in enumerate(lines) if re.match(r"\s*\\documentclass", l)) + 1
+                lines[at:at] = colors
+                new = "\n".join(lines)
+                named = ", ".join(re.findall(r"definecolor.(\w+)", " ".join(colors)))
+                changes.append(T(f"從 math-notes 搬來用到的顏色：{named}",
+                                 f"colors the document uses, copied from math-notes: {named}"))
 
     print(T(f"{cmd_text(str(src))} → {KIND_NAME[kind]}（{KINDS[kind]}）",
             f"{cmd_text(str(src))} -> {KIND_NAME[kind]} ({KINDS[kind]})"))
@@ -3046,6 +3423,8 @@ def show_status():
     version = pin
     if pin == "frozen":
         version = T(f"已 freeze（來自 {cfg.get('frozen_from')}）", f"frozen (from {cfg.get('frozen_from')})")
+    elif pin == "latest":
+        version = T("latest（跟著模板 repo 目前的內容）", "latest (follows the template repo as it is now)")
     elif tags and pin != tags[0]:
         version = T(f"{pin}（有新版 {tags[0]}：ax upgrade）", f"{pin} (newer: {tags[0]}, ax upgrade)")
     print(T(f"  模板  {version}", f"  template  {version}"))
@@ -3290,7 +3669,7 @@ def main():
                           "write here (default: NAME-akizumi.tex next to it)"))
     m.add_argument("--in-place", action="store_true",
                    help=T("直接改原檔（原檔備份成 .bak）", "rewrite the file itself (the original is kept as .bak)"))
-    m.add_argument("--kind", choices=["hw", "note", "exam", "book"],
+    m.add_argument("--kind", choices=["hw", "note", "exam", "book", "slides"],
                    help=T("要轉成的種類；預設依內容判斷", "kind to convert to; default: guessed from the content"))
     m.add_argument("--dry-run", action="store_true", help=T("只列出會改什麼，不寫檔", "list the changes, write nothing"))
     m.add_argument("--force", action="store_true", help=T("輸出檔已存在也覆寫", "overwrite the output file"))
@@ -3311,6 +3690,8 @@ def main():
         if not show_status():
             p.print_help()
         sys.exit(0)
+    global PARSER
+    PARSER = p
     a = p.parse_args()
     try:
         a.func(a)

@@ -64,7 +64,17 @@
     {\sffamily\color{mute}\small\akizumi@str{lparen}\totalpoints\ \points\akizumi@str{rparen}}\hfill}
   \hqword{\akizumi@str{gradequestion}}\hpword{\akizumi@str{gradepoints}}%
   \hsword{\akizumi@str{gradescore}}\htword{\akizumi@str{gradetotal}}
+  % \gradetable is the vertical table by default
+  \vqword{\akizumi@str{gradequestion}}\vpword{\akizumi@str{gradepoints}}%
+  \vsword{\akizumi@str{gradescore}}\vtword{\akizumi@str{gradetotal}}
+  \crefformat{question}{#2\akizumi@num{problem}{#1}#3}
+  \crefrangeformat{question}{#3\akizumi@num{problem}{#1}#4\akizumi@str{cref-qto}#5\akizumi@num{problem}{#2}#6}
+  \crefmultiformat{question}{#2\akizumi@num{problem}{#1}#3}%
+    {\akizumi@str{cref-qand}#2\akizumi@num{problem}{#1}#3}%
+    {\crefmiddleconjunction#2\akizumi@num{problem}{#1}#3}%
+    {\akizumi@str{cref-qand}#2\akizumi@num{problem}{#1}#3}
 \else
+  \crefname{question}{Question}{Questions}
   \qformat{{\sffamily\color{accent}\bfseries Question \thequestion}\quad{\sffamily\color{mute}\small(\totalpoints\ \points)}\hfill}
 \fi
 \pointpoints{\akizumi@str{point}}{\akizumi@str{points}}

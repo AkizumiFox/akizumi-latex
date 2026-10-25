@@ -90,6 +90,10 @@
   \def\akizumi@tmp{FandolKai-Regular.otf}\ifx\akizumi@cjkbody\akizumi@tmp
     \PackageWarningNoLine{akizumi-zhlayout}{kai: using FandolKai, which lacks
       most Traditional characters; install Kaiti TC, BiauKai, DFKai-SB or AR PL UKai}\fi
+  % Kaiti TC / STKaiti draw small in their em box: next to Latin text and the
+  % sans headings they read a size smaller, so they are scaled up a little.
+  \def\akizumi@tmp{STKaitiTC-Regular}\ifx\akizumi@cjkbody\akizumi@tmp\def\akizumi@kaiscale{1.08}\fi
+  \def\akizumi@tmp{STKaiti}\ifx\akizumi@cjkbody\akizumi@tmp\def\akizumi@kaiscale{1.08}\fi
 \else\ifakizumi@serif
   \ifx\akizumi@usercjkserif\@empty
     \let\akizumi@cjkbody\akizumi@cjkserif
@@ -111,15 +115,16 @@
   \ifx\akizumi@usercjkserifbold\@empty\else\akizumi@cjkbodysettrue\fi
 \fi
 \ifx\akizumi@cjkbody\@empty\akizumi@cjkbodysetfalse\fi
+\providecommand{\akizumi@kaiscale}{1}
 % A family of its own (redefining the core's would warn), with the same
 % Japanese / Korean fallback.
 \ifakizumi@cjkbodyset
   \ifx\akizumi@cjkbodybold\@empty
-    \setCJKfamilyfont{akizumibody}{\akizumi@cjkbody}[BoldFont=\akizumi@cjkbody,
+    \setCJKfamilyfont{akizumibody}{\akizumi@cjkbody}[Scale=\akizumi@kaiscale, BoldFont=\akizumi@cjkbody,
       BoldFeatures={FakeBold=2.5}, ItalicFont=\akizumi@cjkbody, ItalicFeatures={FakeBold=2.5},
       BoldItalicFont=\akizumi@cjkbody, BoldItalicFeatures={FakeBold=2.5}]
   \else
-    \setCJKfamilyfont{akizumibody}{\akizumi@cjkbody}[BoldFont=\akizumi@cjkbodybold,
+    \setCJKfamilyfont{akizumibody}{\akizumi@cjkbody}[Scale=\akizumi@kaiscale, BoldFont=\akizumi@cjkbodybold,
       ItalicFont=\akizumi@cjkbodybold, BoldItalicFont=\akizumi@cjkbodybold]
   \fi
   \renewcommand*{\CJKrmdefault}{akizumibody}
@@ -155,18 +160,32 @@
           { \int_eval:n {#1} }
       }
   }
-% \akizumi@arabicwithin: \thesection -> \arabic{section} inside \thetheorem etc.
+% \akizumi@arabicwithin: \thesection -> \arabic{section} inside \thetheorem etc.:
+% every counter reset by the section or chapter (theorems, exercises, code,
+% callouts, ...), and equations, figures and tables.
+\cs_new_protected:Npn \__akizumi_arabic_one:n #1
+  {
+    \cs_if_exist:cT { the#1 }
+      {
+        \tl_set_eq:Nc \l_tmpa_tl { the#1 }
+        \tl_replace_all:Nnn \l_tmpa_tl { \thesection } { \arabic { section } }
+        \tl_replace_all:Nnn \l_tmpa_tl { \thechapter } { \arabic { chapter } }
+        \cs_gset_eq:cN { the#1 } \l_tmpa_tl
+      }
+  }
 \cs_new_protected:Npn \akizumi@arabicwithin
   {
-    \clist_map_inline:nn { theorem, equation, figure, table, algorithm }
+    \clist_map_function:nN { theorem, equation, figure, table, algorithm } \__akizumi_arabic_one:n
+    \group_begin:
+      \cs_set:Npn \@elt ##1 { \str_if_eq:nnF {##1} { section } { \__akizumi_arabic_one:n {##1} } }
+      \cs_if_exist_use:c { cl@section }
+      \cs_if_exist_use:c { cl@chapter }
+    \group_end:
+    % the exercise prefix ("2." in exercise 2.1 and in the solutions)
+    \cs_if_exist:NT \akizumi@ex@prefix
       {
-        \cs_if_exist:cT { the##1 }
-          {
-            \tl_set_eq:Nc \l_tmpa_tl { the##1 }
-            \tl_replace_all:Nnn \l_tmpa_tl { \thesection } { \arabic { section } }
-            \tl_replace_all:Nnn \l_tmpa_tl { \thechapter } { \arabic { chapter } }
-            \cs_set_eq:cN { the##1 } \l_tmpa_tl
-          }
+        \tl_greplace_all:Nnn \akizumi@ex@prefix { \thesection } { \arabic { section } }
+        \tl_greplace_all:Nnn \akizumi@ex@prefix { \thechapter } { \arabic { chapter } }
       }
   }
 \ExplSyntaxOff

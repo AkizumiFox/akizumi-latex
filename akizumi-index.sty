@@ -55,11 +55,20 @@
 \akizumi@s  {symbol}   {Symbol}     {符號}  {記号}    {기호}
 \akizumi@s  {meaning}  {Meaning}    {意義}  {意味}    {의미}
 \akizumi@s  {page}     {Page}       {頁碼}  {頁}      {쪽}
+\akizumi@s  {see}      {see}        {見}    {→}       {→}
+\akizumi@s  {seealso}  {see also}   {參見}  {→}       {참조}
 
 % noautomatic: latexmk runs the indexer, and \printindex keeps the file open,
 % so a list of notation can come first.
 \RequirePackage[noautomatic]{imakeidx}
 \renewcommand{\indexname}{\akizumi@str{index}}
+% |see{...} and |seealso{...}: the word for the main language, upright in CJK
+\renewcommand*{\seename}{\akizumi@str{see}}
+\renewcommand*{\alsoname}{\akizumi@str{seealso}}
+\ifnum\akizumi@langnum>\z@
+  \renewcommand*{\see}[2]{\seename\,#1}
+  \renewcommand*{\seealso}[2]{\alsoname\,#1}
+\fi
 % imakeidx comes after hyperref and replaces its \@wrindex; link the page
 % numbers again, as hyperref does for multind (entries with |encap keep theirs).
 \@ifpackageloaded{hyperref}{%
@@ -167,7 +176,9 @@
 \newcommand{\akizumi@printnotation}{%
   \begingroup
   \setlength{\akizumi@notasym}{0.24\linewidth}%
-  \let\imki@clearpage\relax  % a section in the flow; \chapter* still starts a page
+  % a section in the flow; in a book the list is a \chapter*, and its page
+  % must start before imakeidx writes the contents line
+  \@ifundefined{chapter}{\let\imki@clearpage\relax}{}%
   \def\imki@othercode{\normalsize\parskip0.2em\relax\rightskip\z@\parfillskip\z@skip
     \let\item\akizumi@notaitem\let\indexspace\relax\akizumi@notahead}%
   \expandafter\printindex\expandafter[\akizumi@notaname]%

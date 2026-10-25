@@ -242,20 +242,23 @@
     \section*{\akizumi@num{#1}{#2}}\else\subsection*{\akizumi@num{#1}{#2}}\fi}
 \def\akizumi@chapter@str{chapter}
 % Headings: chapter mode adds one level below the unit, end mode one at its level.
+% an anchor of its own for the contents line and bookmark (a starred heading
+% has none, so they would point at the last anchor before it)
+\def\akizumi@sol@anchor{\csname phantomsection\endcsname}
 \newcommand{\akizumi@sol@heading}{%
   \ifnum\akizumi@solmode=3
     \ifx\akizumi@solunit\akizumi@chapter@str
-      \chapter*{\akizumi@str{solutions}}\addcontentsline{toc}{chapter}{\akizumi@str{solutions}}%
+      \chapter*{\akizumi@str{solutions}}\akizumi@sol@anchor\addcontentsline{toc}{chapter}{\akizumi@str{solutions}}%
       \markboth{\akizumi@str{solutions}}{}%
     \else
-      \section*{\akizumi@str{solutions}}\addcontentsline{toc}{section}{\akizumi@str{solutions}}%
+      \section*{\akizumi@str{solutions}}\akizumi@sol@anchor\addcontentsline{toc}{section}{\akizumi@str{solutions}}%
     \fi
   \else
     \ifx\akizumi@solunit\akizumi@chapter@str
-      \section*{\akizumi@str{solutions}}\addcontentsline{toc}{section}{\akizumi@str{solutions}}%
+      \section*{\akizumi@str{solutions}}\akizumi@sol@anchor\addcontentsline{toc}{section}{\akizumi@str{solutions}}%
       \markright{\akizumi@str{solutions}}%
     \else
-      \subsection*{\akizumi@str{solutions}}\addcontentsline{toc}{subsection}{\akizumi@str{solutions}}%
+      \subsection*{\akizumi@str{solutions}}\akizumi@sol@anchor\addcontentsline{toc}{subsection}{\akizumi@str{solutions}}%
     \fi
   \fi}
 \newcommand{\printsolutions}{%

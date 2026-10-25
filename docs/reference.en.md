@@ -107,7 +107,7 @@ Defining a new theorem-like environment:
 
 ```latex
 % \akizumiNewTheorem{env}{English}{Chinese}{Japanese}{Korean}[options]; empty names fall back to English
-\akizumiNewTheorem{tool}{Tool}{工具}{道具}{도구}[counter=own, prefix=T]  % T1, T2, ...
+\akizumiNewTheorem{tool}{Tool}{工具}{道具}{도구}[counter=own, prefix=T, within=none]  % T1, T2, ...
 \akizumiNewTheorem{unit}{Unit}{}{}{}[style=definition]
 ```
 
@@ -146,7 +146,7 @@ Reading-aid boxes with the same left bar as the theorems. They break across page
 | tip | Tip / 提示 | thin light-accent bar |
 | warning, pitfall | Warning / 注意, Pitfall / 常見錯誤 | thick orange bar, orange label |
 | note | Note / 附註 | thin grey bar, ink label |
-| chapterguide | Chapter guide / 本章導覽 | label on its own line, faint accent background; `\guidehead{...}` makes headings inside |
+| chapterguide | Chapter guide / 本章導覽 (notes, slides: Guide / 導覽) | label on its own line, faint accent background; `\guidehead{...}` makes headings inside |
 | setup | (none) | faint grey background; with `[title]` only the title shows |
 
 `[...]` is a title after the name, as with theorems. Names follow `lang=` (Japanese and Korean too), except `proofidea`, which follows `thmnames=` so it matches the Proof after it. CJK names take no period. These environments are unnumbered.
@@ -319,7 +319,7 @@ Options: `counter=<kind>` shares that kind's numbers; `within=chapter|section|no
 
 ```latex
 \codedir{src/, code/}                        % where \inputcode looks when the file is not found
-\inputcode[lang=cpp, lines=10-24]{main.cpp}  % only lines 10-24 (numbered from 1)
+\inputcode[lang=cpp, lines=10-24]{main.cpp}  % only lines 10-24, numbered as in the file (10-24)
 \inputcode[output, title=output]{run.txt}    % program output: white, hairline frame, no numbers, no colour
 ```
 
@@ -753,7 +753,7 @@ Except `new`, `doctor`, `config`, `completion` and `migrate`, commands run insid
 | `ax watch --status` / `--log` / `--stop` | Whether a background watcher runs and how its last build went (with the first error on failure) / follow its output / stop it. While one runs, `ax build` and `ax both` warn that they share `build/` |
 | `ax open` | Opens the PDF in the system's default viewer; `--solutions` opens the answer key |
 | `ax both` | Homework / exams: `main.pdf` (questions) and `main-solutions.pdf` (answers) |
-| `ax build --chapter N` | Build chapter N alone into `main-chN.pdf`; `main.pdf` is left as it is. Chapter and page numbers and references to other chapters come from the last full build, so run `ax build` once first. `N` may be a chapter number, an appendix letter (`A`), or the `\include`d file's or folder's name; `--chapter 3,5` builds two. `ax watch --chapter N` works the same way |
+| `ax build --chapter N` | Build chapter N alone into `main-chN.pdf`; `main.pdf` is left as it is. Chapter and page numbers and references to other chapters come from the last full build, so run `ax build` once first. `N` may be a chapter number, an appendix letter (`A`), or the `\include`d file's or folder's name; `--chapter 3,5` builds two, into `main-ch3+5.pdf`. `ax watch --chapter N` works the same way |
 | `ax count` | Count English words plus CJK characters (CJK counted per character, Korean too), leaving out commands, math, code, `\label` / `\ref` / `\cite`, comments and the preamble. Follows `\input` / `\include` / `\subfile` (and `\chapterdir`) and lists each file when there are several. `--limit 3000` warns above the limit |
 | `ax doctor` | Checks tools, fonts, template installation and versions, then lists what's wrong and how to fix it; it also reports whether upmendex (CJK index sorting) is there. Inside a project it also checks the programs `prebuild` calls, inkscape when the `svg` package or `\includesvg` is used (and whether `shell_escape` is on), that every package the project `\usepackage`s is found (ones outside TeX Live, such as `stata.sty`, belong in the project folder), which akizumi-math macros the project redefines, and files whose single-letter `\def`s replace accent commands |
 | `ax upgrade` | Moves the project to the newest template version and refreshes `latexmkrc` and editor settings |

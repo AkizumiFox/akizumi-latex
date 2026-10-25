@@ -91,6 +91,28 @@
   \AtBeginDocument{\renewcommand{\proofname}{\akizumi@str{proof}}}
 \fi\fi
 
+% Date in the main language, as in documents (\date{...} still replaces it).
+\date{\akizumi@str{today}}
+
+% \cref, as in documents. beamer numbers all its theorem kinds on one counter,
+% so each environment tells cleveref its own kind.
+\RequirePackage[capitalise, noabbrev, nameinlink]{cleveref}
+\akizumi@crefcjk
+\def\akizumi@beamercref#1#2#3{% env, string key, English plural
+  \ifakizumi@nativethm\ifakizumi@cjk
+    \crefname{#1}{\akizumi@str{#2}}{\akizumi@str{#2}}%
+  \else\crefname{#1}{\akizumi@str{#2}}{#3}\fi
+  \else\crefname{#1}{\akizumi@str{#2}}{#3}\fi
+  \AddToHook{env/#1/begin}{\crefalias{theorem}{#1}}}
+\akizumi@beamercref{theorem}{theorem}{Theorems}
+\akizumi@beamercref{lemma}{lemma}{Lemmas}
+\akizumi@beamercref{corollary}{corollary}{Corollaries}
+\akizumi@beamercref{definition}{definition}{Definitions}
+\akizumi@beamercref{definitions}{definition}{Definitions}
+\akizumi@beamercref{example}{example}{Examples}
+\akizumi@beamercref{examples}{example}{Examples}
+\akizumi@beamercref{fact}{claim}{Facts}
+
 % Theorems and proofs: same left bars as the documents. Kind is picked by
 % environment hooks; bodies upright, numbers omitted on slides.
 \newcommand{\akizumi@thmbar}{1.6pt}

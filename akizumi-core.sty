@@ -233,6 +233,34 @@
 \akizumi@fallback\CJKttdefault{sans}
 \ifakizumi@serif\akizumi@fallback\CJKrmdefault{serif}\else\akizumi@fallback\CJKrmdefault{sans}\fi
 \xeCJKsetup{CJKmath=true, AutoFallBack=true}
+% Korean inside a zh / ja / en document keeps its word spaces: Hangul gets an
+% intercharacter class of its own, set like Latin text (spaces kept, no glue
+% to digits) in the Korean font. xeCJK joins the class to its own ones at the
+% end of the preamble. lang=ko does this through CJKspace above.
+\ifnum\akizumi@langnum=3 \else\ifx\akizumi@ko@sans\@empty\else
+  \newfontfamily\akizumi@hangulsans{\akizumi@ko@sans}[BoldFont=\akizumi@ko@sansbold,
+    ItalicFont=\akizumi@ko@sansbold, BoldItalicFont=\akizumi@ko@sansbold]
+  \newfontfamily\akizumi@hangulserif{\akizumi@ko@serif}[BoldFont=\akizumi@ko@serifbold,
+    ItalicFont=\akizumi@ko@serifbold, BoldItalicFont=\akizumi@ko@serifbold]
+  \def\akizumi@hangul@begin{\begingroup
+    \ifakizumi@serif\edef\akizumi@tmpa{\f@family}\edef\akizumi@tmpb{\rmdefault}%
+      \ifx\akizumi@tmpa\akizumi@tmpb\akizumi@hangulserif\else\akizumi@hangulsans\fi
+    \else\akizumi@hangulsans\fi}
+  \def\akizumi@hangul@end{\endgroup}
+  \newXeTeXintercharclass\akizumi@hangulclass
+  \@tempcnta="AC00 \loop\XeTeXcharclass\@tempcnta=\akizumi@hangulclass
+    \ifnum\@tempcnta<"D7A3 \advance\@tempcnta\@ne\repeat
+  \@tempcnta="3131 \loop\XeTeXcharclass\@tempcnta=\akizumi@hangulclass
+    \ifnum\@tempcnta<"318E \advance\@tempcnta\@ne\repeat
+  % to and from Latin letters, half-width punctuation and spaces / boundaries
+  \ExplSyntaxOn
+  \clist_map_inline:nn { Default, HalfLeft, HalfRight, NormalSpace, Boundary }
+    {
+      \XeTeXinterchartoks \xeCJK_class_num:n {#1} \akizumi@hangulclass = {\akizumi@hangul@begin}
+      \XeTeXinterchartoks \akizumi@hangulclass \xeCJK_class_num:n {#1} = {\akizumi@hangul@end}
+    }
+  \ExplSyntaxOff
+\fi\fi
 
 % ---------- colors ----------
 \RequirePackage{xcolor}
@@ -329,6 +357,15 @@
 \akizumi@s  {gradetotal}   {Total}             {總分}      {合計}          {총점}
 \akizumi@s  {lparen}       {(}                 {（}        {（}            {(}
 \akizumi@s  {rparen}       {)}                 {）}        {）}            {)}
+% \cref with several labels: "定理 1 與 2", "定義 1、定理 1 與習題 1.1", "式 (1) 至 (3)".
+% cref-and stands between numbers, cref-group before the next kind's name.
+\akizumi@s  {cref-and}     {\ and\ }           {\ 與\ }    {\ と\ }        {\ 및\ }
+\akizumi@s  {cref-group}   {\ and\ }           {\ 與}      {\ と}          {\ 및\ }
+\akizumi@s  {cref-comma}   {,\ }               {、}        {、}            {,\ }
+\akizumi@s  {cref-to}      {\ to\ }            {\ 至\ }    {～}            {\ \textasciitilde\ }
+% the same between exam questions, whose zh label ends in 題 (第 1 題與第 2 題)
+\akizumi@s  {cref-qand}    {\ and\ }           {與}        {\ と}          {\ 및\ }
+\akizumi@s  {cref-qto}     {\ to\ }            {至}        {～}            {\ \textasciitilde\ }
 %            key        en before    after  zh before after   ja before after   ko before after
 \akizumi@n  {section}   {Section~}  {}     {第~}  {~節}      {第~}  {~節}      {제}   {절}
 \akizumi@n  {chapter}   {Chapter~}  {}     {第~}  {~章}      {第~}  {~章}      {제}   {장}
@@ -440,6 +477,23 @@
 % ---------- callouts (keyidea, tip, warning, ...; docs and slides) ----------
 \RequirePackage{akizumi-callout}
 
+% After cleveref (documents: below; slides: beamerthemeAkizumi): CJK words
+% between the references of one \cref. \def, so a preamble may \renewcommand them.
+\newcommand{\akizumi@crefcjk}{%
+  \ifakizumi@cjk
+    \def\crefpairconjunction{\akizumi@str{cref-and}}%
+    \def\crefmiddleconjunction{\akizumi@str{cref-comma}}%
+    \def\creflastconjunction{\akizumi@str{cref-and}}%
+    \def\crefpairgroupconjunction{\akizumi@str{cref-group}}%
+    \def\crefmiddlegroupconjunction{\akizumi@str{cref-comma}}%
+    \def\creflastgroupconjunction{\akizumi@str{cref-group}}%
+    \def\crefrangeconjunction{\akizumi@str{cref-to}}%
+    \crefformat{section}{##2\akizumi@num{section}{##1}##3}%
+    \crefname{figure}{\akizumi@str{figure}}{\akizumi@str{figure}}%
+    \crefname{table}{\akizumi@str{table}}{\akizumi@str{table}}%
+    \crefformat{equation}{##2\akizumi@num{equation}{##1}##3}%
+  \fi}
+
 % Everything below is for documents only; beamerthemeAkizumi handles slides.
 \@ifclassloaded{beamer}{\endinput}{}
 
@@ -542,12 +596,7 @@
 \hypersetup{colorlinks, linkcolor=accent, urlcolor=accent, citecolor=accent}
 \RequirePackage[capitalise, noabbrev, nameinlink]{cleveref}
 \RequirePackage{thmtools}  % \listoftheorems, restatable; must precede \newtheorem
-\ifakizumi@cjk
-  \crefformat{section}{#2\akizumi@num{section}{#1}#3}
-  \crefname{figure}{\akizumi@str{figure}}{\akizumi@str{figure}}
-  \crefname{table}{\akizumi@str{table}}{\akizumi@str{table}}
-  \crefformat{equation}{#2\akizumi@num{equation}{#1}#3}
-\fi
+\akizumi@crefcjk
 
 % ---------- theorem-like environments ----------
 % A left bar marks where each one starts and ends. Kinds differ by bar weight

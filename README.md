@@ -7,7 +7,7 @@
 需要 MacTeX（TeX Live 2026）和 Command Line Tools（`xcode-select --install`）。
 
 ```sh
-git clone <這個 repo> ~/w/latex-templates
+git clone https://github.com/AkizumiFox/akizumi-latex.git ~/w/latex-templates
 cd ~/w/latex-templates
 ./install.sh
 ```

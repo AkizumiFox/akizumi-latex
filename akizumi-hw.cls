@@ -4,7 +4,7 @@
 %   \begin{problem}[optional title] ... \begin{solution} ... \end{solution} \end{problem}
 %   problem numbering, \inputproblem, parts, kind=, header=: see akizumi-problems.sty
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{akizumi-hw}[2026/10/25 v0.8 Aaron Lin homework]
+\ProvidesClass{akizumi-hw}[2026/10/26 v0.9 Aaron Lin homework]
 
 \newif\ifakizumi@solutions \akizumi@solutionstrue
 \ExplSyntaxOn

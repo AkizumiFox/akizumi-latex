@@ -25,7 +25,7 @@ English: [reference.en.md](reference.en.md)
 | `--anonymous` `--no-anonymous` | 投稿論文：匿名投稿版或署名版；會議預設匿名，`plain` 預設署名 |
 | `--git` | 建立 git repo 並做第一個 commit |
 | `--no-preamble` | 這次不加入你的 `preamble.tex`、`preamble-種類.tex`（見 README〈自訂 preamble〉） |
-| `--pin v0.8` | 指定模板版本；預設是最新的 tag。`--pin latest` 表示永遠用安裝的最新檔案（改模板時測試用） |
+| `--pin v0.9` | 指定模板版本；預設是最新的 tag。`--pin latest` 表示永遠用安裝的最新檔案（改模板時測試用） |
 | `--problems 5` 或 `--problems B4,C2` | 作業：建立 `problems/p1.tex`…`p5.tex`（分組時是 `B1`…`B4`、`C1`、`C2`），`main.tex` 用 `\inputproblem` 逐題載入 |
 | `--force` | 資料夾已存在且不是空的也照樣建立 |
 
@@ -810,7 +810,7 @@ $A\cup B=[-2,3]$。
 
 ```json
 {
-  "kind": "note", "main": "main.tex", "template": "v0.8",
+  "kind": "note", "main": "main.tex", "template": "v0.9",
   "prebuild": ["python scripts/make_figures.py", "stata-mp -b do analysis.do"],
   "shell_escape": true
 }
@@ -1077,7 +1077,7 @@ Linux 與 Windows 的測試在 GitHub Actions 上跑：推送版本 tag 時自�
 1. 更新 `CHANGELOG.md`。
 2. 把各檔 `\ProvidesPackage` / `\ProvidesClass` 裡的版本號改掉。
 3. `ax selftest`。
-4. `git commit`，然後 `git tag -a v0.8 -m v0.8 && git push && git push --tags`（推 tag 會觸發三個系統的測試）。
+4. `git commit`，然後 `git tag -a v0.9 -m v0.9 && git push && git push --tags`（推 tag 會觸發三個系統的測試）。
 
 沒有打 tag 的修改只影響 `examples/` 和直接用模板的文件，不會影響已經固定版本的專案。
 

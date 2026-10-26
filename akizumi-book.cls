@@ -8,7 +8,7 @@
 % Layout options: twoside, openright, partreset, chaptername=Lecture (see
 % akizumi-booklayout.sty).
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{akizumi-book}[2026/10/25 v0.8 Aaron Lin book]
+\ProvidesClass{akizumi-book}[2026/10/26 v0.9 Aaron Lin book]
 
 \ExplSyntaxOn
 \tl_new:N \l__akizumi_size_tl

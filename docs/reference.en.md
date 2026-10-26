@@ -25,7 +25,7 @@ Run `ax new` with no arguments and it asks for the kind, folder and title. Optio
 | `--anonymous` `--no-anonymous` | Paper: anonymous submission or camera-ready with names; venues default to anonymous, `plain` to names |
 | `--git` | Creates a git repo and makes the first commit |
 | `--no-preamble` | Leaves out your `preamble.tex` and `preamble-KIND.tex` this time (see [Your own preamble](../README.en.md#your-own-preamble)) |
-| `--pin v0.8` | Template version to use; defaults to the newest tag. `--pin latest` always uses the installed files (for testing template changes) |
+| `--pin v0.9` | Template version to use; defaults to the newest tag. `--pin latest` always uses the installed files (for testing template changes) |
 | `--problems 5` or `--problems B4,C2` | Homework: create `problems/p1.tex` ... `p5.tex` (with groups, `B1` ... `B4`, `C1`, `C2`) and load each from `main.tex` with `\inputproblem` |
 | `--force` | Creates the project even if the folder exists and isn't empty |
 
@@ -809,7 +809,7 @@ The two `l.10` lines are line 10 of the source, broken where the error happened.
 
 ```json
 {
-  "kind": "note", "main": "main.tex", "template": "v0.8",
+  "kind": "note", "main": "main.tex", "template": "v0.9",
   "prebuild": ["python scripts/make_figures.py", "stata-mp -b do analysis.do"],
   "shell_escape": true
 }
@@ -1076,7 +1076,7 @@ Releasing a new version (so new projects use it and old ones can `ax upgrade`):
 1. Update `CHANGELOG.md`.
 2. Change the version in each file's `\ProvidesPackage` / `\ProvidesClass`.
 3. `ax selftest`.
-4. `git commit`, then `git tag -a v0.8 -m v0.8 && git push && git push --tags` (pushing the tag starts the CI tests).
+4. `git commit`, then `git tag -a v0.9 -m v0.9 && git push && git push --tags` (pushing the tag starts the CI tests).
 
 Changes without a tag only affect `examples/` and documents that use the templates directly, never projects pinned to a version.
 

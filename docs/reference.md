@@ -1153,6 +1153,12 @@ Fandol 一定有（TeX Live 內建），但主要是簡體字型，用到它時 
 **Windows：`ax build` 說 PDF 被鎖住**
 有些閱讀器（例如 Acrobat）開著 PDF 時會鎖住檔案，`ax` 換不掉它，新的 PDF 會留在 `build/main.pdf`。改用不鎖檔的閱讀器（SumatraPDF、Cursor 內建預覽）即可。
 
+**從 PDF 複製出來的字有點怪：「bĳection」、「︒」**
+只影響文字層，畫面是對的。內文字型 New Computer Modern 把 ij 排成一個連字（和 fi、fl 同一個 OpenType 功能，關掉會連 fi、fl 一起拆開）；宋體把置中的「。」「、」和直排符號共用同一個字形。兩者在 Unicode 相容正規化下都等於原字，多數閱讀器搜尋得到；要貼到別處時，貼上後取代一次即可。
+
+**換頁之後多出一頁空白**
+通常是一個不能拆開、又比整頁還高的公式或證明（例如很長的 Fitch 證明）放在 `\item` 開頭：hyperref 在每個 `\item` 放的連結錨點多了一個可以換頁的位置。內容本身就放不進一頁，把證明拆成兩段，或在前面加 `\enlargethispage{2\baselineskip}`。
+
 **其他錯誤**
 先跑 `ax doctor`。完整的編譯紀錄在 `build/main.log`。
 

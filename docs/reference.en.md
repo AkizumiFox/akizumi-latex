@@ -1152,6 +1152,12 @@ Open a new terminal first (the PATH change from `install.py` only applies to new
 **Windows: `ax build` says the PDF is locked**
 Some viewers (Acrobat, for one) lock an open PDF, so `ax` can't replace it; the new PDF stays in `build/main.pdf`. Use a viewer that doesn't lock files (SumatraPDF, Cursor's built-in preview).
 
+**Text copied from the PDF looks odd: "bĳection", "︒"**
+Only the text layer is affected; the page looks right. The body font, New Computer Modern, sets ij as one ligature (the same OpenType feature as fi and fl, so turning it off would split those too), and Songti shares one glyph between the centred 。、 and their vertical forms. Both are equal to the plain characters under Unicode compatibility normalisation, so most viewers find them in a search; after pasting elsewhere, replace them once.
+
+**An empty page after a page break**
+Usually an unbreakable display or proof taller than a whole page (a long Fitch proof, say) at the start of an `\item`: the link anchor hyperref puts at every `\item` adds one more place where the page can break. The content does not fit on a page anyway; split the proof in two, or put `\enlargethispage{2\baselineskip}` before it.
+
 **Other errors**
 Run `ax doctor` first. The full build log is in `build/main.log`.
 

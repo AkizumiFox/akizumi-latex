@@ -32,14 +32,15 @@
     left=5pt, right=5pt, top=4pt, bottom=4pt,
     before skip=0.45em, after skip=0.45em,
     listing options={style=cs}, listing file={\jobname-cs.tex}}}
-% \begin{cs}[ratio] ... \end{cs}: source left, result right
-\DeclareTCBListing{cs}{ !O{0.52} }{cs/base, listing side text, colback=white,
+% \begin{cheat}[ratio] ... \end{cheat}: source left, result right
+% (not named cs: tcolorbox listings called cs break on the 2026-06 kernel)
+\DeclareTCBListing{cheat}{ !O{0.52} }{cs/base, listing side text, colback=white,
   lefthand ratio=#1, sidebyside gap=10pt, segmentation hidden,
   sidebyside align=top seam, fontlower=\small\raggedright,
   underlay={\begin{tcbclipinterior}\fill[wash] (interior.south west) rectangle
     ([xshift=-5pt]segmentation.north);\end{tcbclipinterior}}}
-% \begin{cssrc}{note} ... \end{cssrc}: source only (other document kinds)
-\DeclareTCBListing{cssrc}{ m }{cs/base, listing only, colback=wash,
+% \begin{cheatsrc}{note} ... \end{cheatsrc}: source only (other document kinds)
+\DeclareTCBListing{cheatsrc}{ m }{cs/base, listing only, colback=wash,
   overlay={\node[anchor=north east, inner sep=3pt, font=\sffamily\scriptsize,
     text=mute] at (frame.north east) {#1};}}
 
@@ -60,6 +61,9 @@
 % A heading right after a line of text (a \csnote; the last node is the line
 % or the colour's whatsit, not the glue a box leaves) would get the \parskip
 % on top of its own space, more than after a box: take it back there.
+\NewCommandCopy{\cssection}{\section}
+\RenewDocumentCommand{\section}{}{\par
+  \ifnum\lastnodetype>0 \ifnum\lastnodetype<11 \vspace{-\parskip}\fi\fi\cssection}
 
 \begin{document}
 \twocolumn[{%
@@ -129,13 +133,13 @@
 \bottomrule
 \end{tabularx}
 
-\begin{cssrc}{note}
+\begin{cheatsrc}{note}
 \documentclass[lang=zh, thmnames=native, layout=margin]{akizumi-note}
 \akizumisetup{course=常微分方程, kicker={ODE · 第 3 講}}
 \title{一階線性方程}  \author{Aaron Lin}
 \begin{document}
 \maketitle
-\end{cssrc}
+\end{cheatsrc}
 
 \section{定理、程式碼、數學、圖的選項}\nobreak
 \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{6.4em} >{\raggedright\arraybackslash}p{12.2em} Y@{}}
@@ -161,7 +165,7 @@
 \end{tabularx}
 
 \section{定理、證明、交叉引用}
-\begin{cs}
+\begin{cheat}
 \begin{definition}[Collapse]\label{def:c}
 若 $\Var[f(\vb{o})] = 0$，稱 $f$ collapse。
 \end{definition}
@@ -172,9 +176,9 @@ $\abs{x} \le 1 \implies x^2 \le 1$。
 兩邊平方。
 \end{proof}
 見\cref{thm:a}、\cref{def:c}。
-\end{cs}
+\end{cheat}
 
-\begin{cs}
+\begin{cheat}
 \begin{restatable}[Cram\'er--Wold]
   {theorem}{cw}\label{thm:cw}
 $\vb{z} \sim \Normal{\vb{0}}{\vb{I}}$ 若且唯若
@@ -185,9 +189,9 @@ $\vb{z} \sim \Normal{\vb{0}}{\vb{I}}$ 若且唯若
 \begin{proofof}{thm:cw}
 看特徵函數。
 \end{proofof}
-\end{cs}
+\end{cheat}
 
-\begin{cs}
+\begin{cheat}
 \begin{lemma}[number=7.4] 抄書的編號，
 之後的自動編號不受影響。
 \end{lemma}
@@ -196,17 +200,17 @@ $\vb{z} \sim \Normal{\vb{0}}{\vb{I}}$ 若且唯若
 \begin{axiom}[選擇公理] 非空集合的
 乘積非空。
 \end{axiom}
-\end{cs}
+\end{cheat}
 \csnote{全部的種類：\opt{theorem lemma proposition corollary claim definition assumption example remark}，另有 \opt{axiom conjecture property conclusion remarks notationthm problem}；都有不編號的 \opt{*} 版本。}
 
-\begin{cssrc}{note}
+\begin{cheatsrc}{note}
 \akizumiNewTheorem{tool}{Tool}{工具}{道具}{도구}[prefix=T]  % 工具 T1
 \akizumiSetTheorem{assumption}{counter=own, prefix=A}       % 假設 A1
 \listoftheorems                                             % 定理列表
-\end{cssrc}
+\end{cheatsrc}
 
 \section{提示框}
-\begin{cs}
+\begin{cheat}
 \begin{keyidea}
 級數收斂，就是尾巴越來越小。
 \end{keyidea}
@@ -216,9 +220,9 @@ $\vb{z} \sim \Normal{\vb{0}}{\vb{I}}$ 若且唯若
 \begin{warning}
 $a_n \to 0$ 不保證收斂。
 \end{warning}
-\end{cs}
+\end{cheat}
 
-\begin{cs}
+\begin{cheat}
 \begin{proofidea}
 先比較，再用 Cauchy 準則。
 \end{proofidea}
@@ -230,22 +234,22 @@ $a_n \to 0$ 不保證收斂。
 \begin{remark}[\optional 選讀]
 \code{\optional} 也能放在章節標題前。
 \end{remark}
-\end{cs}
+\end{cheat}
 
-\begin{cs}
+\begin{cheat}
 \begin{chapterguide}
 \guidehead{在談什麼} 級數的收斂。
 \guidehead{先備知識} 數列極限。
 \end{chapterguide}
-\end{cs}
+\end{cheat}
 
-\begin{cssrc}{note}
+\begin{cheatsrc}{note}
 \akizumiNewCallout{keypoint}{Key point}{學習要點}{}{}[numbered=chapter]
 \begin{keypoint}\label{kp:a} ... \end{keypoint}  % 學習要點 3.1，可以 \cref
-\end{cssrc}
+\end{cheatsrc}
 
 \section{習題與解答（講義、書）}
-\begin{cs}
+\begin{cheat}
 \begin{exercise}[聯集]\label{ex:u}
 求 $[-2,1) \cup (0,3]$。
 \end{exercise}
@@ -259,9 +263,9 @@ $[-2,3]$。
 \item 暴力法 \item 雜湊表
 \end{parts}
 \end{example-problem}
-\end{cs}
+\end{cheat}
 
-\begin{cs}
+\begin{cheat}
 \begin{exercises}[title]
 \item 證明 $\sqrt{2}$ 是無理數。
 \item 計算 $\sum_{k=1}^n k$。
@@ -269,14 +273,14 @@ $[-2,3]$。
   $\frac{n(n+1)}{2}$
   \end{solution}
 \end{exercises}
-\end{cs}
+\end{cheat}
 
-\begin{cssrc}{book}
+\begin{cheatsrc}{book}
 \documentclass[solutions=end]{akizumi-book}  % 解答收到書末
 \printsolutions                              % 或印在這裡（例如每章最後）
-\end{cssrc}
+\end{cheatsrc}
 
-\begin{cssrc}{hw}
+\begin{cheatsrc}{hw}
 \documentclass[lang=zh, kind=report, header=name-id]{akizumi-hw}
 \akizumisetup{course=常微分方程, number=3, due={10 月 30 日}}
 \begin{document}
@@ -290,7 +294,7 @@ $[-2,3]$。
   \begin{parts} \item \begin{subparts} \item ... \end{subparts} \end{parts}
 \end{problem}
 \inputproblem[柯西數列]{problems/B3}  % 一題一個檔
-\end{cssrc}
+\end{cheatsrc}
 \csnote{\opt{kind=}：\opt{homework assignment exercise report}（標題的字）；\opt{header=name-id}：頁首印「作者 · 學號」；\opt{problembreak}：每題換頁；\opt{solutions=false} 隱藏解答。}
 
 \section{數學}\nobreak
@@ -311,7 +315,7 @@ $[-2,3]$。
 \csnote{\opt{\textbackslash va}…\opt{\textbackslash vZ} 要 \opt{letters=bold}；\opt{delims=auto} 讓括號不加星號就自動變大；\opt{units} 載入 siunitx。}
 
 \section{參考文獻、圖}
-\begin{cssrc}{note}
+\begin{cheatsrc}{note}
 \documentclass[bib=refs.bib, bibstyle=authoryear]{akizumi-note}
 \citet{lin2026} 提出……；後續研究 \citep{lin2026, sutton2018}。
 \printbibliography
@@ -322,10 +326,10 @@ $[-2,3]$。
   \end{subfigure}
   \caption{損失曲線}\label{fig:loss}
 \end{figure}
-\end{cssrc}
+\end{cheatsrc}
 
 \section{程式碼}
-\begin{cs}[0.47]
+\begin{cheat}[0.47]
 \begin{codeblock}[lang=Python, title=f.py]
 def f(z, k=64):
     u = randn(z.shape[1], k)
@@ -333,9 +337,9 @@ def f(z, k=64):
 \end{codeblock}
 行內：\code{loss.backward()}、
 \code[cpp]{std::vector<int> v;}
-\end{cs}
+\end{cheat}
 
-\begin{cs}[0.47]
+\begin{cheat}[0.47]
 \begin{codeblock}[numbered, label=lst:fit,
   lang=python, numbers=false]
 model.fit(x, y)
@@ -346,18 +350,18 @@ $ python main.py
 3
 \end{terminal}
 \iosample{1 2 \\ 3 4}{3 \\ 7}
-\end{cs}
+\end{cheat}
 
-\begin{cssrc}{note}
+\begin{cheatsrc}{note}
 \codedir{src/}                               % \inputcode 也在 src/ 找檔案
 \inputcode[lang=cpp, lines=10-24]{main.cpp}  % 讀檔，只印第 10-24 行
 \inputcode[output, title=輸出]{run.txt}      % 程式輸出：白底、無行號
 \listofcodes                                 % 所有編號過的程式碼
-\end{cssrc}
+\end{cheatsrc}
 \csnote{\opt{code=minted} 改用 Pygments 上色，寫法完全一樣；\opt{verbatim=styled} 讓 \opt{verbatim} 也有灰底。}
 
 \section{演算法、符號表}
-\begin{cs}
+\begin{cheat}
 \begin{algorithm}[H]
 \caption{SIGReg 訓練}\label{alg:s}
 \begin{algorithmic}[1]
@@ -367,17 +371,17 @@ $ python main.py
   \nabla_\theta \mathcal{L}$
 \end{algorithmic}
 \end{algorithm}
-\end{cs}
+\end{cheat}
 
-\begin{cs}
+\begin{cheat}
 \begin{notation}
 \notn{$\vb{z}_t$}{時間 $t$ 的潛在狀態}
 \notn{$\sg(\cdot)$}{stop-gradient}
 \end{notation}
-\end{cs}
+\end{cheat}
 
 \section{TikZ}
-\begin{cs}
+\begin{cheat}
 \begin{tikzpicture}
 \node[akizumi/box] (a) {encoder};
 \node[akizumi/box, right=1cm of a]
@@ -385,9 +389,9 @@ $ python main.py
 \draw[akizumi/arrow] (a) --
   node[above, akizumi/note] {sg} (b);
 \end{tikzpicture}
-\end{cs}
+\end{cheat}
 
-\begin{cs}
+\begin{cheat}
 \begin{tikzpicture}[x=0.9cm]
 \foreach \v [count=\i from 0] in
     {3, 1, 4, 1}
@@ -395,9 +399,9 @@ $ python main.py
 \node[akizumi/hlcell] at (2, 0) {4};
 \node[akizumi/index] at (2, -0.7) {i};
 \end{tikzpicture}
-\end{cs}
+\end{cheat}
 
-\begin{cs}
+\begin{cheat}
 \begin{tikzpicture}[akizumi/automaton]
 \node[state, initial] (q0) {$q_0$};
 \node[state, accepting, right=of q0]
@@ -405,11 +409,11 @@ $ python main.py
 \path[->] (q0) edge["$a$"] (q1)
   (q1) edge[loop above] node {$b$} ();
 \end{tikzpicture}
-\end{cs}
+\end{cheat}
 \csnote{流程圖 \opt{akizumi/start} \opt{process} \opt{decision} \opt{io} \opt{group}；賽局樹 \opt{akizumi/game/...}；電流 \opt{\textbackslash pic\{akizumi/current in\}}。}
 
 \section{邏輯（\texttt{\textbackslash usepackage\{akizumi-logic\}}）}
-\begin{cs}
+\begin{cheat}
 \begin{fitch}
 \hypo{1}{A \limp B} \by{\RulePremise}{}
 \open
@@ -418,9 +422,9 @@ $ python main.py
 \close
 \have{4}{A \limp B} \by{\RuleImpI}{2-3}
 \end{fitch}
-\end{cs}
+\end{cheat}
 
-\begin{cs}
+\begin{cheat}
 \begin{truthtable}{cc|ccc}
 A & B & A & \main{\land} & B \\ \midrule
 \tvrow{TT|T!TT}
@@ -431,11 +435,11 @@ A & B & A & \main{\land} & B \\ \midrule
 \step{=}{def.\ of $\fn{sum}$}
 1 + \fn{sum}\;[2]
 \end{calc}
-\end{cs}
+\end{cheat}
 \csnote{也有 ebproof 的 \opt{prooftree}、\opt{\textbackslash rulename}、\opt{funcdef}、\opt{\textbackslash sem}；\opt{connectives=classic} 把 $\limp$ 換成 $\supset$。}
 
 \section{其他小工具}
-\begin{cs}
+\begin{cheat}
 \todo{補推導}
 
 \muted{灰色的次要文字}
@@ -444,26 +448,26 @@ A & B & A & \main{\land} & B \\ \midrule
 
 顏色：\textcolor{accent}{accent}、
 \textcolor{warn}{warn}、\textcolor{mute}{mute}
-\end{cs}
+\end{cheat}
 
-\begin{cssrc}{note}
+\begin{cheatsrc}{note}
 \sidenote{邊欄註記}            % layout=margin 才在邊欄，否則是註腳
 \blindfootnote{本講義改編自…}  % 沒有編號的註腳
 \index{分割!網目}              % index=true 才有索引
 \nota{$\norm{x}$}{歐氏範數}    % 符號列表
 \printnotation  \printindex
 \chapterdir{basic-op}          % 之後的圖、\input、程式碼先找 basic-op/
-\end{cssrc}
+\end{cheatsrc}
 
-\begin{cssrc}{中文報告}
+\begin{cheatsrc}{中文報告}
 \documentclass[lang=zh, par=indent, secnum=zh, 13pt, kai,
   text=times]{akizumi-note}
 \akizumisetup{subtitle={食品安全風險溝通之案例研究},
   info={學號=B10303083, 系級=資工四}}     % 印在標題下方
-\end{cssrc}
+\end{cheatsrc}
 
 \section{簡報、考卷、書、論文（只列原始碼）}
-\begin{cssrc}{slides}
+\begin{cheatsrc}{slides}
 \documentclass[aspectratio=169]{beamer}
 \usetheme[progress]{Akizumi}        % 底部進度條；也接受 lang=zh、tikz=full
 \begin{document}
@@ -474,9 +478,9 @@ A & B & A & \main{\land} & B \\ \midrule
 \end{frame}
 \standoutframe{Questions?}          % 整頁藍底一句話
 \appendix  \dividerframe{Appendix}  % 之後的頁不算進總頁數
-\end{cssrc}
+\end{cheatsrc}
 
-\begin{cssrc}{exam}
+\begin{cheatsrc}{exam}
 \documentclass[lang=zh]{akizumi-exam}       % solutions=true 印出解答
 \begin{document}
 \begin{center}\gradetable[h][questions]\end{center}
@@ -485,9 +489,9 @@ A & B & A & \main{\land} & B \\ \midrule
   \begin{solution} $y = c_1\cos x + c_2\sin x$。 \end{solution}
 \question \begin{parts} \part[5] ...  \part[10] ... \end{parts}
 \end{questions}
-\end{cssrc}
+\end{cheatsrc}
 
-\begin{cssrc}{book}
+\begin{cheatsrc}{book}
 \documentclass[lang=zh, openright, chaptername={第 * 講}]{akizumi-book}
 \frontmatter  \maketitle  \preface ...  \tableofcontents
 \mainmatter
@@ -495,13 +499,13 @@ A & B & A & \main{\land} & B \\ \midrule
 \chapter[sub=Basic Operations, short=運算]{基本運算}
 \chaptertoc                               % 本章小目錄
 \backmatter  \printbibliography
-\end{cssrc}
+\end{cheatsrc}
 
-\begin{cssrc}{paper}
+\begin{cheatsrc}{paper}
 \usepackage{akizumi-paper}                 % 放在序言最後
 \newcommenter{jun}{Jun}{teal}
 \jun{這個界夠緊嗎？}  \jun*{改寫過的句子}  % 共同作者的註解、修改
 如 \eg 表中 \best{0.91}、\second{0.88}；\anon{我們先前的工作}
-\end{cssrc}
+\end{cheatsrc}
 
 \end{document}

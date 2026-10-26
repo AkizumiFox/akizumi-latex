@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- `thmnames=english` (the default) now covers every label, not only theorem names: Chinese, Japanese and Korean documents say Figure 1, Table 1, Equation (1.1), Section 2, Chapter 1, Appendix A, Algorithm 1, Listing 1.1, Key idea / Tip / Warning, List of Theorems. `thmnames=native` localises all of them as before. Dates, contents, bibliography, problem numbers and exam tables still follow `lang`.
+- Fixes found by building a sample of every document kind in both languages:
+  - `ax both` could leave a stale `main.pdf` (with or without solutions): the build stamp now includes the solutions switch, and the problems build clears latexmk's state for the next `ax build` / Cursor build.
+  - `restatable` theorems and their `\name*` copies get the left bar.
+  - `\Cref` works on theorem-like, exercise and callout labels.
+  - `\cref` to an appendix section or chapter says "Appendix A" / 附錄 A.
+  - `x'\T` compiles (a prime followed by `\T`).
+  - Slides: math in Computer Modern throughout (beamer's sans math only switched letters), and capitals are bold upright there too.
+  - Chinese, Japanese, Korean: bibliography words (參考文獻, 收錄於, 與, 引用頁碼, …), no all-caps bibliography header, full-width brackets in theorem notes and exam points, `圖 1：` captions, 輸入／輸出 in algorithms.
+  - Exams: a question heading is never left alone at the foot of a page; hidden solutions no longer report overfull lines.
+  - Plain papers link without coloured boxes (`hidelinks`).
 - Title page: no header; under the title a row of labelled details (course, author, ID, date, or due date for homework; `info={…}` adds columns, four to a row), localized labels; the kicker in spaced accent capitals. `titleinfo=row|line|none` (`byline=true` = `line`); `firstpage=title` brings the old header back. Notes and exams no longer copy the course into the kicker; homework no longer builds a kicker from course and due date.
 - English documents treat the middle dot as Latin punctuation, so `Course · Lecture 9` keeps its spaces.
 - Capital letters in math are upright bold by default (`A` reads as the matrix $\vb{A}$): `matrices=latin`; `matrices=all` includes Greek capitals, `matrices=normal` restores italic capitals. `\mathcal`, `\mathbb`, `\mathrm` still work. Plain `\usepackage{akizumi-math}` keeps `normal`.

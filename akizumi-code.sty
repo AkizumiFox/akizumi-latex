@@ -175,9 +175,9 @@
 \ExplSyntaxOff
 % ---------- words ----------
 %            key            en                 zh          ja           ko
-\akizumi@s  {listcodes}    {List of Listings} {程式碼列表}{コード一覧}{코드 목록}
-\akizumi@s  {codeinput}    {input}            {輸入}      {入力}      {입력}
-\akizumi@s  {codeoutput}   {output}           {輸出}      {出力}      {출력}
+\akizumi@tn {listcodes}    {List of Listings} {程式碼列表}{コード一覧}{코드 목록}
+\akizumi@tn {codeinput}    {input}            {輸入}      {入力}      {입력}
+\akizumi@tn {codeoutput}   {output}           {輸出}      {出力}      {출력}
 \ExplSyntaxOn
 
 % ---------- kinds: counters, names, cross-references ----------
@@ -224,7 +224,7 @@
     \prop_gput:Nnn \g__akizumi_code_kinds_prop {#1} {}
     \use:e
       {
-        \exp_not:N \akizumi@s { akizumicode#1 } { \exp_not:n {#2} } { \exp_not:n {#3} }
+        \exp_not:N \akizumi@tn { akizumicode#1 } { \exp_not:n {#2} } { \exp_not:n {#3} }
           { \exp_not:V \l__akizumi_code_ja_tl } { \exp_not:V \l__akizumi_code_ko_tl }
       }
     \newcounter { akizumicode#1 }
@@ -271,7 +271,7 @@
   }
 \cs_new_protected:Npn \__akizumi_code_crefname_now:nn #1#2
   {
-    \ifakizumi@cjk
+    \ifakizumi@cjklabels
       \crefname {#1} { \akizumi@str {#1} } { \akizumi@str {#1} }
     \else
       \crefname {#1} { \akizumi@str {#1} } {#2}

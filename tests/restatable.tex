@@ -1,0 +1,11 @@
+% !TEX program = xelatex
+% restatable theorems and their copies get the bar; \Cref on theorem labels;
+% \cref to an appendix section; x'\T
+\documentclass{akizumi-note}
+\begin{document}
+\begin{restatable}{lemma}{foo}\label{l:foo}restated $x'\T$\end{restatable}
+\Cref{l:foo}, \cref{app:a}.
+\appendix
+\section{Proofs}\label{app:a}
+\foo*
+\end{document}

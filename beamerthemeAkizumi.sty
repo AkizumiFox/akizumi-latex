@@ -29,6 +29,9 @@
 \ExplSyntaxOff
 
 \RequirePackage{akizumi-core}
+% Math as in the documents: Computer Modern, not beamer's sans math (which
+% only switched some of it: sans letters next to serif digits and \max).
+\usefonttheme[onlymath]{serif}
 \RequirePackage{tikz}
 % Slides after \appendix are numbered on their own and left out of the total.
 \RequirePackage{appendixnumberbeamer}
@@ -128,7 +131,7 @@
   \normalfont
   \begin{tcolorbox}[akizumi/bar={\akizumi@thmbar}{\akizumi@thmcolor}, before skip=0.6em, after skip=0.6em]%
   {\bfseries\color{\akizumi@thmlabel}\inserttheoremname
-   \ifx\inserttheoremaddition\@empty\else{\mdseries\color{mute}\ (\inserttheoremaddition)}\fi\akizumi@thmpunct}\enspace}
+   \ifx\inserttheoremaddition\@empty\else{\mdseries\color{mute}\akizumi@str{note-open}\inserttheoremaddition\akizumi@str{note-close}}\fi\akizumi@thmpunct}\enspace}
 \setbeamertemplate{theorem end}{\end{tcolorbox}}
 \setbeamertemplate{proof begin}{%
   \begin{tcolorbox}[akizumi/bar={0.8pt}{rule}, before skip=0.6em, after skip=0.6em]%

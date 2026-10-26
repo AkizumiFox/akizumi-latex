@@ -63,7 +63,7 @@
 \titleformat{name=\chapter,numberless}[display]{\sffamily\bfseries}
   {}{0pt}{\Huge}
 \titlespacing*{\chapter}{0pt}{1.5cm}{1.4cm}
-\ifakizumi@cjk\crefformat{chapter}{#2\akizumi@num{chapter}{#1}#3}\fi
+\ifakizumi@cjklabels\crefformat{chapter}{#2\akizumi@num{chapter}{#1}#3}\fi
 
 \akizumi@thmwithin{chapter}
 

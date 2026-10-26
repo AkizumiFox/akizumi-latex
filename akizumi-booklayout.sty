@@ -48,7 +48,7 @@
 
 % ---------- parts: centred page, muted "Part II" over the title ----------
 % (\titleclass redefines \part, so this comes before the wrapper below)
-\ifakizumi@cjk
+\ifakizumi@cjklabels
   \renewcommand{\thepart}{\arabic{part}}
   \crefformat{part}{#2\akizumi@num{part}{#1}#3}
 \fi

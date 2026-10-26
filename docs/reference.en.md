@@ -15,7 +15,7 @@ Run `ax new` with no arguments and it asks for the kind, folder and title. Optio
 | `--course` | Course name; in the header and above the title for homework, notes and exams, above the title for books and slides |
 | `--number` `--due` `--id` | Homework number, due date, student ID |
 | `--lang en\|zh\|ja\|ko` | Main language; defaults to `config.json` |
-| `--thmnames english\|native` | Theorem names in English (Theorem, Proof) or the main language (定理, 證明); defaults to `config.json` |
+| `--thmnames english\|native` | Theorem names and labels in English (Theorem, Figure, Section) or the main language (定理, 圖, 節); defaults to `config.json` |
 | `--text serif\|sans\|times\|palatino` `--paper a4\|letter\|pad` `--layout normal\|margin` | See [Document options](#document-options) |
 | `--bib` | Adds `refs.bib` and a bibliography |
 | `--code minted` | Highlight with minted: adds `code=minted` (see [Highlighting with minted](#highlighting-with-minted)). TeX older than TeX Live 2024 needs full shell escape; there ax writes `"shell_escape": true` to `.ax.json`, so `ax build`, `ax watch` and latexmkrc pass `-shell-escape`, and `ax build` also adds it when the main file has `code=minted` or loads minted |
@@ -184,7 +184,7 @@ Existing documents are unaffected: a preamble's own `keyidea`, `\pitfall`, `\opt
 
 ### Math
 
-Capital letters in math are always upright bold (matrices): `A` gives $\vb{A}$, no need to write `\vb{A}` each time. `\mathcal{A}`, `\mathbb{R}`, `\mathrm{A}` and `\mathit{A}` still switch the font; lowercase and Greek letters are unchanged. `matrices=all` makes Greek capitals such as Σ and Λ bold too; `matrices=normal` brings back italic capitals (e.g. for documents that use capitals for sets or random variables). On its own, `\usepackage{akizumi-math}` (papers) defaults to `normal`.
+Capital letters in math are always upright bold (matrices): `A` gives $\vb{A}$, no need to write `\vb{A}` each time. `\mathcal{A}`, `\mathbb{R}` and `\mathrm{A}` still switch the font; lowercase and Greek letters are unchanged, on slides too. For a single capital that is not a matrix ($Y(s)$, $C^1$, the operator $D$) write `\mathnormal{Y}`: the usual math italic with the right spacing (`\mathit` is text italic, so superscripts sit too close). A prime followed by a transpose, `x'\T`, works as written. `matrices=all` makes Greek capitals such as Σ and Λ bold too; `matrices=normal` brings back italic capitals (e.g. for documents that use capitals for sets or random variables). On its own, `\usepackage{akizumi-math}` (papers) defaults to `normal`.
 
 | Input | Result |
 |---|---|
@@ -229,7 +229,7 @@ Always use `\cref`; it adds the name for you:
 See \cref{thm:cw}, \cref{def:collapse} and \cref{eq:loss}.
 ```
 
-English documents get "Theorem 1.2", "Definition 1.1", "Equation (1.1)". When the main language is Chinese, Japanese or Korean, sections, figures, tables, equations and problems follow it:
+References are English by default, whatever the main language: "Theorem 1.2", "Figure 1", "Equation (1.1)", "Section 2", "Appendix A". Only problem numbers in homework and exams follow the language (第 1 題, 問 1, 문제 1). With `thmnames=native` they use the main language:
 
 | | Section | Figure | Equation | Problem |
 |---|---|---|---|---|
@@ -237,7 +237,7 @@ English documents get "Theorem 1.2", "Definition 1.1", "Equation (1.1)". When th
 | `lang=ja` | 第 1 節 | 図 1 | 式 (1.1) | 問 1 |
 | `lang=ko` | 제1절 | 그림 1 | 식 (1.1) | 문제 1 |
 
-Theorem names stay English by default; `thmnames=native` switches them to the main language:
+Theorem names with `thmnames=native`:
 
 | | theorem | lemma | corollary | remark | proof | solution |
 |---|---|---|---|---|---|---|
@@ -724,7 +724,7 @@ Put them in `\documentclass[...]` (for slides, `\usetheme[...]{Akizumi}`):
 | `bb` | `light` `regular` `ams` | `light` | Weight of blackboard bold; `ams` is the classic AMS font (capitals only) |
 | `paper` | `a4` `letter` `pad` | `a4` | Paper; `pad` is a 3:4 layout for reading on a tablet |
 | `layout` | `normal` `margin` | `normal` | `margin` leaves a wide margin for `\sidenote` (notes, books) |
-| `thmnames` | `english` `native` | `english` | Theorem, proof, solution and similar names in English or the main language (see [Cross-references](#cross-references)) |
+| `thmnames` | `english` `native` | `english` | Names and labels in English or the main language: theorem, proof, solution, exercise and callout names, and Figure, Table, Equation, Section, Chapter, Appendix, Algorithm, Listing and List of Theorems in references and captions. Dates, contents, bibliography, problem numbers and grade tables always follow `lang` (see [Cross-references](#cross-references)) |
 | `thmcounter` | `shared` `grouped` `split` | `shared` | One counter for every theorem-like kind, three groups, or one per kind (see [Theorems, definitions, proofs](#theorems-definitions-proofs)) |
 | `thmwithin` | `chapter` `section` `none` | notes `section`, books `chapter`, others `none` | Prefix theorem numbers with the chapter or section |
 | `asides` | `numbered` `unnumbered` | `numbered` | `unnumbered`: example, remark and remarks get no number |

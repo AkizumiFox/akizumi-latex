@@ -862,7 +862,8 @@ def paper_scaffold(a, title, author, pin, extra):
     if venue == "plain":
         if a.bib:
             L.append("\\usepackage[numbers]{natbib}")
-        L.append("\\usepackage{hyperref}")
+        # links without the red / green boxes; the venue templates keep theirs
+        L.append("\\usepackage[hidelinks]{hyperref}")
     elif venue == "neurips":
         L += ["% It loads natbib (author-year); for numeric citations [1, 2] uncomment:",
               "% \\PassOptionsToPackage{numbers, compress}{natbib}",
@@ -1389,11 +1390,13 @@ def latexmk(main, label, jobname=None, pretex=None, clean_first=False):
         base.append(f"-usepretex={pretex}")
     flags = latexmk_flags(main=main)
     base += flags + fallback_latexmkrc(main)
-    # latexmk only looks at the sources: when the template version or the
-    # options (shell_escape) changed since the last build, rebuild in full
+    # latexmk only looks at the sources: when the template version, the
+    # options (shell_escape) or the pretex (ax both's solutions switch)
+    # changed since the last build, rebuild in full
     job = jobname or Path(main).stem
     stamp_file = Path("build") / f".{job}.ax-stamp"
-    stamp = json.dumps({"template": project_config().get("template"), "flags": flags})
+    stamp = json.dumps({"template": project_config().get("template"), "flags": flags,
+                        "pretex": pretex})
     try:
         old_stamp = stamp_file.read_text() if stamp_file.exists() else None
     except OSError:
@@ -2312,6 +2315,9 @@ def cmd_both(a):
     run_prebuild(a)
     ok1 = safe_build(main, pretex=r"\def\akizumisolutions{false}",
                      label=T("編譯題目卷", "Building the problems"))
+    # the problems share build/main.* with ax build and Cursor, which build
+    # with solutions: make their next build start from scratch too
+    (Path("build") / f"{main.stem}.fdb_latexmk").unlink(missing_ok=True)
     ok2 = safe_build(main, jobname=f"{main.stem}-solutions",
                      pretex=r"\def\akizumisolutions{true}", label=T("編譯解答", "Building the solutions"))
     sys.exit(0 if ok1 and ok2 else 1)

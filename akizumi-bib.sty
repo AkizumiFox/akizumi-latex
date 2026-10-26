@@ -63,8 +63,35 @@
         { apa }        { style = apa }
       }
   }
+% biblatex upper-cases the bibliography's running header unless
+% \MakeMarkcase is defined; keep it as written, like the other headers
+\providecommand \MakeMarkcase { \use:n }
 \use:x { \exp_not:N \RequirePackage [ \exp_not:V \l_tmpa_tl ] { biblatex } }
 \clist_map_inline:Nn \l__akizumi_bib_clist { \addbibresource {#1} }
+% Chinese / Japanese / Korean documents: the words biblatex prints
+% (biblatex itself runs in English here)
+\ifcase \akizumi@langnum \or
+  \DefineBibliographyStrings { english }
+    {
+      bibliography = {參考文獻}, references = {參考文獻},
+      in = {收錄於}, and = {與},
+      backrefpage = {引用頁碼}, backrefpages = {引用頁碼},
+    }
+\or
+  \DefineBibliographyStrings { english }
+    {
+      bibliography = {参考文献}, references = {参考文献},
+      in = {所収}, and = {・},
+      backrefpage = {引用ページ}, backrefpages = {引用ページ},
+    }
+\or
+  \DefineBibliographyStrings { english }
+    {
+      bibliography = {참고~문헌}, references = {참고~문헌},
+      in = {수록:}, and = {및},
+      backrefpage = {인용~페이지}, backrefpages = {인용~페이지},
+    }
+\fi
 
 \bool_if:NT \l__akizumi_supercite_bool
   {

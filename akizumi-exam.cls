@@ -85,10 +85,21 @@
   \qformat{{\sffamily\color{accent}\bfseries Question \thequestion}\quad{\sffamily\color{mute}\small(\totalpoints\ \points)}\hfill}
 \fi
 \pointpoints{\akizumi@str{point}}{\akizumi@str{points}}
-\pointformat{\textcolor{mute}{\sffamily(\thepoints)}}
+\pointformat{\textcolor{mute}{\sffamily\akizumi@str{lparen}\thepoints\akizumi@str{rparen}}}
 \renewcommand{\solutiontitle}{{\sffamily\color{mute}\bfseries\akizumi@str{solution}\akizumi@thmpunct}\enspace}
 \renewenvironment{TheSolution}
   {\begin{tcolorbox}[akizumi/bar={0.8pt}{rule}]\solutiontitle\ignorespaces}
   {\unskip\end{tcolorbox}}
+
+% A question's heading never sits alone at the foot of a page. The exam class
+% defines \question and its variants inside the questions environment, all
+% through \process@question; \questionshook runs right after.
+\g@addto@macro\questionshook{%
+  \let\akizumi@processquestion\process@question
+  \def\process@question{\par\Needspace{4\baselineskip}\akizumi@processquestion}}
+% Without answers the exam class still sets each solution in a box it then
+% throws away; keep that box from reporting overfull lines nobody sees.
+\AddToHook{env/solution/begin}{\ifprintanswers\else
+  \hfuzz=\maxdimen\vfuzz=\maxdimen\hbadness=\@M\vbadness=\@M\fi}
 
 \endinput

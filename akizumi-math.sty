@@ -135,6 +135,13 @@
           {
             \DeclareMathSymbol {#1} { \mathalpha } { akizumibf } { `#1 }
             \cs_if_exist:NT \Umathcode { \Umathcode `#1 = 7 ~ \symakizumibf ~ `#1 \scan_stop: }
+            % again after \begin{document}: beamer sets the letters' codes there
+            \AddToHook { begindocument/end }
+              {
+                \cs_if_exist:NTF \Umathcode
+                  { \Umathcode `#1 = 7 ~ \symakizumibf ~ `#1 \scan_stop: }
+                  { \tex_mathcode:D `#1 = \int_eval:n { "7000 + \symakizumibf * 256 + `#1 } \scan_stop: }
+              }
           }
         \str_if_eq:VnT \akizumi@matrices { all }
           {
@@ -174,6 +181,16 @@
 
 % Transpose: x\T
 \akizumi@new\T{\newcommand{\T}{^{\top}}}
+% x'\T: LaTeX folds a ^ that follows a prime into the prime's superscript,
+% but only a literal ^; teach it \T too, or x'\T is a double superscript.
+% (unicode-math has its own prime handling.)
+\@ifpackageloaded{unicode-math}{}{%
+  \AtBeginDocument{%
+    \ifdefined\pr@m@s
+      \let\akizumi@prms\pr@m@s
+      \def\pr@m@s{\ifx\T\@let@token\expandafter\akizumi@primeT\else\expandafter\akizumi@prms\fi}%
+      \def\akizumi@primeT\T{\top\egroup}%
+    \fi}}
 
 % ---------- paired delimiters ----------
 % \norm{x}, \norm*{x} (auto-size), \norm[\big]{x}. With delims=auto the

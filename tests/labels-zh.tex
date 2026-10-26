@@ -1,0 +1,14 @@
+% !TEX program = xelatex
+% Chinese document, default thmnames=english: every label is English
+% (Theorem, Figure, Section, Appendix, Key idea, List of Theorems); 與 spaced
+\documentclass[lang=zh]{akizumi-note}
+\begin{document}
+\section{一}\label{s}
+\begin{theorem}\label{t}T\end{theorem}\begin{exercise}\label{e}X\end{exercise}
+\begin{keyidea}K\end{keyidea}
+\begin{figure}[h]\caption{F}\label{f}\end{figure}
+\begin{equation}\label{q}x\end{equation}
+見\cref{t,e}、\cref{f}、\cref{q}、\cref{s}、\cref{a}。
+\listoftheorems
+\appendix\section{附}\label{a}
+\end{document}

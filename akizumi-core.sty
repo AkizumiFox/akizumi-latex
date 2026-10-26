@@ -78,6 +78,9 @@
       { \tl_set_eq:NN \akizumi@titleinfo \l_keys_choice_tl },
   }
 \ProcessKeyOptions [ akizumi/core ]
+% labels in the main language (圖 1, 第 2 節, 定理 3): CJK and thmnames=native
+\newif\ifakizumi@cjklabels
+\ifakizumi@cjk\ifakizumi@nativethm\akizumi@cjklabelstrue\fi\fi
 \cs_new:Npn \akizumi@paper { \int_use:N \l__akizumi_paper_int }
 \str_case:Vn \l__akizumi_bb_tl
   {
@@ -86,6 +89,16 @@
   }
 \ExplSyntaxOff
 
+% \Cref capitalises the \crefname word, which fails on a command such as
+% \akizumi@str{theorem} (our names, already capitalised): when the name is a
+% command, \crefname sets \Crefname to the same words. Set up for documents
+% and slides, whichever loads cleveref.
+\AddToHook{package/cleveref/after}{%
+  \let\akizumi@crefname@orig\crefname
+  \renewcommand{\crefname}[3]{\akizumi@crefname@orig{#1}{#2}{#3}%
+    \akizumi@ifcs{#2}{\Crefname{#1}{#2}{#3}}{}}}
+\long\def\akizumi@ifcs#1{\akizumi@ifcs@#1\@nil}
+\long\def\akizumi@ifcs@#1#2\@nil{\ifcat\relax\noexpand#1\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi}
 % capitals in math are matrices: bold upright (matrices=normal turns it off)
 \providecommand{\akizumi@matrices}{latin}
 \RequirePackage{akizumi-math}
@@ -346,18 +359,25 @@
 \else
   \def\akizumi@tn#1#2#3#4#5{\@namedef{akizumi@s@#1}{#2}}
 \fi
+% Labels (figure, table, section, equation, ...) follow thmnames too: English
+% in every language unless thmnames=native. \akizumi@tnn is \akizumi@n for them.
+\ifakizumi@nativethm
+  \let\akizumi@tnn\akizumi@n
+\else
+  \def\akizumi@tnn#1#2#3#4#5#6#7#8#9{\@namedef{akizumi@b@#1}{#2}\@namedef{akizumi@a@#1}{#3}}
+\fi
 %            key            en                  zh          ja              ko
 \akizumi@s  {today}        {\today}            {\the\year\ 年 \the\month\ 月 \the\day\ 日}
                                                {\the\year\ 年 \the\month\ 月 \the\day\ 日}
                                                {\the\year 년 \the\month 월 \the\day 일}
 \akizumi@s  {contents}     {Contents}          {目錄}      {目次}          {목차}
-\akizumi@s  {figure}       {Figure}            {圖}        {図}            {그림}
-\akizumi@s  {table}        {Table}             {表}        {表}            {표}
+\akizumi@tn {figure}       {Figure}            {圖}        {図}            {그림}
+\akizumi@tn {table}        {Table}             {表}        {表}            {표}
 \akizumi@s  {references}   {References}        {參考文獻}  {参考文献}      {참고 문헌}
 \akizumi@s  {abstract}     {Abstract}          {摘要}      {概要}          {초록}
 \akizumi@s  {appendix}     {Appendix}          {附錄}      {付録}          {부록}
-\akizumi@s  {algorithm}    {Algorithm}         {演算法}    {アルゴリズム}  {알고리즘}
-\akizumi@s  {listtheorems} {List of Theorems}  {定理列表}  {定理一覧}      {정리 목록}
+\akizumi@tn {algorithm}    {Algorithm}         {演算法}    {アルゴリズム}  {알고리즘}
+\akizumi@tn {listtheorems} {List of Theorems}  {定理列表}  {定理一覧}      {정리 목록}
 \akizumi@s  {homework}     {Homework}          {作業}      {課題}          {과제}
 \akizumi@s  {due}          {Due}               {繳交期限}  {締切}          {마감}
 \akizumi@s  {name}         {Name}              {姓名}      {氏名}          {이름}
@@ -369,6 +389,11 @@
 \akizumi@s  {gradescore}   {Score}             {得分}      {得点}          {득점}
 \akizumi@s  {gradetotal}   {Total}             {總分}      {合計}          {총점}
 \akizumi@s  {lparen}       {(}                 {（}        {（}            {(}
+% "Theorem 2.1 (Markov)", 定理 2.1（Markov）
+\akizumi@s  {note-open}    {\ (}               {（}        {（}            {\ (}
+\akizumi@s  {note-close}   {)}                 {）}        {）}            {)}
+\akizumi@s  {alg-input}    {Input:}            {輸入：}    {入力：}        {입력:}
+\akizumi@s  {alg-output}   {Output:}           {輸出：}    {出力：}        {출력:}
 \akizumi@s  {rparen}       {)}                 {）}        {）}            {)}
 % \cref with several labels: "定理 1 與 2", "定義 1、定理 1 與習題 1.1", "式 (1) 至 (3)".
 % cref-and stands between numbers, cref-group before the next kind's name.
@@ -383,12 +408,12 @@
 \akizumi@s  {symbol}       {Symbol}            {符號}      {記号}          {기호}
 \akizumi@s  {meaning}      {Meaning}           {意義}      {意味}          {의미}
 %            key        en before    after  zh before after   ja before after   ko before after
-\akizumi@n  {section}   {Section~}  {}     {第~}  {~節}      {第~}  {~節}      {제}   {절}
-\akizumi@n  {chapter}   {Chapter~}  {}     {第~}  {~章}      {第~}  {~章}      {제}   {장}
-\akizumi@n  {appendix}  {Appendix~} {}     {附錄~}{}         {付録~}{}         {부록~}{}
+\akizumi@tnn{section}   {Section~}  {}     {第~}  {~節}      {第~}  {~節}      {제}   {절}
+\akizumi@tnn{chapter}   {Chapter~}  {}     {第~}  {~章}      {第~}  {~章}      {제}   {장}
+\akizumi@tnn{appendix}  {Appendix~} {}     {附錄~}{}         {付録~}{}         {부록~}{}
 \akizumi@n  {problem}   {Problem~}  {}     {第~}  {~題}      {問~}  {}         {문제~}{}
-\akizumi@n  {part}      {Part~}     {}     {第~}  {~部分}    {第~}  {~部}      {제}   {부}
-\akizumi@n  {equation}  {Equation~(}{)}    {式~(} {)}        {式~(} {)}        {식~(} {)}
+\akizumi@tnn{part}      {Part~}     {}     {第~}  {~部分}    {第~}  {~部}      {제}   {부}
+\akizumi@tnn{equation}  {Equation~(}{)}    {式~(} {)}        {式~(} {)}        {식~(} {)}
 % theorem-like names
 \akizumi@tn {theorem}      {Theorem}      {定理}  {定理}    {정리}
 \akizumi@tn {lemma}        {Lemma}        {引理}  {補題}    {보조정리}
@@ -504,14 +529,31 @@
     \def\crefmiddlegroupconjunction{\akizumi@str{cref-comma}}%
     \def\creflastgroupconjunction{\akizumi@str{cref-group}}%
     \def\crefrangeconjunction{\akizumi@str{cref-to}}%
+    % English labels: the next kind's name is Latin, so a space after 與 too
+    \ifakizumi@cjklabels\else
+      \def\crefpairgroupconjunction{\akizumi@str{cref-and}}%
+      \def\creflastgroupconjunction{\akizumi@str{cref-and}}%
+    \fi
+  \fi
+  \ifakizumi@cjklabels  % otherwise cleveref's English names and plurals
     \crefformat{section}{##2\akizumi@num{section}{##1}##3}%
     \crefname{figure}{\akizumi@str{figure}}{\akizumi@str{figure}}%
     \crefname{table}{\akizumi@str{table}}{\akizumi@str{table}}%
     \crefformat{equation}{##2\akizumi@num{equation}{##1}##3}%
+    \crefformat{appendix}{##2\akizumi@num{appendix}{##1}##3}%
+    \crefformat{subappendix}{##2\akizumi@num{appendix}{##1}##3}%
   \fi}
 
 % Everything below is for documents only; beamerthemeAkizumi handles slides.
 \@ifclassloaded{beamer}{\endinput}{}
+
+% After \appendix, \cref names sections (chapters in books) "Appendix A" /
+% 附錄 A, not "Section A". cleveref rewrites \appendix at \begin{document},
+% so this is added after that.
+\AddToHook{begindocument/end}{\g@addto@macro\appendix{%
+  \@ifundefined{c@chapter}
+    {\crefalias{section}{appendix}\crefalias{subsection}{subappendix}}
+    {\crefalias{chapter}{appendix}\crefalias{section}{subappendix}}}}
 
 % ---------- page geometry ----------
 % Classes call \akizumi@setgeometry{<their a4/letter margins>}. paper=pad ignores
@@ -548,6 +590,12 @@
 \RequirePackage[verbose=silent]{microtype}
 \RequirePackage{graphicx}
 \RequirePackage[font=small,labelfont={sf,bf}]{caption}
+% 圖 1：... with a full-width colon in Chinese and Japanese (thmnames=native)
+\DeclareCaptionLabelSeparator{akizumi-cjk}{：}
+\ifakizumi@nativethm
+  \ifnum\akizumi@langnum=1 \captionsetup{labelsep=akizumi-cjk}\fi
+  \ifnum\akizumi@langnum=2 \captionsetup{labelsep=akizumi-cjk}\fi
+\fi
 \RequirePackage{subcaption}
 \RequirePackage[bottom]{footmisc}  % footnotes stay at the page bottom
 % Footnote without a number; skips hyperref's anchor (there is no mark to link).
@@ -624,9 +672,9 @@
 % Every kind also has an unnumbered starred form (theorem*, definition*, ...).
 % Bodies are upright (italic would turn whole CJK statements bold).
 \newtheoremstyle{akizumi-claim}{0pt}{0pt}{}{}{\sffamily\bfseries\color{accent}}{\akizumi@thmpunct}{0.6em}
-  {\thmname{#1}\thmnumber{ #2}\thmnote{\mdseries\color{mute}\ (#3)}}
+  {\thmname{#1}\thmnumber{ #2}\thmnote{\mdseries\color{mute}\akizumi@str{note-open}#3\akizumi@str{note-close}}}
 \newtheoremstyle{akizumi-aside}{0pt}{0pt}{}{}{\sffamily\bfseries}{\akizumi@thmpunct}{0.6em}
-  {\thmname{#1}\thmnumber{ #2}\thmnote{\mdseries\color{mute}\ (#3)}}
+  {\thmname{#1}\thmnumber{ #2}\thmnote{\mdseries\color{mute}\akizumi@str{note-open}#3\akizumi@str{note-close}}}
 \theoremstyle{akizumi-claim}
 % Names come from the language table (\akizumi@tn above).
 \newtheorem{theorem}{\akizumi@str{theorem}}
@@ -668,7 +716,33 @@
 
 \def\akizumi@onebar#1#2#3{%
   \tcolorboxenvironment{#1}{akizumi/bar={#2}{#3}}%
-  \AddToHook{env/#1/before}{\Needspace{4\baselineskip}}}
+  \AddToHook{env/#1/before}{\Needspace{4\baselineskip}}%
+  \akizumi@directbar{#1}{#2}{#3}}
+% The bar hangs on \begin{env}. thmtools' restatable (and its \name* copies)
+% call \env ... \endenv directly, so at \begin{document}, when every kind is
+% final, each barred kind learns to draw its bar itself when \@currenvir is
+% not its own name.
+\newif\ifakizumi@ownbar
+\def\akizumi@barkinds{}
+\def\akizumi@directbar#1#2#3{%
+  \expandafter\gdef\csname akizumi@bar@#1\endcsname{{#2}{#3}}%
+  \@ifundefined{akizumi@barlisted@#1}{%
+    \expandafter\gdef\csname akizumi@barlisted@#1\endcsname{}%
+    \xdef\akizumi@barkinds{\akizumi@barkinds\ifx\akizumi@barkinds\@empty\else,\fi#1}}{}}
+\def\akizumi@wrapbar#1{%
+  \expandafter\let\csname akizumi@orig@#1\expandafter\endcsname\csname #1\endcsname
+  \expandafter\let\csname akizumi@origend@#1\expandafter\endcsname\csname end#1\endcsname
+  \@namedef{#1}{\def\akizumi@tmp{#1}%
+    \ifx\@currenvir\akizumi@tmp\akizumi@ownbarfalse\else
+      \akizumi@ownbartrue
+      \expandafter\expandafter\expandafter\akizumi@openbar\csname akizumi@bar@#1\endcsname\fi
+    \csname akizumi@orig@#1\endcsname}%
+  \@namedef{end#1}{\csname akizumi@origend@#1\endcsname
+    \ifakizumi@ownbar\end{tcolorbox}\fi}}
+\def\akizumi@openbar#1#2{\Needspace{4\baselineskip}\begin{tcolorbox}[akizumi/bar={#1}{#2}]}
+\AtBeginDocument{\@for\akizumi@k:=\akizumi@barkinds\do{%
+  \@ifundefined{\akizumi@k}{}{\@ifundefined{akizumi@bar@\akizumi@k}{}%
+    {\expandafter\akizumi@wrapbar\expandafter{\akizumi@k}}}}}
 \def\akizumi@barenv#1#2#3{\akizumi@onebar{#1}{#2}{#3}\akizumi@onebar{#1*}{#2}{#3}}
 \akizumi@barenv{theorem}{1.6pt}{accent}
 \akizumi@barenv{lemma}{1.6pt}{accent}
@@ -713,10 +787,10 @@
 \RequirePackage{algorithm}
 \RequirePackage{algpseudocodex}
 \floatname{algorithm}{\akizumi@str{algorithm}}
-\ifakizumi@cjk\crefname{algorithm}{\akizumi@str{algorithm}}{\akizumi@str{algorithm}}%
+\ifakizumi@cjklabels\crefname{algorithm}{\akizumi@str{algorithm}}{\akizumi@str{algorithm}}%
 \else\crefname{algorithm}{Algorithm}{Algorithms}\fi
-\algrenewcommand{\algorithmicrequire}{\textsf{\textbf{Input:}}}
-\algrenewcommand{\algorithmicensure}{\textsf{\textbf{Output:}}}
+\algrenewcommand{\algorithmicrequire}{\textsf{\textbf{\akizumi@str{alg-input}}}}
+\algrenewcommand{\algorithmicensure}{\textsf{\textbf{\akizumi@str{alg-output}}}}
 
 % ---------- notation table ----------
 %   \begin{notation}

@@ -15,7 +15,7 @@ English: [reference.en.md](reference.en.md)
 | `--course` | 課名；作業、講義、考卷放在頁首和標題上方，書和簡報放在標題上方 |
 | `--number` `--due` `--id` | 作業編號、繳交期限、學號 |
 | `--lang en\|zh\|ja\|ko` | 主語言，預設取自 `config.json` |
-| `--thmnames english\|native` | 定理名稱用英文（Theorem、Proof）或主語言（定理、證明），預設取自 `config.json` |
+| `--thmnames english\|native` | 定理和各種標籤用英文（Theorem、Figure、Section）或主語言（定理、圖、節），預設取自 `config.json` |
 | `--text serif\|sans\|times\|palatino` `--paper a4\|letter\|pad` `--layout normal\|margin` | 見〈文件選項〉 |
 | `--bib` | 加上 `refs.bib` 和參考文獻 |
 | `--code minted` | 用 minted 上色：加上 `code=minted`（見〈用 minted 上色〉）。TeX Live 2024 以前的 TeX 要完整的 shell escape，這時 ax 會在 `.ax.json` 寫 `"shell_escape": true`，`ax build`、`ax watch` 和 latexmkrc 都會加 `-shell-escape`；主檔裡有 `code=minted` 或載入 minted 時，`ax build` 也會自動加 |
@@ -184,7 +184,7 @@ Characteristic functions agree on every line through the origin.
 
 ### 數學
 
-數學裡的大寫字母一律是正體粗體（矩陣）：寫 `A` 就是 $\vb{A}$，不必每次寫 `\vb{A}`。`\mathcal{A}`、`\mathbb{R}`、`\mathrm{A}`、`\mathit{A}` 照常換字型，小寫和希臘字母不變。`matrices=all` 讓 Σ、Λ 這些希臘大寫也變粗體；`matrices=normal` 回到一般的斜體大寫（例如集合、隨機變數用大寫的文件）。單獨用 `\usepackage{akizumi-math}`（投稿論文）時預設是 `normal`。
+數學裡的大寫字母一律是正體粗體（矩陣）：寫 `A` 就是 $\vb{A}$，不必每次寫 `\vb{A}`。`\mathcal{A}`、`\mathbb{R}`、`\mathrm{A}` 照常換字型，小寫和希臘字母不變，簡報也一樣。個別不是矩陣的大寫（$Y(s)$、$C^1$、算子 $D$）寫 `\mathnormal{Y}`：一般的數學斜體，間距正確（`\mathit` 是文字斜體，上標會貼太近）。`x'\T` 這種撇號接轉置可以直接寫。`matrices=all` 讓 Σ、Λ 這些希臘大寫也變粗體；`matrices=normal` 回到一般的斜體大寫（例如集合、隨機變數用大寫的文件）。單獨用 `\usepackage{akizumi-math}`（投稿論文）時預設是 `normal`。
 
 | 寫法 | 結果 |
 |---|---|
@@ -229,7 +229,7 @@ Characteristic functions agree on every line through the origin.
 見\cref{thm:cw}、\cref{def:collapse}、\cref{eq:loss}。
 ```
 
-英文文件輸出「Theorem 1.2」「Definition 1.1」「Equation (1.1)」。主語言是中文、日文、韓文時，章節、圖、表、公式、題目跟著換：
+引用預設一律是英文，不論文件主語言：「Theorem 1.2」「Figure 1」「Equation (1.1)」「Section 2」「Appendix A」。只有作業和考卷的題號跟著語言（第 1 題、問 1、문제 1）。加 `thmnames=native` 時改用主語言：
 
 | | 章節 | 圖 | 公式 | 題目 |
 |---|---|---|---|---|
@@ -237,7 +237,7 @@ Characteristic functions agree on every line through the origin.
 | `lang=ja` | 第 1 節 | 図 1 | 式 (1.1) | 問 1 |
 | `lang=ko` | 제1절 | 그림 1 | 식 (1.1) | 문제 1 |
 
-定理名稱預設維持英文；加 `thmnames=native` 改用主語言：
+定理名稱在 `thmnames=native` 時：
 
 | | theorem | lemma | corollary | remark | proof | solution |
 |---|---|---|---|---|---|---|
@@ -725,7 +725,7 @@ $A\cup B=[-2,3]$。
 | `bb` | `light` `regular` `ams` | `light` | 黑板粗體的粗細；`ams` 是傳統 AMS 字型（只有大寫） |
 | `paper` | `a4` `letter` `pad` | `a4` | 紙張；`pad` 是 3:4 的平板閱讀版面 |
 | `layout` | `normal` `margin` | `normal` | `margin` 留寬邊欄放 `\sidenote`（講義、書） |
-| `thmnames` | `english` `native` | `english` | 定理、證明、解答等名稱用英文或主語言（見〈交叉引用〉） |
+| `thmnames` | `english` `native` | `english` | 名稱和標籤用英文或主語言：定理、證明、解答、習題、提示框，以及引用和標題裡的 Figure、Table、Equation、Section、Chapter、Appendix、Algorithm、Listing、List of Theorems。日期、目錄、參考文獻、題號、評分表一律跟著 `lang`（見〈交叉引用〉） |
 | `thmcounter` | `shared` `grouped` `split` | `shared` | 定理類環境共用一個編號、分三類編號，或每種各自編號（見〈定理、定義、證明〉） |
 | `thmwithin` | `chapter` `section` `none` | 講義 `section`，書 `chapter`，其他 `none` | 定理編號前面加上章或節號 |
 | `asides` | `numbered` `unnumbered` | `numbered` | `unnumbered`：example、remark、remarks 不編號 |

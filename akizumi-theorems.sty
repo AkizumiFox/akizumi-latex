@@ -466,6 +466,7 @@
     \RemoveFromHook { env/#1/before } [ tcolorbox ]
     \RemoveFromHook { env/#1/after } [ tcolorbox ]
     \tcolorboxenvironment {#1} { akizumi/bar = {#2} {#3} }
+    \akizumi@directbar {#1} {#2} {#3}  % restatable copies too (akizumi-core)
   }
 \cs_generate_variant:Nn \__akizumi_thm_rebar:nnn { nVV }
 % \akizumiNewTheorem[opts]{env}{English}{中文}{日本語}{한국어}[opts]; an empty
@@ -528,6 +529,7 @@
     \RemoveFromHook { env/#1/before } [ tcolorbox ]
     \RemoveFromHook { env/#1/before } [ akizumi-theorems ]
     \RemoveFromHook { env/#1/after } [ tcolorbox ]
+    \cs_undefine:c { akizumi@bar@#1 }  % no bar unless it gets one again
     \cs_undefine:c {#1}
     \cs_undefine:c { end#1 }
   }

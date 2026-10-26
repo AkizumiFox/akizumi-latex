@@ -812,7 +812,7 @@ $A\cup B=[-2,3]$。
 | `ax build --chapter N` | 只編第 N 章，輸出 `main-chN.pdf`，`main.pdf` 不動。章號、頁碼和跨章引用沿用上一次完整編譯的結果，所以先跑過一次 `ax build`。`N` 可以是章號、附錄字母（`A`）、`\include` 的檔名或資料夾名；`--chapter 3,5` 一次編兩章，輸出 `main-ch3+5.pdf`。`ax watch --chapter N` 同理 |
 | `ax count` | 數字數：英文字數加中日韓字數（中日韓逐字算，韓文也是），不算指令、數學、程式碼、`\label`／`\ref`／`\cite`、註解和前言；會跟著 `\input`／`\include`／`\subfile`（和 `\chapterdir`）走，多個檔案時逐檔列出。`--limit 3000` 超過就提醒 |
 | `ax doctor` | 檢查工具、字型、模板安裝和版本，最後列出有問題的項目和修法；也會看有沒有 upmendex（索引的中日韓排序）。在專案裡還會檢查 `prebuild` 用到的程式、用了 `svg` 套件或 `\includesvg` 時的 inkscape（以及有沒有開 `shell_escape`）、專案 `\usepackage` 的套件是否都找得到（不在 TeX Live 裡的，例如 `stata.sty`，要放進專案資料夾），以及重新定義了哪些 akizumi-math 巨集、哪些檔案用單字母 `\def` 蓋掉了重音指令 |
-| `ax upgrade` | 把專案換到最新的模板版本，順便更新 `latexmkrc` 和編輯器設定 |
+| `ax upgrade` | 把專案換到最新的模板版本，順便更新 `latexmkrc` 和編輯器設定（`latexmkrc` 最後一行分隔線之後是你自己的設定，更新時保留；資料夾裡原本不是 ax 寫的 `latexmkrc`／`.latexmkrc` 會改名成 `*.before-ax` 留著，不會被覆蓋） |
 | `ax freeze` | 把模板檔複製進專案，從此不依賴這個 repo |
 | `ax pack` | 打包成 `<資料夾名>-overleaf.zip`，告訴你上傳後要選哪個編譯器 |
 | `ax config` | 設定資料夾、`config.json`、preamble、模板快取各在哪裡 |

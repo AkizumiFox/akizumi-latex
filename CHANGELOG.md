@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix: updating a project's `latexmkrc` (ax build, ax upgrade, ax migrate --project) threw away settings the user had added, and `ax migrate --project` overwrote a `latexmkrc` / `.latexmkrc` ax did not write. Now ax's part ends at a separator line and everything below it is kept; files from older ax versions are recognised (bin/latexmkrc-history.json) and their additions kept; a user's own file is renamed `*.before-ax` and its settings listed.
 - Copying from the PDF gives the characters typed: `bijection`, not the ij ligature `bĳection`; 。、 instead of the vertical forms ︒︑ in Songti / PingFang; also `-` and `·` instead of ‐ and ∙. Latin words and CJK punctuation carry /ActualText; the layout is unchanged (PDFs about 1–13% larger).
 - Links next to CJK text are spaced like plain text: `於是\cref{thm}給出` gets the CJK–Latin gap on both sides (it had none, as with `\ref`, `\href` and links in slides); nothing changes next to CJK punctuation or Latin text.
 - The labels of the title details row can be renamed: `\akizumisetup{label/author=小組成員, label/course=…, label/id=…, label/date=…, label/due=…}`.

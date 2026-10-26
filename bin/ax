@@ -227,6 +227,8 @@ sub ax_makeindex {
   }
   return system('makeindex', @_);
 }
+
+# ---- Your own settings go below this line; ax keeps them when it updates the file. ----
 """
 
 # Cursor / VS Code (LaTeX Workshop): build with latexmk so latexmkrc decides
@@ -405,11 +407,37 @@ def need_tool(name, hint):
 
 # ---------- small helpers ----------
 
+def keep_aside(path):
+    """Rename a latexmkrc ax did not write to <name>.before-ax and say what to do."""
+    aside = path.with_name(path.name + ".before-ax")
+    path.replace(aside)
+    lines = [l for l in aside.read_text(errors="replace").splitlines()
+             if l.strip() and not l.lstrip().startswith("#")]
+    warn(T(f"{path.name} 不是 ax 寫的，已改名為 {aside.name}；ax 的 latexmkrc 已處理引擎和 build/，"
+           "其他設定（搜尋路徑、索引、-shell-escape 等）請搬到新 latexmkrc 最後一行之後，"
+           "或在 .ax.json 用 \"shell_escape\": true",
+           f"{path.name} was not written by ax and is now {aside.name}; ax's latexmkrc handles the engine "
+           "and build/; move any other settings (search paths, index, -shell-escape, ...) below the last "
+           "line of the new latexmkrc, or use \"shell_escape\": true in .ax.json"))
+    for line in lines[:12]:
+        note(f"    {line}")
+
+
 def write_build_files(target, kind):
     """latexmkrc and Cursor / VS Code settings; ax new and ax upgrade."""
     target = Path(target)
-    (target / "latexmkrc").write_text(
-        LATEXMKRC.replace("@PDF_MODE@", "1" if kind == "paper" else "5"))
+    rc = target / "latexmkrc"
+    user = ""
+    if rc.exists():
+        text = rc.read_text(errors="replace")
+        user = rc_user_part(text) if text.startswith("# Written by ax") else None
+        if user is None:  # the user's own latexmkrc: keep it, never overwrite it
+            keep_aside(rc)
+            user = ""
+    # latexmk would read a .latexmkrc too, with settings that fight ax's
+    if (target / ".latexmkrc").exists():
+        keep_aside(target / ".latexmkrc")
+    rc.write_text(latexmkrc_text(kind, user))
     (target / ".vscode").mkdir(exist_ok=True)
     (target / ".vscode" / "settings.json").write_text(
         json.dumps(EDITOR_SETTINGS, indent=2) + "\n")
@@ -1620,10 +1648,39 @@ def restricted_minted():
 LATEXMKRC_MARKERS = ("shell_escape", "ax_makeindex", "-z $_[-1]", "ax_copy_pdf")
 
 
+RC_MARKER = "# ---- Your own settings go below this line"
+
+
+def rc_user_part(text):
+    """What the user added to a latexmkrc ax wrote: everything below the
+    marker line, or, in a file from before the marker, everything after the
+    ax template it starts with. None when the file is not one ax wrote (or
+    was edited inside ax's part), so it must not be rewritten."""
+    at = text.find(RC_MARKER)
+    if at >= 0:
+        end = text.find("\n", at)
+        return "" if end < 0 else text[end + 1:]
+    try:
+        history = json.loads((AX.parent / "latexmkrc-history.json").read_text())["versions"]
+    except (OSError, ValueError, KeyError):
+        history = []
+    for version in [LATEXMKRC] + history:
+        for mode in ("1", "5"):
+            base = version.replace("@PDF_MODE@", mode)
+            if text.startswith(base):
+                return text[len(base):]
+    return None
+
+
+def latexmkrc_text(kind, user_part=""):
+    text = LATEXMKRC.replace("@PDF_MODE@", "1" if kind == "paper" else "5")
+    return text + user_part.lstrip("\n")
+
+
 def refresh_latexmkrc(cfg):
     """A latexmkrc written by an older ax lacks newer parts (it does not read
-    "shell_escape", or fails on an empty index); rewrite it (it is ax's own
-    file) so ax build and editors build the same way."""
+    "shell_escape", or fails on an empty index): rewrite ax's part so ax build
+    and editors build the same way, keeping what the user added."""
     rc = Path("latexmkrc")
     if not rc.exists():
         return
@@ -1631,9 +1688,20 @@ def refresh_latexmkrc(cfg):
         text = rc.read_text()
     except OSError:
         return
-    if text.startswith("# Written by ax") and not all(m in text for m in LATEXMKRC_MARKERS):
-        rc.write_text(LATEXMKRC.replace("@PDF_MODE@", "1" if cfg.get("kind") == "paper" else "5"))
-        note(T("  已更新 latexmkrc（舊版 ax 寫的）", "  Updated latexmkrc (written by an older ax)"))
+    if not text.startswith("# Written by ax"):
+        return
+    if all(m in text for m in LATEXMKRC_MARKERS) and RC_MARKER in text:
+        return
+    user = rc_user_part(text)
+    if user is None:
+        warn(T("latexmkrc 是舊版 ax 寫的，但 ax 的部分被改過，所以沒有自動更新；"
+               "把你加的設定記下來，刪掉 latexmkrc 後執行 ax upgrade，再把設定加在最後一行之後",
+               "latexmkrc was written by an older ax but its ax part was edited, so it was not updated; "
+               "note your additions, delete latexmkrc, run ax upgrade, and add them below its last line"))
+        return
+    rc.write_text(latexmkrc_text(cfg.get("kind"), user))
+    note(T("  已更新 latexmkrc（舊版 ax 寫的；你加的設定保留在最後）",
+           "  Updated latexmkrc (written by an older ax; your own settings are kept at the end)"))
 
 
 def prebuild_steps(cfg):
@@ -2106,6 +2174,32 @@ def selftest_build(ax, tmp, result):
     result(good, T("專案 prebuild 失敗時停止", "project prebuild failure stops the build"))
     if not good:
         print(r.stdout + r.stderr)
+
+
+def selftest_latexmkrc(ax, tmp, result):
+    """Updating a latexmkrc keeps the user's lines; a latexmkrc ax did not
+    write is set aside, never overwritten."""
+    run = lambda d, *args: subprocess.run(ax + list(args), cwd=d, stdin=subprocess.DEVNULL,
+                                          capture_output=True, encoding="utf-8", errors="replace")
+    history = json.loads((AX.parent / "latexmkrc-history.json").read_text())["versions"]
+    mine = "ensure_path('TEXINPUTS', './packages//');"
+    d = tmp / "t-rc-old"
+    d.mkdir()
+    (d / PROJECT_CONFIG).write_text(json.dumps({"kind": "note", "main": "main.tex", "template": "latest"}))
+    (d / "main.tex").write_text("\\documentclass{akizumi-note}\\begin{document}x\\end{document}\n")
+    (d / "latexmkrc").write_text(history[-1].replace("@PDF_MODE@", "5") + mine + "\n")
+    r = run(d, "build")
+    text = (d / "latexmkrc").read_text()
+    result(r.returncode == 0 and RC_MARKER in text and text.rstrip().endswith(mine),
+           T("latexmkrc 更新時保留你加的設定", "updating latexmkrc keeps your own lines"))
+    d = tmp / "t-rc-user"
+    d.mkdir()
+    (d / "main.tex").write_text("\\documentclass{article}\\begin{document}x\\end{document}\n")
+    (d / ".latexmkrc").write_text("$pdf_mode = 5;\n")
+    run(d, "migrate", "main.tex", "--in-place", "--project")
+    result((d / ".latexmkrc.before-ax").exists() and not (d / ".latexmkrc").exists()
+           and (d / "latexmkrc").exists(),
+           T("自己寫的 .latexmkrc 改名保留，不被覆蓋", "your own .latexmkrc is set aside, not overwritten"))
 
 
 def selftest_pdfname(ax, tmp, result):
@@ -4798,6 +4892,7 @@ def cmd_selftest(a):
             result(False, T("專案 both（作業專案沒有建立成功）", "project both (the homework project was not created)"))
         selftest_build(ax, tmp, result)  # prebuild, shell_escape, --chapter, count
         selftest_pdfname(ax, tmp, result)
+        selftest_latexmkrc(ax, tmp, result)
         # references: biber runs and the citation resolves
         d = tmp / "t-bib"
         r = subprocess.run(ax + ["new", "note", str(d), "--title", "Test", "--bib", "--no-preamble",

@@ -4699,6 +4699,25 @@ def selftest_docs(result):
 
 
 
+def check_test_text(pdf, head, name, result):
+    """"% expect-text: a b" / "% expect-no-text: c" in a test's first lines:
+    the PDF's text (pdftotext) must contain each word / none of them."""
+    want = re.search(r"^% expect-text:(.*)$", head, re.M)
+    shun = re.search(r"^% expect-no-text:(.*)$", head, re.M)
+    if not (want or shun):
+        return
+    if not shutil.which("pdftotext"):
+        note(T(f"略過 {name} 的文字檢查（沒有 pdftotext）", f"skipped the text check of {name} (no pdftotext)"))
+        return
+    text = subprocess.run(["pdftotext", str(pdf), "-"], stdin=subprocess.DEVNULL, capture_output=True,
+                          encoding="utf-8", errors="replace").stdout
+    missing = [w for w in (want.group(1).split() if want else []) if w not in text]
+    found = [w for w in (shun.group(1).split() if shun else []) if w in text]
+    result(not missing and not found, T(f"測試 {name} 的 PDF 文字", f"test {name}: PDF text")
+           + (T(f"：缺 {' '.join(missing)}", f": missing {' '.join(missing)}") if missing else "")
+           + (T(f"：多了 {' '.join(found)}", f": unexpected {' '.join(found)}") if found else ""))
+
+
 def cmd_selftest(a):
     """Rebuild the examples and build one fresh project of each kind."""
     failed = []
@@ -4747,6 +4766,8 @@ def cmd_selftest(a):
                 print("\n".join("    " + line for line in tail))
             elif code:
                 print_error(td / "build" / f"{tex.stem}.log")
+            else:
+                check_test_text(td / "build" / f"{tex.stem}.pdf", head, tex.stem, result)
     if a.part in ("all", "projects"):
         tmp = Path(tempfile.mkdtemp(prefix="ax-selftest-"))
         ax = [sys.executable, str(AX)]

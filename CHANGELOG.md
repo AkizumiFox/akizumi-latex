@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Copying from the PDF gives the characters typed: `bijection`, not the ij ligature `bĳection`; 。、 instead of the vertical forms ︒︑ in Songti / PingFang; also `-` and `·` instead of ‐ and ∙. Latin words and CJK punctuation carry /ActualText; the layout is unchanged (PDFs about 1–13% larger).
 - Links next to CJK text are spaced like plain text: `於是\cref{thm}給出` gets the CJK–Latin gap on both sides (it had none, as with `\ref`, `\href` and links in slides); nothing changes next to CJK punctuation or Latin text.
 - The labels of the title details row can be renamed: `\akizumisetup{label/author=小組成員, label/course=…, label/id=…, label/date=…, label/due=…}`.
 - `"pdf": "期末報告.pdf"` in `.ax.json` names the output PDF instead of `main.pdf`: `ax build`, `ax watch` (also `--bg`), `ax open` and Cursor builds (through the latexmkrc) use it, and `ax both` writes the solutions to `期末報告-solutions.pdf`. `ax migrate --project` sets it when the PDF git tracks in the folder has another name than the main file.

@@ -1,0 +1,13 @@
+% !TEX program = xelatex
+% Copying from the PDF gives the characters typed: no ij ligature (U+0133),
+% no vertical forms for the centred 。、 of Songti TC / PingFang TC; fi and fl
+% still print as ligatures. ax selftest checks the text with pdftotext.
+% expect-text: bijection Dijkstra fifty 定理。 例如、 一、二
+% expect-no-text: ĳ Ĳ ︒ ︑
+\documentclass[lang=zh, text=serif]{akizumi-note}
+\begin{document}
+\section{複製文字}
+雙射（bijection）、Dijkstra 的演算法、fifty flow office。這是定理。例如、一、二。
+
+\textsf{無襯線：bijection、例如。}
+\end{document}

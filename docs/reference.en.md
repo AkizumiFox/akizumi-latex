@@ -1155,7 +1155,7 @@ Open a new terminal first (the PATH change from `install.py` only applies to new
 Some viewers (Acrobat, for one) lock an open PDF, so `ax` can't replace it; the new PDF stays in `build/main.pdf`. Use a viewer that doesn't lock files (SumatraPDF, Cursor's built-in preview).
 
 **Text copied from the PDF looks odd: "bĳection", "︒"**
-Only the text layer is affected; the page looks right. The body font, New Computer Modern, sets ij as one ligature (the same OpenType feature as fi and fl, so turning it off would split those too), and Songti shares one glyph between the centred 。、 and their vertical forms. Both are equal to the plain characters under Unicode compatibility normalisation, so most viewers find them in a search; after pasting elsewhere, replace them once.
+Fixed in the current templates: every Latin word and every CJK punctuation mark carries the characters you typed (PDF /ActualText), and the page looks the same. The body font, New Computer Modern, sets ij as one ligature, and Songti and PingFang share one glyph between the centred 。、 and their vertical forms, so older builds copy as ĳ, ︒, ︑. macOS Preview ignores /ActualText on ligatures and may still copy ĳ; Acrobat and poppler-based tools (pdftotext, Okular, Evince) read it. A project pinned to an older version needs `ax upgrade` and a rebuild.
 
 **An empty page after a page break**
 Usually an unbreakable display or proof taller than a whole page (a long Fitch proof, say) at the start of an `\item`: the link anchor hyperref puts at every `\item` adds one more place where the page can break. The content does not fit on a page anyway; split the proof in two, or put `\enlargethispage{2\baselineskip}` before it.

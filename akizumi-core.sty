@@ -147,6 +147,18 @@
   {}
 
 \RequirePackage{xeCJK}
+% Copying from the PDF gives the characters typed, not the code points the
+% fonts file their glyphs under: "bijection", not New Computer Modern's ij
+% ligature U+0133; 。、 for the centred glyphs of Songti TC and PingFang TC,
+% not the vertical forms U+FE12 / U+FE11. XeTeX writes such words with
+% /ActualText; the page itself does not change. CJK characters other than
+% punctuation go without it: some readers (macOS Preview) then lose the space
+% between a Latin word and the CJK text after it.
+\ifdefined\XeTeXgenerateactualtext
+  \XeTeXgenerateactualtext=1
+  \def\CJKsymbol{\XeTeXgenerateactualtext=0 }
+  \def\CJKpunctsymbol{\XeTeXgenerateactualtext=1 }
+\fi
 % CJK fonts, first one installed wins in each chain:
 %   zh  sans   PingFang TC > Noto Sans CJK TC > Microsoft JhengHei > Fandol
 %       serif  Songti TC > Noto Serif CJK TC > MingLiU > Fandol

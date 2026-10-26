@@ -15,7 +15,8 @@
 %   header/left, header/center, header/right
 %   footer/left, footer/center, footer/right
 %   firstpage/left, firstpage/center, firstpage/right    (the title page)
-%   firstpage = title | same | empty   (title: course left, byline right)
+%   firstpage = empty | title | same   (empty, the default: no header on the
+%                title page; title: course left, byline right)
 %   headerstyle = {\sffamily\footnotesize\color{mute}}, footerstyle = {...}
 %   header/number = accent | plain   (the section number in the header: accent
 %                  colour and bold, the default, or like the rest)
@@ -62,7 +63,7 @@
 \tl_new:N \l__akizumi_hf_footer_tl
 \tl_set:Nn \l__akizumi_hf_footer_tl { page }
 \tl_new:N \l__akizumi_hf_firstpage_tl
-\tl_set:Nn \l__akizumi_hf_firstpage_tl { title }
+\tl_set:Nn \l__akizumi_hf_firstpage_tl { empty }
 \tl_new:N \akizumi@headerstyle
 \tl_set:Nn \akizumi@headerstyle { \sffamily \footnotesize \color { mute } }
 \tl_new:N \akizumi@footerstyle

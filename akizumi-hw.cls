@@ -43,14 +43,8 @@
 \RequirePackage{akizumi-core}
 \akizumi@setgeometry{margin=2.5cm, top=2.3cm, headsep=0.8cm, headheight=15pt}
 
-% ---------- title: "Homework 3", kicker "ODE · Due 2026/10/28" ----------
+% ---------- title: "Homework 3"; course, author, ID and due date in the details row ----------
 \title{\akizumi@str{hwkind-\akizumi@kind}\ifx\akizumi@number\@empty\else\ \akizumi@number\fi}
-\AtBeginDocument{%
-  \ifx\akizumi@kicker\@empty
-    \edef\akizumi@kicker{\unexpanded\expandafter{\akizumi@course}%
-      \ifx\akizumi@course\@empty\else\ifx\akizumi@due\@empty\else\noexpand\akizumisep\fi\fi
-      \ifx\akizumi@due\@empty\else\noexpand\akizumi@duename\ \unexpanded\expandafter{\akizumi@due}\fi}%
-  \fi}
 \newcommand{\akizumi@duename}{\akizumi@str{due}}
 \renewcommand{\akizumi@headleft}{\akizumi@course\ifx\akizumi@course\@empty\else\quad\fi\@title}
 

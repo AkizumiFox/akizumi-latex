@@ -78,7 +78,7 @@
 \renewcommand{\maketitle}{%
   \begin{titlepage}
     \vspace*{0.28\textheight}
-    {\akizumi@bylinetrue\Large\akizumi@titleblock}
+    {\Large\akizumi@titleblock}
   \end{titlepage}}
 
 % ---------- contents of the current chapter: \chaptertoc ----------

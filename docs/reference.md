@@ -29,7 +29,7 @@ English: [reference.en.md](reference.en.md)
 | `--problems 5` 或 `--problems B4,C2` | 作業：建立 `problems/p1.tex`…`p5.tex`（分組時是 `B1`…`B4`、`C1`、`C2`），`main.tex` 用 `\inputproblem` 逐題載入 |
 | `--force` | 資料夾已存在且不是空的也照樣建立 |
 
-`config.json` 的 `defaults` 可以替每種文件設預設選項，命令列給的優先。例如 `"hw": {"byline": true}` 讓新作業把作者和日期印在標題下方；`"paper": {"venue": "neurips", "split": true}` 讓新論文預設投 NeurIPS、分節存檔。
+`config.json` 的 `defaults` 可以替每種文件設預設選項，命令列給的優先。例如 `"hw": {"titleinfo": "line"}` 讓新作業把作者和日期排成標題下的一行；`"paper": {"venue": "neurips", "split": true}` 讓新論文預設投 NeurIPS、分節存檔。
 
 每個新專案的內容：
 
@@ -183,6 +183,8 @@ Characteristic functions agree on every line through the origin.
 舊文件不受影響：導言區自己定義過的 `keyidea`、`\pitfall`、`\optional`、`\guidehead` 等名稱優先，現成的版本就不定義（簡報裡 `note` 是 beamer 的 `\note`，所以簡報沒有 `note` 框）。
 
 ### 數學
+
+數學裡的大寫字母一律是正體粗體（矩陣）：寫 `A` 就是 $\vb{A}$，不必每次寫 `\vb{A}`。`\mathcal{A}`、`\mathbb{R}`、`\mathrm{A}`、`\mathit{A}` 照常換字型，小寫和希臘字母不變。`matrices=all` 讓 Σ、Λ 這些希臘大寫也變粗體；`matrices=normal` 回到一般的斜體大寫（例如集合、隨機變數用大寫的文件）。單獨用 `\usepackage{akizumi-math}`（投稿論文）時預設是 `normal`。
 
 | 寫法 | 結果 |
 |---|---|
@@ -729,7 +731,7 @@ $A\cup B=[-2,3]$。
 | `asides` | `numbered` `unnumbered` | `numbered` | `unnumbered`：example、remark、remarks 不編號 |
 | `aliases` | `none` `short` | `none` | `short`：另外提供 `thm` `lem` `prop` `cor` 等短名稱 |
 | `thmname` | `{種類=名稱, …}` | | 換掉某一種的名稱，例如 `thmname={corollary=系理}` |
-| `byline` | `false` `true` | `false` | 標題下方要不要印「作者 · 學號 · 日期」。預設不印，放在第一頁頁首右邊（左邊是課名）。書的封面一律印 |
+| `titleinfo` | `row` `line` `none` | `row` | 標題下方的資訊：`row` 一列附小標籤的欄位（課程、作者、學號、日期；作業是繳交期限；`\akizumisetup{info={授課教師=…}}` 加欄位，四欄換行）；`line` 一行灰字「作者 · 學號 · 日期」；`none` 不印。標題上方的 `kicker=`（例如 `Lecture 9`）以加字距的大寫藍字印出。標題頁沒有頁首。舊的 `byline=true` 等同 `line` |
 | `bib` | 檔名 | | 載入參考文獻，例如 `bib=refs.bib` |
 | `solutions` | `true` `false`；書、講義另有 `inline` `chapter` `end` `hide` | 作業 `true`，考卷 `false`，書和講義 `inline` | 是否印出解答、印在哪裡（見〈習題與解答〉） |
 | `exercisewithin` | `chapter` `section` `none` | 書 `chapter`，講義 `section`，其他 `none` | 習題、例題的編號單位 |
@@ -741,6 +743,7 @@ $A\cup B=[-2,3]$。
 | `cjk-serif`、`cjk-serif-bold` | 字型名稱 | 宋體 | 換掉襯線內文（`text=serif\|times\|palatino`）的中文字型和粗體，例如 `cjk-serif-bold=Noto Serif CJK TC SemiBold`。只給 `cjk-serif` 或楷書沒有粗體時，粗體用描粗 |
 | `delims` | `manual` `auto` | `manual` | `auto` 讓 `\abs`、`\norm`、`\set`、`\Prob` 這些配對括號不加星號就自動調整大小，加星號反而維持原本大小 |
 | `letters` | `bold` `cal` `bb` `greek` `all` `single` | 無 | 字母捷徑，見〈數學〉 |
+| `matrices` | `latin` `all` `normal` | `latin` | 數學裡的大寫字母：`latin` A–Z 正體粗體；`all` 連希臘大寫；`normal` 一般斜體（見〈數學〉） |
 | `vb` | `auto` `upright` | `auto` | `upright` 讓 `\vb{\alpha}` 的小寫希臘字母也是正體粗體（upgreek） |
 | `units` | `false` `true` | `false` | 載入 siunitx：`\qty{9.8}{\metre\per\second\squared}`、`\unit{kg}`、`\num{12345}` |
 | `mathclash` | `yield` `error` | `yield` | 自己定義和 akizumi-math 同名的巨集時，`yield` 改用你的，`error` 照 LaTeX 原本的方式報錯 |
@@ -758,7 +761,7 @@ $A\cup B=[-2,3]$。
 
 ### 頁首與頁尾
 
-頁尾預設只印頁碼；頁首左邊是課名（講義沒有課名時是標題），右邊是目前的節名，書是左章右節、作業是右邊作者。節號用強調色。第一頁（標題頁）左邊課名、右邊作者 · 日期。太長的節名會在碰到另一邊之前截斷加「…」。
+頁尾預設只印頁碼；頁首左邊是課名（講義沒有課名時是標題），右邊是目前的節名，書是左章右節、作業是右邊作者。節號用強調色。第一頁（標題頁）不印頁首，課名、作者、日期都在標題下方（見文件選項 `titleinfo`）。太長的節名會在碰到另一邊之前截斷加「…」。
 
 | 選項 | 值 | 預設 | 作用 |
 |---|---|---|---|
@@ -782,7 +785,7 @@ $A\cup B=[-2,3]$。
 | `header/left` `header/center` `header/right` | 內頁頁首的三格 |
 | `footer/left` `footer/center` `footer/right` | 頁尾的三格 |
 | `firstpage/left` `firstpage/center` `firstpage/right` | 標題頁的頁首 |
-| `firstpage` | `title`（預設：課名、作者 · 日期）、`same`（和內頁一樣）、`empty` |
+| `firstpage` | `empty`（預設，不印頁首）、`title`（左課名、右作者 · 日期）、`same`（和內頁一樣） |
 | `header/number` | `accent`（預設，節號強調色加粗）或 `plain` |
 | `headerstyle` `footerstyle` | 字型和顏色，預設 `\sffamily\footnotesize\color{mute}` |
 

@@ -18,6 +18,9 @@
 \newif\ifakizumi@autodelims
 \newif\ifakizumi@vbup
 \newif\ifakizumi@units
+% matrices=latin|all|normal: capital letters in math set bold upright (A for
+% \vb{A}); the akizumi classes default to latin, a plain \usepackage to normal
+\providecommand{\akizumi@matrices}{normal}
 \ExplSyntaxOn
 \clist_new:N \l__akizumi_math_skip_clist
 \clist_new:N \l__akizumi_math_letters_clist
@@ -43,6 +46,8 @@
       { \use:c { akizumi@vbup \int_compare:nNnTF \l_keys_choice_int = 2 { true } { false } } },
     units     .choices:nn = { true, false } { \use:c { akizumi@units \l_keys_choice_tl } },
     units     .default:n = true,
+    matrices  .choices:nn = { normal, latin, all }
+      { \tl_set_eq:NN \akizumi@matrices \l_keys_choice_tl },
   }
 \msg_new:nnn { akizumi-math } { letters }
   { Unknown~letters=#1;~use~bold,~single,~cal,~bb,~greek~or~all. }
@@ -51,7 +56,7 @@
 % unused, since LaTeX fills that list only after the class ends.
 \AddToHook { begindocument/before }
   {
-    \clist_map_inline:nn { mathclash, mathskip, delims, letters, vb, units }
+    \clist_map_inline:nn { mathclash, mathskip, delims, letters, vb, units, matrices }
       {
         \clist_remove_all:Nn \@unusedoptionlist {#1}
         \clist_remove_all:Ne \@unusedoptionlist { \tl_to_str:n {#1} }
@@ -96,6 +101,49 @@
         \exp_not:n { \begin{#1matrix} }
         \clist_use:Nn \l_tmpa_clist { \\ }
         \exp_not:n { \end{#1matrix} }
+      }
+  }
+\ExplSyntaxOff
+
+% ---------- capitals as matrices: matrices=latin|all ----------
+% A..Z (and with all, the Greek capitals) in math come from bold upright
+% Computer Modern, so A means the matrix \vb{A}. They stay letters
+% (\mathalpha), so \mathcal{A}, \mathbb{A}, \mathrm{A} and \mathit{A} still work.
+\ExplSyntaxOn
+% fontspec sets the Greek capitals again at \begin{document}, so they are set
+% once more after that (as \mathchar: class 7, the bold family, the slot)
+\cs_new_protected:Npn \__akizumi_math_greek:nn #1#2
+  {
+    \exp_args:Nc \DeclareMathSymbol {#1} { \mathalpha } { akizumibf } {#2}
+    \AddToHook { begindocument/end }
+      % (a legacy \mathchar, like fontspec's: \mathrm{\Sigma} keeps the Sigma
+      % instead of looking it up in the text font)
+      { \exp_args:Nc \tex_mathchardef:D {#1} = \int_eval:n { "7000 + \symakizumibf * 256 + #2 } \scan_stop: }
+  }
+\str_if_eq:VnF \akizumi@matrices { normal }
+  {
+    \@ifpackageloaded { unicode-math }
+      {
+        \PackageWarningNoLine { akizumi-math } { matrices=\akizumi@matrices\space is~ignored~with~
+          unicode-math;~write~\token_to_str:N \vb{A}~or~set~range=up/{Latin}->bfup~there }
+      }
+      {
+        \DeclareSymbolFont { akizumibf } { OT1 } { cmr } { bx } { n }
+        % XeTeX / LuaTeX: \Umathcode, so \mathrm{A} and other alphabets with a
+        % family number above 15 (fontspec's) still switch the letter
+        \clist_map_inline:nn { A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z }
+          {
+            \DeclareMathSymbol {#1} { \mathalpha } { akizumibf } { `#1 }
+            \cs_if_exist:NT \Umathcode { \Umathcode `#1 = 7 ~ \symakizumibf ~ `#1 \scan_stop: }
+          }
+        \str_if_eq:VnT \akizumi@matrices { all }
+          {
+            % OT1 slots of the upright Greek capitals
+            \clist_map_inline:nn
+              { {Gamma}{0}, {Delta}{1}, {Theta}{2}, {Lambda}{3}, {Xi}{4}, {Pi}{5},
+                {Sigma}{6}, {Upsilon}{7}, {Phi}{8}, {Psi}{9}, {Omega}{10} }
+              { \__akizumi_math_greek:nn #1 }
+          }
       }
   }
 \ExplSyntaxOff

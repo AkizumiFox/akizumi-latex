@@ -1,0 +1,14 @@
+% !TEX program = xelatex
+% matrices=latin (the default in the classes): capitals in math are bold
+% upright; alphabets still switch them; lowercase and Greek stay as they were
+\documentclass{akizumi-note}
+\begin{document}
+\ExplSyntaxOn
+% A comes from the bold family, x does not
+\int_compare:nNnF { \tex_mathcode:D `A / 256 - 7 * 16 } = { \symakizumibf }
+  { \errmessage { matrices:~A~is~not~bold~upright } }
+\int_compare:nNnT { \tex_mathcode:D `x / 256 - 7 * 16 } = { \symakizumibf }
+  { \errmessage { matrices:~x~became~bold } }
+\ExplSyntaxOff
+$A = U\Sigma V\T$, $\mathrm{A}$, $\mathcal{A}$, $\mathbb{A}$, $\mathit{A}$, $\vb{A}$, $A_{ij}$, $x$.
+\end{document}

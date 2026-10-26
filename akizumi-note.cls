@@ -31,8 +31,6 @@
 \RequirePackage{akizumi-core}
 \akizumi@setgeometry{margin=2.7cm, headsep=0.8cm, headheight=15pt}
 
-% Kicker above the title defaults to the course name.
-\AtBeginDocument{\ifx\akizumi@kicker\@empty\let\akizumi@kicker\akizumi@course\fi}
 \renewcommand{\akizumi@headleft}{\ifx\akizumi@course\@empty\@title\else\akizumi@course\fi}
 
 % Theorems and equations numbered within sections in notes.

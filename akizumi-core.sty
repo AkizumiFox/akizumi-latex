@@ -13,8 +13,9 @@
 %           bib  = <file.bib>[,<file2.bib>]  (loads biblatex + biber; documents only)
 %           paper  = a4 | letter | pad    (pad: 3:4 page for reading on a tablet)
 %           layout = normal | margin      (margin: wide right margin for sidenotes)
-%           byline = false | true  (author and date under the title; default
-%                  false: they go in the first page's header instead)
+%           titleinfo = row | line | none  (under the title: a row of labelled
+%                  details, course / author / ID / date, the default; one line
+%                  "author · ID · date"; or nothing). byline=true means line.
 %           tikz = basic | full, plots  (TikZ libraries, pgfplots; see akizumi-tikz.sty)
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{akizumi-core}[2026/10/26 v0.9 Aaron Lin shared style]
@@ -33,6 +34,8 @@
 \tl_new:N \l__akizumi_bb_tl
 \clist_new:N \l__akizumi_bib_clist
 \int_new:N \l__akizumi_paper_int
+\tl_new:N \akizumi@titleinfo
+\tl_set:Nn \akizumi@titleinfo { row }
 \int_new:N \akizumi@langnum  % 0 en, 1 zh, 2 ja, 3 ko
 \keys_define:nn { akizumi/core }
   {
@@ -66,8 +69,13 @@
       { \str_if_eq:VnTF \l_keys_choice_tl { margin } { \akizumi@marginlayouttrue } { \akizumi@marginlayoutfalse } },
     layout   .initial:n = normal,
     byline   .choices:nn = { true, false }
-      { \use:c { akizumi@byline \l_keys_choice_tl } },
+      {
+        \use:c { akizumi@byline \l_keys_choice_tl }
+        \tl_set:Nx \akizumi@titleinfo { \str_if_eq:VnTF \l_keys_choice_tl { true } { line } { row } }
+      },
     byline   .default:n = true,
+    titleinfo .choices:nn = { row, line, none }
+      { \tl_set_eq:NN \akizumi@titleinfo \l_keys_choice_tl },
   }
 \ProcessKeyOptions [ akizumi/core ]
 \cs_new:Npn \akizumi@paper { \int_use:N \l__akizumi_paper_int }
@@ -78,6 +86,8 @@
   }
 \ExplSyntaxOff
 
+% capitals in math are matrices: bold upright (matrices=normal turns it off)
+\providecommand{\akizumi@matrices}{latin}
 \RequirePackage{akizumi-math}
 
 % Blackboard bold: bboldx covers upper/lowercase, digits and Greek, so
@@ -233,6 +243,9 @@
 \akizumi@fallback\CJKttdefault{sans}
 \ifakizumi@serif\akizumi@fallback\CJKrmdefault{serif}\else\akizumi@fallback\CJKrmdefault{sans}\fi
 \xeCJKsetup{CJKmath=true, AutoFallBack=true}
+% In English documents the middle dot is Latin punctuation ("Course · Lecture
+% 9"): Latin font, spaces kept. CJK documents keep it CJK, for 約翰·史密斯.
+\ifakizumi@cjk\else\xeCJKDeclareCharClass{Default}{"00B7}\fi
 % Korean inside a zh / ja / en document keeps its word spaces: Hangul gets an
 % intercharacter class of its own, set like Latin text (spaces kept, no glue
 % to digits) in the Korean font. xeCJK joins the class to its own ones at the
@@ -727,19 +740,99 @@
     \ifx\@date\@empty\else\akizumisep\fi
   \fi
   \@date}
-% Centred kicker and title. The byline goes under the title with byline=true;
-% otherwise the title page's header carries it (see the akizumi-title style).
+% Title block, centred:
+%   LECTURE 9                       kicker: spaced capitals, accent colour
+%   The Title                       (+ subtitle from \akizumisetup{subtitle=})
+%   COURSE    AUTHOR    ID    DATE  titleinfo=row: labelled details, four to
+%   Lin. Alg. Aaron Lin B123  Oct   a row; hw shows Due instead of the date;
+%                                   info={Label=value, ...} adds columns
+% titleinfo=line puts "author · ID · date" on one muted line instead.
+\akizumi@s{label-course}{Course}{課程}{科目}{과목}
+\akizumi@s{label-author}{Author}{作者}{著者}{저자}
+\akizumi@s{label-date}{Date}{日期}{日付}{날짜}
+\newfontfamily\akizumi@spaced{Lato}[Extension=.ttf, UprightFont=*-Bold,
+  BoldFont=*-Bold, ItalicFont=*-BoldItalic, BoldItalicFont=*-BoldItalic,
+  LetterSpace=8, Ligatures=NoCommon]
+\ExplSyntaxOn
+% spaced capitals for Latin text; CJK keeps the sans face
+\cs_new_protected:Npn \akizumi@spacedcaps #1
+  { { \sffamily \akizumi@spaced \text_uppercase:n {#1} } }
+\seq_new:N \l__akizumi_title_fields_seq
+% #1 the value (skipped when empty), #2 its label; stored as {label}{value}
+\cs_new_protected:Npn \__akizumi_title_field:nn #1#2
+  { \tl_if_blank:nF {#1} { \seq_put_right:Nn \l__akizumi_title_fields_seq { {#2} {#1} } } }
+\cs_new_protected:Npn \__akizumi_title_cell:nn #1#2
+  {
+    \tl_if_blank:nF {#1}
+      % CJK labels need a size more to stay legible
+      { { \ifakizumi@cjk \scriptsize \else \tiny \fi \color{mute} \akizumi@spacedcaps {#1} } \\[-0.15em] }
+    { \small \color{ink} #2 }
+  }
+\int_new:N \l__akizumi_title_cols_int
+\tl_new:N \l__akizumi_title_row_tl
+\cs_new_protected:Npn \akizumi@titlerow
+  {
+    \seq_clear:N \l__akizumi_title_fields_seq
+    \__akizumi_title_field:Vn \akizumi@course { \akizumi@str{label-course} }
+    \__akizumi_title_field:Vn \@author { \akizumi@str{label-author} }
+    \__akizumi_title_field:Vn \akizumi@id { \akizumi@str{id} }
+    \tl_if_blank:VTF \akizumi@due
+      { \__akizumi_title_field:Vn \@date { \akizumi@str{label-date} } }
+      { \__akizumi_title_field:Vn \akizumi@due { \akizumi@str{due} } }
+    \cs_if_exist:NT \l__akizumi_info_seq
+      { \seq_map_inline:Nn \l__akizumi_info_seq { \seq_put_right:Nn \l__akizumi_title_fields_seq {##1} } }
+    \seq_if_empty:NF \l__akizumi_title_fields_seq
+      {
+        \vspace{1.1em}
+        \normalsize  % the same on a book cover, which is set \Large
+        % rows of at most four cells, each centred on the page
+        \int_zero:N \l__akizumi_title_cols_int
+        \tl_clear:N \l__akizumi_title_row_tl
+        \seq_map_inline:Nn \l__akizumi_title_fields_seq
+          {
+            \int_compare:nNnT { \l__akizumi_title_cols_int } = { 4 }
+              { \__akizumi_title_flush: \par \vspace{0.6em} }
+            \int_compare:nNnT { \l__akizumi_title_cols_int } > { 0 }
+              { \tl_put_right:Nn \l__akizumi_title_row_tl { \hspace{2.4em} } }
+            \int_incr:N \l__akizumi_title_cols_int
+            \tl_put_right:Nn \l__akizumi_title_row_tl
+              { \begin{tabular}[t]{@{}c@{}} \__akizumi_title_cell:nn ##1 \end{tabular} }
+          }
+        \__akizumi_title_flush: \par
+      }
+  }
+\cs_new_protected:Npn \__akizumi_title_flush:
+  {
+    % set the row, start a new one
+    \mbox { \l__akizumi_title_row_tl }
+    \tl_clear:N \l__akizumi_title_row_tl
+    \int_zero:N \l__akizumi_title_cols_int
+  }
+\cs_generate_variant:Nn \__akizumi_title_field:nn { Vn }
+\cs_generate_variant:Nn \tl_if_blank:nTF { V }
+\cs_new_protected:Npn \akizumi@titleinfopart
+  {
+    \str_case:Vn \akizumi@titleinfo
+      {
+        { row }  { \akizumi@titlerow }
+        { line } { \vspace{0.8em} { \color{mute} \akizumi@byline \par } \akizumi@infoline }
+      }
+  }
+\cs_generate_variant:Nn \str_case:nn { V }
+\providecommand \akizumi@infoline { }
+\ExplSyntaxOff
 \newcommand{\akizumi@titleblock}{%
   \begingroup\sffamily\centering
-  \ifx\akizumi@kicker\@empty\else{\small\bfseries\color{accent}\akizumi@kicker}\par\vspace{0.35em}\fi
+  \ifx\akizumi@kicker\@empty\else
+    {\footnotesize\color{accent}\akizumi@spacedcaps{\akizumi@kicker}}\par\vspace{0.7em}\fi
   {\huge\bfseries\@title\par}%
-  \akizumi@aftertitle  % subtitle and info line (akizumi-zhlayout)
-  \ifakizumi@byline\vspace{0.6em}{\color{mute}\akizumi@byline\par}\fi
-  \vspace{1.8em}%
+  \akizumi@aftertitle  % subtitle (akizumi-zhlayout)
+  \akizumi@titleinfopart
+  \vspace{2em}%
   \endgroup}
 \renewcommand{\maketitle}{\akizumi@titleblock\akizumi@titlepagestyle}
-\newcommand{\akizumi@titlepagestyle}{%
-  \ifakizumi@byline\thispagestyle{plain}\else\thispagestyle{akizumi-title}\fi}
+% The title page has no header by default (firstpage=empty); the footer stays.
+\newcommand{\akizumi@titlepagestyle}{\thispagestyle{akizumi-title}}
 
 % ---------- headers and footers (exam has its own header system) ----------
 % header=, footer=, \akizumisetup{header/left=..., ...}: akizumi-pagestyle.sty

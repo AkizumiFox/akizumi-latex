@@ -236,19 +236,34 @@
       {
         \seq_clear:N \l__akizumi_info_seq
         \keyval_parse:nnn
-          { \seq_put_right:Nn \l__akizumi_info_seq }
+          { \__akizumi_info_pair:nn { } }
           { \__akizumi_info_pair:nn }
           {#1}
       },
   }
+% items are {label}{value}: columns of the title's details row
+% (titleinfo=row), or one line under the byline (titleinfo=line)
 \cs_new_protected:Npn \__akizumi_info_pair:nn #1#2
-  { \seq_put_right:Nn \l__akizumi_info_seq { {\color{mute}#1}\enspace#2 } }
+  { \seq_put_right:Nn \l__akizumi_info_seq { {#1} {#2} } }
 \cs_new_protected:Npn \akizumi@aftertitle
   {
     \tl_if_empty:NF \akizumi@subtitle
       { \vspace{0.5em} { \Large \color{mute} \akizumi@subtitle \par } }
+  }
+\cs_new_protected:Npn \__akizumi_info_item:nn #1#2
+  { \tl_if_blank:nF {#1} { { \color{mute} #1 } \enspace } #2 }
+\cs_set_protected:Npn \akizumi@infoline
+  {
     \seq_if_empty:NF \l__akizumi_info_seq
-      { \vspace{0.8em} { \small \seq_use:Nn \l__akizumi_info_seq { \qquad } \par } }
+      {
+        \vspace{0.5em}
+        {
+          \small
+          \seq_map_indexed_inline:Nn \l__akizumi_info_seq
+            { \int_compare:nNnT {##1} > { 1 } { \qquad } \__akizumi_info_item:nn ##2 }
+          \par
+        }
+      }
   }
 \ExplSyntaxOff
 

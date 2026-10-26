@@ -1,0 +1,11 @@
+% !TEX program = xelatex
+% matrices=all: the Greek capitals are bold upright too (after fontspec resets them)
+\documentclass[matrices=all]{akizumi-note}
+\begin{document}
+\ExplSyntaxOn
+% \Sigma is a mathchar in the bold family at \begin{document}
+\int_compare:nNnF { \Sigma / 256 - 7 * 16 } = { \symakizumibf }
+  { \errmessage { matrices=all:~\token_to_str:N \Sigma\ is~not~bold } }
+\ExplSyntaxOff
+$A = U\Sigma V\T$, $\mathrm{A}$, $\mathcal{A}$, $\mathbb{A}$, $\mathit{A}$, $\vb{A}$, $A_{ij}$, $x$.
+\end{document}

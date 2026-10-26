@@ -29,7 +29,7 @@ Run `ax new` with no arguments and it asks for the kind, folder and title. Optio
 | `--problems 5` or `--problems B4,C2` | Homework: create `problems/p1.tex` ... `p5.tex` (with groups, `B1` ... `B4`, `C1`, `C2`) and load each from `main.tex` with `\inputproblem` |
 | `--force` | Creates the project even if the folder exists and isn't empty |
 
-`defaults` in `config.json` sets default options per kind; options on the command line win. For example, `"hw": {"byline": true}` makes new homework print the author and date under the title; `"paper": {"venue": "neurips", "split": true}` makes new papers NeurIPS papers with one file per section.
+`defaults` in `config.json` sets default options per kind; options on the command line win. For example, `"hw": {"titleinfo": "line"}` makes new homework put the author and date on one line under the title; `"paper": {"venue": "neurips", "split": true}` makes new papers NeurIPS papers with one file per section.
 
 What each new project contains:
 
@@ -183,6 +183,8 @@ Keys:
 Existing documents are unaffected: a preamble's own `keyidea`, `\pitfall`, `\optional`, `\guidehead` and so on win, and the ready-made one is not defined (on slides `note` stays beamer's `\note`, so slides have no `note` box).
 
 ### Math
+
+Capital letters in math are always upright bold (matrices): `A` gives $\vb{A}$, no need to write `\vb{A}` each time. `\mathcal{A}`, `\mathbb{R}`, `\mathrm{A}` and `\mathit{A}` still switch the font; lowercase and Greek letters are unchanged. `matrices=all` makes Greek capitals such as Σ and Λ bold too; `matrices=normal` brings back italic capitals (e.g. for documents that use capitals for sets or random variables). On its own, `\usepackage{akizumi-math}` (papers) defaults to `normal`.
 
 | Input | Result |
 |---|---|
@@ -728,7 +730,7 @@ Put them in `\documentclass[...]` (for slides, `\usetheme[...]{Akizumi}`):
 | `asides` | `numbered` `unnumbered` | `numbered` | `unnumbered`: example, remark and remarks get no number |
 | `aliases` | `none` `short` | `none` | `short`: adds short names such as `thm` `lem` `prop` `cor` |
 | `thmname` | `{kind=name, ...}` | | Renames a kind, e.g. `thmname={corollary=系理}` |
-| `byline` | `false` `true` | `false` | Whether "author · ID · date" goes under the title. By default it goes on the right of the first page's header instead (course on the left). The book cover always shows it |
+| `titleinfo` | `row` `line` `none` | `row` | What goes under the title: `row` a row of labelled details (course, author, ID, date; homework shows the due date; `\akizumisetup{info={Instructor=…}}` adds columns, four to a row); `line` one muted line "author · ID · date"; `none` nothing. The `kicker=` above the title (e.g. `Lecture 9`) is set in spaced accent capitals. The title page has no header. The old `byline=true` means `line` |
 | `bib` | file name | | Loads the bibliography, e.g. `bib=refs.bib` |
 | `solutions` | `true` `false`; books and notes also `inline` `chapter` `end` `hide` | homework `true`, exams `false`, books and notes `inline` | Whether and where solutions are printed (see [Exercises and solutions](#exercises-and-solutions-books-notes)) |
 | `exercisewithin` | `chapter` `section` `none` | books `chapter`, notes `section`, others `none` | What exercises and sample problems are numbered within |
@@ -740,6 +742,7 @@ Put them in `\documentclass[...]` (for slides, `\usetheme[...]{Akizumi}`):
 | `cjk-serif`, `cjk-serif-bold` | font name | Songti | Replace the CJK face and its bold for serif body text (`text=serif\|times\|palatino`), e.g. `cjk-serif-bold=Noto Serif CJK TC SemiBold`. With only `cjk-serif`, or a Kai face without bold, bold is synthesised |
 | `delims` | `manual` `auto` | `manual` | `auto` makes `\abs`, `\norm`, `\set`, `\Prob` and the other paired delimiters size themselves without the star; the starred form then keeps the natural size |
 | `letters` | `bold` `cal` `bb` `greek` `all` `single` | none | Letter shortcuts, see [Math](#math) |
+| `matrices` | `latin` `all` `normal` | `latin` | Capital letters in math: `latin` A–Z upright bold; `all` Greek capitals too; `normal` the usual italic (see [Math](#math)) |
 | `vb` | `auto` `upright` | `auto` | `upright` makes lowercase Greek in `\vb{\alpha}` upright bold too (upgreek) |
 | `units` | `false` `true` | `false` | Loads siunitx: `\qty{9.8}{\metre\per\second\squared}`, `\unit{kg}`, `\num{12345}` |
 | `mathclash` | `yield` `error` | `yield` | When you define a macro akizumi-math also has, `yield` uses yours, `error` stops as LaTeX normally does |
@@ -757,7 +760,7 @@ Slides also take `progress` (progress bar along the bottom); `tikz` and `plots` 
 
 ### Headers and footers
 
-The footer shows just the page number by default. The header shows the course on the left (the title in notes without one) and the current section on the right; books show the chapter left and the section right, homework the author right. The section number is in the accent colour. The first (title) page shows the course left and author · date right. A section title too long for the line is cut, with an ellipsis, before it reaches the other side.
+The footer shows just the page number by default. The header shows the course on the left (the title in notes without one) and the current section on the right; books show the chapter left and the section right, homework the author right. The section number is in the accent colour. The first (title) page has no header; course, author and date are under the title (see the `titleinfo` option). A section title too long for the line is cut, with an ellipsis, before it reaches the other side.
 
 | Option | Values | Default | Effect |
 |---|---|---|---|
@@ -781,7 +784,7 @@ Both go in `\documentclass[...]` or `\akizumisetup{...}` (exams take `footer` on
 | `header/left` `header/center` `header/right` | The three parts of the running header |
 | `footer/left` `footer/center` `footer/right` | The three parts of the footer |
 | `firstpage/left` `firstpage/center` `firstpage/right` | The title page's header |
-| `firstpage` | `title` (default: course, author · date), `same` (like other pages), `empty` |
+| `firstpage` | `empty` (default, no header), `title` (course left, author · date right), `same` (like other pages) |
 | `header/number` | `accent` (default: the section number in bold accent colour) or `plain` |
 | `headerstyle` `footerstyle` | Font and colour, default `\sffamily\footnotesize\color{mute}` |
 

@@ -52,13 +52,11 @@
   \hfill\akizumi@str{id}\enspace\makebox[0.25\linewidth]{\hrulefill}\par\vspace{1.2em}}
 \let\akizumi@coremaketitle\maketitle
 \renewcommand{\maketitle}{\akizumi@coremaketitle\ifprintanswers\else\akizumi@namefield\fi}
-\AtBeginDocument{\ifx\akizumi@kicker\@empty\let\akizumi@kicker\akizumi@course\fi}
 
 % ---------- header / footer ----------
 \pagestyle{headandfoot}
-% byline=false (default): course and "author · date" in the first page's header
-\firstpageheader{\ifakizumi@byline\else\sffamily\small\color{mute}\akizumi@course\fi}{}%
-  {\ifakizumi@byline\else\sffamily\small\color{mute}\akizumi@byline\fi}
+% the first page has no header: the title block carries course, author and date
+\firstpageheader{}{}{}
 \runningheader{\sffamily\small\color{mute}\akizumi@course}{}{\sffamily\small\color{mute}\@title}
 % footer=page (default): "3"; page-total: "3 / 5"; none
 \ExplSyntaxOn

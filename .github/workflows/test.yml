@@ -74,4 +74,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ matrix.os }}
-          path: examples/build/*.log
+          path: |
+            examples/build/*.log
+            tests/build/*.log
+            docs/build/snippets/**/*.log
+            docs/build/snippets/**/*.blg

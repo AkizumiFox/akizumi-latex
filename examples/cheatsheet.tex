@@ -60,9 +60,6 @@
 % A heading right after a line of text (a \csnote; the last node is the line
 % or the colour's whatsit, not the glue a box leaves) would get the \parskip
 % on top of its own space, more than after a box: take it back there.
-\NewCommandCopy{\cssection}{\section}
-\RenewDocumentCommand{\section}{}{\par
-  \ifnum\lastnodetype>0 \ifnum\lastnodetype<11 \vspace{-\parskip}\fi\fi\cssection}
 
 \begin{document}
 \twocolumn[{%

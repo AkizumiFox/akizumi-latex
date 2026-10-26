@@ -4803,7 +4803,7 @@ def check_test_text(pdf, head, name, result):
     if not shutil.which("pdftotext"):
         note(T(f"略過 {name} 的文字檢查（沒有 pdftotext）", f"skipped the text check of {name} (no pdftotext)"))
         return
-    text = subprocess.run(["pdftotext", str(pdf), "-"], stdin=subprocess.DEVNULL, capture_output=True,
+    text = subprocess.run(["pdftotext", "-enc", "UTF-8", str(pdf), "-"], stdin=subprocess.DEVNULL, capture_output=True,
                           encoding="utf-8", errors="replace").stdout
     missing = [w for w in (want.group(1).split() if want else []) if w not in text]
     found = [w for w in (shun.group(1).split() if shun else []) if w in text]

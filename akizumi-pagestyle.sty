@@ -156,8 +156,8 @@
   {
     \str_case:Vn \l__akizumi_hf_footer_tl
       {
-        { page }       { \exp_not:N \akizumiPage }
-        { page-total } { \exp_not:N \akizumiPage \exp_not:n { \,/\, } \exp_not:N \akizumiPages }
+        { page }       { \akizumiPage }
+        { page-total } { \akizumiPage \,/\, \akizumiPages }
       }
   }
 

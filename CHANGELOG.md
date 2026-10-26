@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The labels of the title details row can be renamed: `\akizumisetup{label/author=小組成員, label/course=…, label/id=…, label/date=…, label/due=…}`.
 - `"pdf": "期末報告.pdf"` in `.ax.json` names the output PDF instead of `main.pdf`: `ax build`, `ax watch` (also `--bg`), `ax open` and Cursor builds (through the latexmkrc) use it, and `ax both` writes the solutions to `期末報告-solutions.pdf`. `ax migrate --project` sets it when the PDF git tracks in the folder has another name than the main file.
 - Fixes from converting a whole folder of old documents:
   - Chapter, section and subsection titles are ragged right and not hyphenated: a long title wraps instead of running into the margin.

@@ -859,6 +859,8 @@
 \akizumi@s{label-course}{Course}{課程}{科目}{과목}
 \akizumi@s{label-author}{Author}{作者}{著者}{저자}
 \akizumi@s{label-date}{Date}{日期}{日付}{날짜}
+\@namedef{akizumi@s@label-id}{\akizumi@str{id}}
+\@namedef{akizumi@s@label-due}{\akizumi@str{due}}
 \newfontfamily\akizumi@spaced{Lato}[Extension=.ttf, UprightFont=*-Bold,
   BoldFont=*-Bold, ItalicFont=*-BoldItalic, BoldItalicFont=*-BoldItalic,
   LetterSpace=8, Ligatures=NoCommon]
@@ -866,6 +868,9 @@
 % spaced capitals for Latin text; CJK keeps the sans face
 \cs_new_protected:Npn \akizumi@spacedcaps #1
   { { \sffamily \akizumi@spaced \text_uppercase:n {#1} } }
+% \akizumisetup{label/author=小組成員, ...} renames a label of the row
+\clist_map_inline:nn { course, author, id, date, due }
+  { \keys_define:nn { akizumi/meta } { label/#1 .code:n = \cs_set:cpn { akizumi@s@label-#1 } {##1} } }
 \seq_new:N \l__akizumi_title_fields_seq
 % #1 the value (skipped when empty), #2 its label; stored as {label}{value}
 \cs_new_protected:Npn \__akizumi_title_field:nn #1#2
@@ -883,10 +888,10 @@
     \seq_clear:N \l__akizumi_title_fields_seq
     \__akizumi_title_field:Vn \akizumi@course { \akizumi@str{label-course} }
     \__akizumi_title_field:Vn \@author { \akizumi@str{label-author} }
-    \__akizumi_title_field:Vn \akizumi@id { \akizumi@str{id} }
+    \__akizumi_title_field:Vn \akizumi@id { \akizumi@str{label-id} }
     \tl_if_blank:VTF \akizumi@due
       { \__akizumi_title_field:Vn \@date { \akizumi@str{label-date} } }
-      { \__akizumi_title_field:Vn \akizumi@due { \akizumi@str{due} } }
+      { \__akizumi_title_field:Vn \akizumi@due { \akizumi@str{label-due} } }
     \cs_if_exist:NT \l__akizumi_info_seq
       { \seq_map_inline:Nn \l__akizumi_info_seq { \seq_put_right:Nn \l__akizumi_title_fields_seq {##1} } }
     \seq_if_empty:NF \l__akizumi_title_fields_seq

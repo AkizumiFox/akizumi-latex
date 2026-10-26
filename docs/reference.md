@@ -731,7 +731,7 @@ $A\cup B=[-2,3]$。
 | `asides` | `numbered` `unnumbered` | `numbered` | `unnumbered`：example、remark、remarks 不編號 |
 | `aliases` | `none` `short` | `none` | `short`：另外提供 `thm` `lem` `prop` `cor` 等短名稱 |
 | `thmname` | `{種類=名稱, …}` | | 換掉某一種的名稱，例如 `thmname={corollary=系理}` |
-| `titleinfo` | `row` `line` `none` | `row` | 標題下方的資訊：`row` 一列附小標籤的欄位（課程、作者、學號、日期；作業是繳交期限；`\akizumisetup{info={授課教師=…}}` 加欄位，四欄換行）；`line` 一行灰字「作者 · 學號 · 日期」；`none` 不印。標題上方的 `kicker=`（例如 `Lecture 9`）以加字距的大寫藍字印出。標題頁沒有頁首。舊的 `byline=true` 等同 `line`。也可以寫在 `\akizumisetup{titleinfo=…}`。欄位太長時會在欄內換行 |
+| `titleinfo` | `row` `line` `none` | `row` | 標題下方的資訊：`row` 一列附小標籤的欄位（課程、作者、學號、日期；作業是繳交期限；`\akizumisetup{info={授課教師=…}}` 加欄位，四欄換行；標籤可以改名：`\akizumisetup{label/author=小組成員, label/id=組別}`，可改的有 `label/course`、`label/author`、`label/id`、`label/date`、`label/due`）；`line` 一行灰字「作者 · 學號 · 日期」；`none` 不印。標題上方的 `kicker=`（例如 `Lecture 9`）以加字距的大寫藍字印出。標題頁沒有頁首。舊的 `byline=true` 等同 `line`。也可以寫在 `\akizumisetup{titleinfo=…}`。欄位太長時會在欄內換行 |
 | `bib` | 檔名 | | 載入參考文獻，例如 `bib=refs.bib` |
 | `solutions` | `true` `false`；書、講義另有 `inline` `chapter` `end` `hide` | 作業 `true`，考卷 `false`，書和講義 `inline` | 是否印出解答、印在哪裡（見〈習題與解答〉） |
 | `exercisewithin` | `chapter` `section` `none` | 書 `chapter`，講義 `section`，其他 `none` | 習題、例題的編號單位 |

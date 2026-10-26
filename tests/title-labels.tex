@@ -1,0 +1,17 @@
+% !TEX program = xelatex
+% \akizumisetup{label/...=...} renames the labels of the title details row
+\documentclass[lang=zh]{akizumi-hw}
+\akizumisetup{course={線性代數}, id=B12345678, due={10 月 30 日},
+  label/author=小組成員, label/course=科目, label/id=組別, label/due=截止, label/date=日期}
+\title{期末報告}
+\author{甲、乙、丙}
+\makeatletter
+\def\akizumi@test#1#2{\edef\got{\akizumi@str{label-#1}}\def\want{#2}%
+  \ifx\got\want\else\PackageError{title-labels}{label/#1 is "\got", not "#2"}{}\fi}
+\akizumi@test{author}{小組成員}\akizumi@test{course}{科目}
+\akizumi@test{id}{組別}\akizumi@test{due}{截止}
+\makeatother
+\begin{document}
+\maketitle
+內文。
+\end{document}

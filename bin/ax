@@ -167,6 +167,30 @@ if ($ax_json =~ /"shell_escape"\s*:\s*true/) {
   push @extra_pdflatex_options, '-shell-escape';
   push @extra_lualatex_options, '-shell-escape';
 }
+# "pdf": "report.pdf" in .ax.json: after a successful build the main file's
+# PDF is also copied to that name (<stem>-solutions.pdf for ax both's
+# solutions), as ax build and ax watch do. Editors keep showing build/main.pdf.
+my ($ax_main) = $ax_json =~ /"main"\s*:\s*"([^"]+)"/;
+my ($ax_pdf) = $ax_json =~ /"pdf"\s*:\s*"((?:[^"\\]|\\.)+)"/;
+if ($ax_pdf) {
+  $ax_pdf = eval { require JSON::PP; JSON::PP->new->utf8->allow_nonref->decode(qq("$ax_pdf")) };
+  utf8::encode($ax_pdf) if defined $ax_pdf;
+  $success_cmd = 'internal ax_copy_pdf %Z %R' if $ax_pdf && $ax_pdf !~ m{[/\\]};
+}
+sub ax_copy_pdf {
+  my ($dir, $job) = @_;
+  (my $stem = $ax_main || 'main.tex') =~ s/\.tex$//;
+  (my $name = $ax_pdf) =~ s/\.pdf$//i;
+  my $dest = $job eq $stem ? "$name.pdf" : $job eq "$stem-solutions" ? "$name-solutions.pdf" : '';
+  return 0 unless $dest && -f "$dir$job.pdf";
+  if ($^O eq 'MSWin32') {
+    # Perl cannot name non-ASCII files there; ax copypdf can
+    system('ax', 'copypdf', "$dir$job.pdf", "$job.pdf");
+  } elsif (File::Copy::copy("$dir$job.pdf", "$dest.ax-tmp")) {
+    rename("$dest.ax-tmp", $dest);
+  }
+  return 0;
+}
 if ($ax_pin && $ax_pin !~ /^(latest|frozen)$/) {
   my $cache = $^O eq 'darwin'  ? "$ENV{HOME}/Library/Caches/ax"
             : $^O eq 'MSWin32' ? "$ENV{LOCALAPPDATA}/ax/Cache"
@@ -186,6 +210,7 @@ $pdf_previewer = 'open -a Skim' if $^O eq 'darwin' && -d '/Applications/Skim.app
 # Japanese and Korean, when installed, else makeindex. akizumi-index writes
 # <name>.ist next to <name>.idx with the collation for the main language.
 use File::Spec;
+use File::Copy ();
 $makeindex = 'internal ax_makeindex %O -o %D %S';
 sub ax_makeindex {
   (my $ist = $_[-1]) =~ s/\.idx$/.ist/;
@@ -1415,6 +1440,33 @@ def latexmk(main, label, jobname=None, pretex=None, clean_first=False):
     return code, output, secs
 
 
+def output_pdf(job, main=None, cfg=None):
+    """Where a finished build/<job>.pdf goes, relative to the project folder:
+    <job>.pdf, except that "pdf" in .ax.json names the main file's PDF (and
+    ax both's solutions, <stem>-solutions.pdf)."""
+    cfg = project_config() if cfg is None else cfg
+    name = cfg.get("pdf")
+    plain = Path(f"{job}.pdf")
+    if name is None:
+        return plain
+    if not isinstance(name, str) or not name.strip() or Path(name.strip()).name != name.strip():
+        warn(T(f'.ax.json 的 "pdf" 要是一個檔名（例如 "報告.pdf"），現在是 {json.dumps(name, ensure_ascii=False)}，不使用',
+               f'"pdf" in .ax.json must be a file name (such as "report.pdf"); it is '
+               f'{json.dumps(name, ensure_ascii=False)}, ignored'))
+        return plain
+    project_main = Path(cfg.get("main", "main.tex"))
+    if main is not None and Path(main).resolve() != project_main.resolve():
+        return plain  # ax build other.tex
+    name = Path(name.strip())
+    if name.suffix.lower() != ".pdf":
+        name = Path(name.name + ".pdf")
+    if job == project_main.stem:
+        return name
+    if job == f"{project_main.stem}-solutions":
+        return Path(f"{name.stem}-solutions.pdf")
+    return plain
+
+
 def safe_build(main, jobname=None, pretex=None, label=None):
     """Compile into build/ and copy the PDF next to the source only on success.
     Returns True on success."""
@@ -1428,8 +1480,8 @@ def safe_build(main, jobname=None, pretex=None, label=None):
 
     built = Path("build") / f"{job}.pdf"
     log = Path("build") / f"{job}.log"
+    dest = output_pdf(job, main)
     if code == 0 and built.exists():
-        dest = Path(f"{job}.pdf")
         if not copy_pdf(built, dest):
             ok(T(f"{built}（{elapsed(secs)}）", f"{built} ({elapsed(secs)})"))
             warn(T(f"{dest} 正被閱讀器鎖住，沒辦法更新；關掉它，或改開 {built}",
@@ -1455,8 +1507,8 @@ def safe_build(main, jobname=None, pretex=None, label=None):
     if behind and err and re.search(r"Undefined control sequence|Environment \S+ undefined|"
                                     r"Unknown option|Key .* unknown|not defined", err[1]):
         behind_note(behind, err=True)
-    if Path(f"{job}.pdf").exists():
-        note(T(f"  上一份 {job}.pdf 保留著，沒有被覆蓋", f"  The previous {job}.pdf is kept"), err=True)
+    if dest.exists():
+        note(T(f"  上一份 {dest} 保留著，沒有被覆蓋", f"  The previous {dest} is kept"), err=True)
     if log.exists():
         note(T(f"  完整紀錄：{log}", f"  Full log: {log}"), err=True)
     return False
@@ -1477,7 +1529,10 @@ def cmd_copypdf(a):
     """Called by latexmk after a successful run in ax watch."""
     # latexmk on Windows quotes the parts of %Z%R.pdf ("build/"main.pdf")
     a.src, a.dest = a.src.replace('"', ""), a.dest.replace('"', "")
-    record_watch_result(True, Path(a.dest).stem)
+    job = Path(a.dest).stem
+    record_watch_result(True, job)
+    if Path(a.dest).parent == Path("."):
+        a.dest = str(output_pdf(job))  # "pdf" in .ax.json
     if copy_pdf(a.src, a.dest):
         ok(T(f"已更新 {a.dest}（{time.strftime('%H:%M:%S')}）",
              f"Updated {a.dest} ({time.strftime('%H:%M:%S')})"))
@@ -1560,9 +1615,9 @@ def restricted_minted():
     return _RESTRICTED_MINTED[0]
 
 
-# Lines that only a current latexmkrc has: "shell_escape", the indexer, and
-# the indexer's handling of an index with no entries.
-LATEXMKRC_MARKERS = ("shell_escape", "ax_makeindex", "-z $_[-1]")
+# Lines that only a current latexmkrc has: "shell_escape", the indexer, the
+# indexer's handling of an index with no entries, and "pdf".
+LATEXMKRC_MARKERS = ("shell_escape", "ax_makeindex", "-z $_[-1]", "ax_copy_pdf")
 
 
 def refresh_latexmkrc(cfg):
@@ -2053,6 +2108,49 @@ def selftest_build(ax, tmp, result):
         print(r.stdout + r.stderr)
 
 
+def selftest_pdfname(ax, tmp, result):
+    """"pdf" in .ax.json: ax build, ax both and a plain latexmk run (Cursor)
+    write the PDF under that name; ax migrate --project picks up a tracked PDF."""
+    d = tmp / "t-pdfname"
+    label = T('專案 .ax.json "pdf"（build、both、Cursor、migrate）',
+              'project .ax.json "pdf" (build, both, Cursor, migrate)')
+    run = lambda *args: subprocess.run(list(args), cwd=d, stdin=subprocess.DEVNULL, capture_output=True,
+                                       encoding="utf-8", errors="replace", timeout=300)
+    r = subprocess.run(ax + ["new", "hw", str(d), "--title", "Test", "--no-preamble", "--pin", "latest"],
+                       stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace")
+    out = r.stdout + r.stderr
+    good = r.returncode == 0
+    if good:
+        cfg = load_json(d / PROJECT_CONFIG)
+        cfg["pdf"] = "報告 v2.pdf"
+        (d / PROJECT_CONFIG).write_text(json.dumps(cfg, indent=2) + "\n")  # \u escapes, as save_project_config
+        r = run(*ax, "both")
+        out = r.stdout + r.stderr
+        good = (r.returncode == 0 and (d / "報告 v2.pdf").exists() and (d / "報告 v2-solutions.pdf").exists()
+                and not (d / "main.pdf").exists() and not (d / "main-solutions.pdf").exists())
+    if good:
+        (d / "報告 v2.pdf").unlink()
+        main_tex = d / "main.tex"
+        main_tex.write_text(main_tex.read_text() + "\n% edited\n")
+        r = run("latexmk", "-interaction=nonstopmode", "-file-line-error", "main.tex")
+        out = r.stdout + r.stderr
+        good = r.returncode == 0 and (d / "報告 v2.pdf").exists() and not (d / "main.pdf").exists()
+    if good and shutil.which("git"):
+        m = tmp / "t-pdfname-migrate"
+        m.mkdir()
+        shutil.copy(REPO / "tests" / "migrate" / "old-hw.tex", m / "old-hw.tex")
+        shutil.copy(d / "報告 v2-solutions.pdf", m / "HW3.pdf")
+        for args in (["init", "-q"], ["add", "."]):
+            subprocess.run(["git", "-C", str(m)] + args, stdin=subprocess.DEVNULL, capture_output=True)
+        r = subprocess.run(ax + ["migrate", "old-hw.tex", "--project"], cwd=m, stdin=subprocess.DEVNULL,
+                           capture_output=True, encoding="utf-8", errors="replace")
+        out = r.stdout + r.stderr
+        good = r.returncode == 0 and load_json(m / PROJECT_CONFIG).get("pdf") == "HW3.pdf"
+    result(good, label)
+    if not good:
+        print(out)
+
+
 # ---------- ax watch, in the foreground or the background ----------
 # A background watcher is latexmk -pvc started detached; build/watch.json
 # records it, build/watch.log collects its output, and build/watch-last.json
@@ -2334,12 +2432,12 @@ def open_file(path):
 
 def cmd_open(a):
     if a.file:
-        pdf = Path(a.file).with_suffix(".pdf")
+        tex = Path(a.file).with_suffix(".tex")
+        pdf = output_pdf(tex.stem, tex) if Path(PROJECT_CONFIG).exists() else tex.with_suffix(".pdf")
     else:
         cfg = require_project()
-        pdf = Path(cfg.get("main", "main.tex")).with_suffix(".pdf")
-        if a.solutions:
-            pdf = pdf.with_name(pdf.stem + "-solutions.pdf")
+        stem = Path(cfg.get("main", "main.tex")).stem
+        pdf = output_pdf(f"{stem}-solutions" if a.solutions else stem, cfg=cfg)
     if not pdf.exists():
         die(T(f"還沒有 {pdf}", f"There is no {pdf} yet"),
             T(f"先執行 {cmd_text('ax build')}" + ("（或 ax both）" if a.solutions else ""),
@@ -4194,10 +4292,32 @@ def cmd_migrate(a):
         cfg = load_json(cfg_path) if cfg_path.exists() else {}
         cfg.update({"kind": kind, "main": dest.name})
         cfg.setdefault("template", a.pin or "latest")
+        tracked = None if "pdf" in cfg else tracked_pdf(folder, dest, new)
+        if tracked:
+            cfg["pdf"] = tracked
         cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n")
         write_build_files(folder, kind)
         ok(T(f"已設成 ax 專案（{PROJECT_CONFIG}、latexmkrc、.vscode；模板 {cfg['template']}）",
              f"Set up as an ax project ({PROJECT_CONFIG}, latexmkrc, .vscode; template {cfg['template']})"))
+        if tracked:
+            ok(T(f"PDF 照 git 裡原本的檔名輸出成 {tracked}（.ax.json 的 \"pdf\"）",
+                 f"The PDF keeps the name it has in git, {tracked} (\"pdf\" in .ax.json)"))
+
+
+def tracked_pdf(folder, main, text):
+    """The one PDF git tracks directly in folder when it is not named after
+    main (and is not a figure the document includes); else None."""
+    r = subprocess.run(["git", "-C", str(folder), "ls-files", "-z", "--", "*.pdf"],
+                       stdin=subprocess.DEVNULL, capture_output=True)
+    if r.returncode:
+        return None
+    names = [n for n in r.stdout.decode("utf-8", "replace").split("\0") if n and "/" not in n]
+    if len(names) != 1 or names[0] == f"{Path(main).stem}.pdf":
+        return None
+    stem = Path(names[0]).stem
+    if re.search(r"\\(?:includegraphics|includepdf|input)\s*(?:\[[^\]]*\])?\s*\{[^}]*" + re.escape(stem), text):
+        return None
+    return names[0]
 
 
 # ---------- ax selftest ----------
@@ -4656,6 +4776,7 @@ def cmd_selftest(a):
         else:
             result(False, T("專案 both（作業專案沒有建立成功）", "project both (the homework project was not created)"))
         selftest_build(ax, tmp, result)  # prebuild, shell_escape, --chapter, count
+        selftest_pdfname(ax, tmp, result)
         # references: biber runs and the citation resolves
         d = tmp / "t-bib"
         r = subprocess.run(ax + ["new", "note", str(d), "--title", "Test", "--bib", "--no-preamble",
@@ -4868,7 +4989,7 @@ def show_status(actions=True):
     elif tags and pin != tags[0]:
         version = T(f"{pin}（有新版 {tags[0]}：ax upgrade）", f"{pin} (newer: {tags[0]}, ax upgrade)")
     print(T(f"  模板  {version}", f"  template  {version}"))
-    pdf = main.with_suffix(".pdf")
+    pdf = output_pdf(main.stem, cfg=cfg)
     if pdf.exists():
         state = T(f"{pdf}，{ago(pdf)}更新", f"{pdf}, updated {ago(pdf)}")
     else:
@@ -4953,7 +5074,7 @@ def recent_menu(recent):
     if shutil.which("cursor"):
         options.append(("cursor", T("用 Cursor 開啟", "Open in Cursor")))
     cfg = load_json(path / PROJECT_CONFIG)
-    pdf = path / Path(cfg.get("main", "main.tex")).with_suffix(".pdf")
+    pdf = path / output_pdf(Path(cfg.get("main", "main.tex")).stem, cfg=cfg)
     if pdf.exists():
         options.append(("pdf", T("打開 PDF", "Open the PDF")))
     options.append(("folder", T("打開資料夾", "Open the folder")))

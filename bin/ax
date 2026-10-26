@@ -4403,8 +4403,19 @@ def selftest_docs(result):
     note(T(f"編譯文件裡的 {len(run)} 個 LaTeX 片段（{len(jobs)} 份文件）…",
            f"Building {len(run)} LaTeX snippets from the docs ({len(jobs)} documents)..."))
     build = lambda table: lambda n: snippet_build(work, n, table[n][1])
+    # biber is a packed executable that unpacks itself on its first run;
+    # several first runs at once can trip over each other (seen on macOS CI)
+    if shutil.which("biber") and any(SNIPPET_BIBS.search("\n".join(t for t, _ in s["lines"])) for s in run):
+        subprocess.run(["biber", "--version"], capture_output=True)
     with ThreadPoolExecutor(max(1, min(4, os.cpu_count() or 1))) as pool:
         done = dict(zip(jobs, pool.map(build(jobs), jobs)))
+        # one quiet retry, alone, for documents that failed next to others:
+        # a real error fails again, a clash between parallel runs does not
+        for name in [n for n, (good, _, _) in done.items() if not good]:
+            shutil.rmtree(work / "build" / name, ignore_errors=True)
+            for leftover in (work / "build").glob(f"{name}.*"):
+                leftover.unlink()
+            done[name] = snippet_build(work, name, jobs[name][1])
         # a shared document failed: build its fragments one by one to find which
         alone = {f"{name}-{s['fence']}": (name, [s], snippet_document(snippet_group_key(s), [s]))
                  for name, (good, _, _) in done.items() if not good and len(jobs[name][0]) > 1

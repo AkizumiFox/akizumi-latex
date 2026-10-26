@@ -340,7 +340,7 @@ $ python main.py
 \iosample{}{[89.2, 74.8] \\}     % an empty side is left out
 ```
 
-The two arguments of `\iosample` are ordinary text with `\\` between lines; `\\` followed by `[` is safe.
+The two arguments of `\iosample` are ordinary text with `\\` between lines; `\\` followed by `[` is safe. The box titles can be changed: `\iosample[input=input.txt, output=\$\ ./a.out]{…}{…}`, or for the whole document `\akizumisetup{iosample/input=…, iosample/output=…}`.
 
 #### Inline code
 
@@ -634,7 +634,7 @@ These three are `\documentclass` options and also work in `\akizumisetup{...}`. 
 
 Exams use the [exam](https://ctan.org/pkg/exam) syntax: `\begin{questions} \question[10] ... \begin{parts} \part[5] ...`; `\gradetable` makes the grading table.
 
-Solutions: homework shows them by default, `\documentclass[solutions=false]{akizumi-hw}` hides them; exams hide them by default, `solutions=true` shows them. `ax both` saves you switching by hand.
+Solutions: homework shows them by default, `\documentclass[solutions=false]{akizumi-hw}` hides them; exams hide them by default, `solutions=true` shows them. `ax both` saves you switching by hand. A homework `solution` may contain `verbatim` and `codeblock`.
 
 ### Slides
 
@@ -730,10 +730,12 @@ Put them in `\documentclass[...]` (for slides, `\usetheme[...]{Akizumi}`):
 | `asides` | `numbered` `unnumbered` | `numbered` | `unnumbered`: example, remark and remarks get no number |
 | `aliases` | `none` `short` | `none` | `short`: adds short names such as `thm` `lem` `prop` `cor` |
 | `thmname` | `{kind=name, ...}` | | Renames a kind, e.g. `thmname={corollary=系理}` |
-| `titleinfo` | `row` `line` `none` | `row` | What goes under the title: `row` a row of labelled details (course, author, ID, date; homework shows the due date; `\akizumisetup{info={Instructor=…}}` adds columns, four to a row); `line` one muted line "author · ID · date"; `none` nothing. The `kicker=` above the title (e.g. `Lecture 9`) is set in spaced accent capitals. The title page has no header. The old `byline=true` means `line` |
+| `titleinfo` | `row` `line` `none` | `row` | What goes under the title: `row` a row of labelled details (course, author, ID, date; homework shows the due date; `\akizumisetup{info={Instructor=…}}` adds columns, four to a row); `line` one muted line "author · ID · date"; `none` nothing. The `kicker=` above the title (e.g. `Lecture 9`) is set in spaced accent capitals. The title page has no header. The old `byline=true` means `line`. Also works in `\akizumisetup{titleinfo=…}`. A value too long for its column wraps inside it |
 | `bib` | file name | | Loads the bibliography, e.g. `bib=refs.bib` |
 | `solutions` | `true` `false`; books and notes also `inline` `chapter` `end` `hide` | homework `true`, exams `false`, books and notes `inline` | Whether and where solutions are printed (see [Exercises and solutions](#exercises-and-solutions-books-notes)) |
 | `exercisewithin` | `chapter` `section` `none` | books `chapter`, notes `section`, others `none` | What exercises and sample problems are numbered within |
+| `eqwithin` | `chapter` `section` `none` | notes `section`, books `chapter`, others `none` | What equations are numbered within. A note with only `\section*` takes `thmwithin=none, eqwithin=none, codewithin=none` to get (1), Theorem 1, Listing 1 instead of 0.1 |
+| `codewithin` | `chapter` `section` `none` | books `chapter`, notes `section`, others `none` | What numbered code blocks are numbered within |
 | `10pt` `11pt` `12pt` `13pt` `14pt`, `fontsize` | e.g. `fontsize=13pt` | `11pt` | Font size. `13pt`, `14pt` and any `fontsize=` go through scrextend |
 | `cjk`, `cjk-bold` | font name | picked per language | Replaces the CJK sans font |
 | `par` | `skip` `indent` | `skip` | Paragraphs. `indent` indents every paragraph's first line by 2em (the first after a heading too) with no space between paragraphs, as Chinese reports do |
@@ -866,6 +868,7 @@ These compile under akizumi as they are; the log carries one warning the first t
 - `\usepackage{algpseudocode}` is skipped. akizumi loads algpseudocodex, which takes the same `algorithmic` commands, and `\algrenewcommand\algorithmiccomment[1]{…}` works as before.
 - `\usepackage{algorithm2e}` loads with `algo2e` added, so it no longer clashes with akizumi's `algorithm`. `\begin{algorithm}` then starts an algorithm2e block, so `\KwIn`, `\eIf` and lines ending in `;` stay as they are, and `\cref` works. If you pass `algo2e` yourself, nothing is redirected: `algorithm2e` is algorithm2e's, `algorithm` stays algorithmic's.
 - `\begin{li}[label=(\alph*)]`, the list old preambles define, is an `enumerate` with enumitem options when nothing else defines `li`.
+- ctex's `\chinese`: `\begin{enumerate}[label=\chinese*、]` still numbers 一、二、三.
 
 `legacy=false` turns all of this off, to see the original errors.
 
@@ -878,8 +881,10 @@ These compile under akizumi as they are; the log carries one warning the first t
 | `\documentclass[12pt,letterpaper,…]{memoir}` (or article, book) | `\documentclass[12pt, paper=letter]{akizumi-hw}`. The kind is guessed: hw with Problem headings or for homework, book with two chapters or more, note otherwise; `--kind` picks it. Chinese text adds `lang=zh` |
 | `\def\coursename{…}`, `\authorID`, `\authorname`, `\documentname` | `\akizumisetup{course=…, id=…}`, `\author{…}`, `\title{…}`. Macros the body still uses are kept as `\newcommand` |
 | Layout macros such as `\coursecode`, `\headingright`, `\chaptertitleformat` | Commented out and listed |
-| `\setcounter{chapter}{N}` followed by `\chapter{Homework …}` | `number=N+1` for homework; that `\chapter` becomes `\maketitle`. Without a `\chapter` after it, `number=N` |
-| `\section*{Problem 3: Title}`, `Question 3`, `第三題` | `\begin{problem}[Title] … \end{problem}`, with `\setcounter{problem}{…}` where numbers skip |
+| `\setcounter{chapter}{N}` (preamble or body) followed by `\chapter{Homework …}` | `number=N+1` for homework (`\chapter*` adds nothing); that `\chapter` becomes `\maketitle`. Without a `\chapter` after it, `number=N`. In a note `\chapter{X}` becomes `\title{X}`, plus `kicker={Chapter N}` when there is a `\setcounter` |
+| `\section*{Problem 3: Title}`, `Question 3`, `第三題` | `\begin{problem}[Title] … \end{problem}`, with `\setcounter{problem}{…}` where numbers skip; `Problem 1.1`, `Problem 2.a` become `[label=1.1]` |
+| A note with `\section*` and no numbered `\section` | `thmwithin=none, eqwithin=none, codewithin=none` added |
+| `13pt`, `14pt` and other sizes | Kept; memoir's other sizes become `fontsize=` |
 | `\begin{CJK*}{UTF8}{bsmi}`, `\end{CJK*}` | Removed |
 | `\usepackage{CJKutf8}`, `math-notes`, `algpseudocode`, and packages akizumi loads already | Commented out; options they carried (geometry's `margin=1in`, say) are listed for you to check |
 | A `\newcommand{\R}{…}` in the main file that clashes with akizumi | Becomes `\renewcommand`, so your meaning stays |

@@ -1,0 +1,55 @@
+% !TEX program = xelatex
+% Fixes found converting old documents (notes): an empty theorem note, a
+% theorem after \item, a list opening a theorem, \crefname with an empty
+% name, zref (mdframed), \title{A\\ B} in the header, twocolumn title,
+% titleinfo in \akizumisetup, a long info value, ctex's \chinese, Greek
+% capitals in \mathbf, the ellipsis ⋯, eqwithin / codewithin / thmwithin=none,
+% \iosample titles.
+\documentclass[twocolumn, thmwithin=none, eqwithin=none, codewithin=none,
+  header=default, footer=page]{akizumi-note}
+\usepackage{zref-base}
+\crefname{equation}{}{}
+\title{First line\\ Second line}
+\author{A. Author}
+\akizumisetup{titleinfo=row, info={Affiliation={National Taiwan University, Department of
+  Mathematics and Department of Economics (double major), class of 2027}}}
+\ExplSyntaxOn
+\cs_new_protected:Npn \expect #1#2
+  {
+    \tl_set:Ne \l_tmpa_tl {#1}
+    \tl_if_eq:NnF \l_tmpa_tl {#2}
+      { \PackageError { test } { got~`\l_tmpa_tl'~instead~of~`#2' } { } }
+  }
+\ExplSyntaxOff
+\usepackage{refcount}
+\begin{document}
+\maketitle
+\section*{Only starred sections}
+\begin{equation}\label{eq:a} a = b \end{equation}
+\begin{theorem}[]\label{thm:a} Empty note. \end{theorem}
+\begin{codeblock}[numbered, label=lst:a]
+x != y
+\end{codeblock}
+\expect{\theequation}{1}\expect{\thetheorem}{1}
+\makeatletter
+\@ifundefined{r@eq:a}{}{\expect{\getrefnumber{eq:a}}{1}\expect{\getrefnumber{lst:a}}{1}}
+\makeatother
+By \cref{eq:a}.
+\begin{enumerate}
+\item
+\begin{theorem} After an item. \end{theorem}
+\item \begin{proof} A proof. \end{proof}
+\end{enumerate}
+\begin{remark*}[A long note that would run into the margin when the list starts on its line]
+\begin{itemize}
+\item First.
+\end{itemize}
+\end{remark*}
+\begin{enumerate}[label=\chinese*、]
+\item 甲 \item 乙
+\end{enumerate}
+$\mathbf{\Sigma} \mathrm{\Gamma} \mathsf{\Omega}$ 而且⋯⋯
+\iosample[input=input.txt, output=\$\ ./a.out]{3}{4}
+\clearpage
+Page two: the header shows the title on one line.
+\end{document}

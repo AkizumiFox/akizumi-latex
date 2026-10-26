@@ -52,12 +52,17 @@
 \RequirePackage{akizumi-problems}
 
 % ---------- solutions: thin left rule; hidden with solutions=false ----------
-\NewDocumentEnvironment{solution}{+b}
+% The body is not read as an argument, so it may hold verbatim and codeblock;
+% hidden, it is skipped line by line (akizumi-exercise's reader). The reader
+% must be the last token of \begin{solution}.
+\RequirePackage{verbatim}
+\newenvironment{solution}
   {\ifakizumi@solutions
-     \begin{tcolorbox}[akizumi/bar={0.8pt}{rule}]%
-       {\sffamily\color{mute}\bfseries\akizumi@str{solution}\akizumi@thmpunct}\enspace #1%
-     \end{tcolorbox}%
-   \fi}
+     \let\akizumi@sol@next\akizumi@solinline\let\endsolution\endakizumi@solinline
+   \else
+     \@bsphack\let\akizumi@sol@next\akizumi@sol@hidestart\let\endsolution\@esphack
+   \fi
+   \akizumi@sol@next}
   {}
 
 \endinput

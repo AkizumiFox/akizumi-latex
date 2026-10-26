@@ -10,6 +10,8 @@
 %              them it warns and stays with listings)
 %   verbatim = plain | styled      (default plain; styled puts verbatim on
 %              the code background)
+%   codewithin = chapter | section | none  (what numbered blocks count within;
+%              default chapter in books, section in notes, else none)
 %
 %   \begin{codeblock}[numbered, label=lst:fit, title=fit.py, lang=Python] ...
 %   \begin{codeblock}[kind=example, lines=3-9] ...  \listofcodes
@@ -17,7 +19,7 @@
 %   \inputcode[lang=C++, lines=10-24]{main.cpp}   \codedir{src/,code/}
 %   \inputcode[output]{run.txt}    program output: no numbers, no colour
 %   \begin{terminal}[title=bash] $ make ... \end{terminal}
-%   \iosample{1 2 \\ 3 4}{3 \\ 7}  input and output side by side
+%   \iosample{1 2 \\ 3 4}{3 \\ 7}  input and output side by side; [input=..., output=...] titles
 %   \code{x_1}  \code[cpp]{std::vector<int>}  also in \section{...} etc.
 %   \akizumiNewCodeKind[env=example, counter=code]{example}{Example}{範例}
 \NeedsTeXFormat{LaTeX2e}
@@ -35,13 +37,16 @@
     verbatim .choices:nn = { plain, styled }
       { \bool_set:Nn \l__akizumi_code_styledverb_bool { \int_compare_p:n { \l_keys_choice_int = 2 } } },
     verbatim .initial:n = plain,
+    codewithin .choices:nn = { chapter, section, none }
+      { \tl_gset_eq:NN \g__akizumi_code_within_tl \l_keys_choice_tl },
   }
+\tl_new:N \g__akizumi_code_within_tl
 \ProcessKeyOptions [ akizumi/code ]
 % The classes hand unknown options to article / book, which lists them as
 % unused; they are used here.
 \clist_clear:N \l_tmpa_clist
 \clist_map_inline:Nn \@unusedoptionlist
-  { \str_case:nnF {#1} { { code } { } { verbatim } { } } { \clist_put_right:Nn \l_tmpa_clist {#1} } }
+  { \str_case:nnF {#1} { { code } { } { verbatim } { } { codewithin } { } } { \clist_put_right:Nn \l_tmpa_clist {#1} } }
 \cs_gset_eq:NN \@unusedoptionlist \l_tmpa_clist
 
 % ---------- minted: only when asked for and when it can run ----------
@@ -230,6 +235,16 @@
     \newcounter { akizumicode#1 }
     \tl_if_empty:NTF \l__akizumi_code_share_tl
       {
+        % codewithin= first, if the class has that counter
+        \str_if_eq:VnT \l__akizumi_code_within_tl { auto }
+          {
+            \tl_if_empty:NF \g__akizumi_code_within_tl
+              {
+                \bool_lazy_or:nnT { \str_if_eq_p:Vn \g__akizumi_code_within_tl { none } }
+                  { \cs_if_exist_p:c { c@ \g__akizumi_code_within_tl } }
+                  { \tl_set_eq:NN \l__akizumi_code_within_tl \g__akizumi_code_within_tl }
+              }
+          }
         \str_if_eq:VnT \l__akizumi_code_within_tl { auto }
           {
             \cs_if_exist:NTF \c@chapter
@@ -666,20 +681,37 @@
       \__akizumi_code_io_text:n {#2}
     \end{tcolorbox}
   }
-\NewDocumentCommand \iosample { +m +m }
+% Box titles: \iosample[input=input.txt, output=\$ ./a.out]{...}{...}, or for
+% the whole document \akizumisetup{iosample/input=..., iosample/output=...}.
+\tl_new:N \l__akizumi_code_io_in_tl
+\tl_new:N \l__akizumi_code_io_out_tl
+\tl_set:Nn \l__akizumi_code_io_in_tl { \akizumi@str{codeinput} }
+\tl_set:Nn \l__akizumi_code_io_out_tl { \akizumi@str{codeoutput} }
+\keys_define:nn { akizumi/iosample }
+  {
+    input  .tl_set:N = \l__akizumi_code_io_in_tl,
+    output .tl_set:N = \l__akizumi_code_io_out_tl,
+  }
+\keys_define:nn { akizumi/meta }
+  {
+    iosample/input  .code:n = \tl_set:Nn \l__akizumi_code_io_in_tl {#1},
+    iosample/output .code:n = \tl_set:Nn \l__akizumi_code_io_out_tl {#1},
+  }
+\NewDocumentCommand \iosample { O{} +m +m }
   {
     \par \addvspace { 0.8em }
     \group_begin:
+    \keys_set:nn { akizumi/iosample } {#1}
     \centering \noindent
-    \tl_if_blank:nTF {#1}
-      { \tl_if_blank:nF {#2} { \__akizumi_code_io_box:nnn { \akizumi@str{codeoutput} } {#2} { \linewidth - 1.6em } } }
+    \tl_if_blank:nTF {#2}
+      { \tl_if_blank:nF {#3} { \__akizumi_code_io_box:nnn { \l__akizumi_code_io_out_tl } {#3} { \linewidth - 1.6em } } }
       {
-        \tl_if_blank:nTF {#2}
-          { \__akizumi_code_io_box:nnn { \akizumi@str{codeinput} } {#1} { \linewidth - 1.6em } }
+        \tl_if_blank:nTF {#3}
+          { \__akizumi_code_io_box:nnn { \l__akizumi_code_io_in_tl } {#2} { \linewidth - 1.6em } }
           {
-            \__akizumi_code_io_box:nnn { \akizumi@str{codeinput} } {#1} { 0.46\linewidth - 1.6em }
+            \__akizumi_code_io_box:nnn { \l__akizumi_code_io_in_tl } {#2} { 0.46\linewidth - 1.6em }
             \hspace { 1.2em }
-            \__akizumi_code_io_box:nnn { \akizumi@str{codeoutput} } {#2} { 0.46\linewidth - 1.6em }
+            \__akizumi_code_io_box:nnn { \l__akizumi_code_io_out_tl } {#3} { 0.46\linewidth - 1.6em }
           }
       }
     \par

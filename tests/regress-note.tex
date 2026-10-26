@@ -1,0 +1,37 @@
+% !TEX program = xelatex
+% Regressions from converting old documents (one line each says what broke):
+% mdframed / zref-base after the class (\@ifdefinable with a multi-token name),
+% \crefname with an empty name, \\ in \title (running header), ctex's \chinese,
+% \begin{theorem}[], a theorem right after \item, a theorem opening with a list,
+% \mathbf{\Sigma}, the ellipsis ⋯, \akizumisetup{titleinfo=...}, a long info= value.
+\documentclass{akizumi-note}
+\usepackage{mdframed}
+\crefname{equation}{}{}
+\title{First line\\ Second line}
+\author{A. Author}
+\akizumisetup{titleinfo=row, info={Affiliation={National Taiwan University, Department of
+  Mathematics and Department of Economics (double major), class of 2027}}}
+\begin{document}
+\maketitle
+\section{Lists and theorems}
+\begin{equation}\label{eq:a} x = 1 \end{equation}
+By \cref{eq:a}, and so on⋯⋯
+\begin{enumerate}[label=\chinese*、]
+\item 甲
+\item
+\begin{theorem}
+A theorem stated as an item.
+\end{theorem}
+\end{enumerate}
+\begin{theorem}[] Empty note. \end{theorem}
+\begin{lemma*}[] Empty note. \end{lemma*}
+\begin{theorem}[Riemann integrability implies Lebesgue integrability, with Lebesgue's continuity criterion]
+\begin{enumerate}
+\item First item.
+\item Second item.
+\end{enumerate}
+\end{theorem}
+$\mathbf{\Sigma}$, $\mathbf{\Gamma}$, $\mathrm{\Omega}$, $\mathsf{\Sigma}$, $\vb{\Sigma}$.
+\newpage
+Page two: the header shows the title on one line.
+\end{document}

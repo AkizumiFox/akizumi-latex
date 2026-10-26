@@ -5,6 +5,8 @@
 %                grouped: theorem-, definition- and remark-like kinds count apart;
 %                split: every kind its own counter)
 %   thmwithin  = chapter | section | none   (default: the class's choice)
+%   eqwithin   = chapter | section | none   (equations; default: section in
+%                notes, chapter in books, none elsewhere)
 %   asides     = numbered | unnumbered      (remark-like kinds: example, remark, remarks)
 %   aliases    = none | short               (thm lem prop cor defn conj exam rem prob)
 %   thmname    = {<kind>=<name>, ...}       (e.g. corollary=系理; also
@@ -61,7 +63,10 @@
     aliases    .choices:nn = { none, short }
       { \bool_set:Nn \l__akizumi_thm_aliases_bool { \int_compare_p:n { \l_keys_choice_int = 2 } } },
     thmname    .code:n = \keyval_parse:nnn { \use_none:n } { \__akizumi_thm_optname:nn } {#1},
+    eqwithin   .choices:nn = { chapter, section, none }
+      { \tl_gset_eq:NN \g__akizumi_eq_within_tl \l_keys_choice_tl },
   }
+\tl_new:N \g__akizumi_eq_within_tl          % empty: the class's choice
 \clist_const:Nn \c__akizumi_thm_namekeys_clist
   {
     theorem, lemma, proposition, corollary, claim, definition, assumption, example,
@@ -72,7 +77,7 @@
 \ProcessKeyOptions [ akizumi/theorems ]
 % The classes hand options they do not know to article / book / exam by key
 % name alone, which would leave "Unused global option(s): [thmcounter]".
-\clist_map_inline:nn { thmcounter, thmwithin, asides, aliases, thmname }
+\clist_map_inline:nn { thmcounter, thmwithin, asides, aliases, thmname, eqwithin }
   {
     \@expandtwoargs \@removeelement { \tl_to_str:n {#1} } \@unusedoptionlist \@unusedoptionlist
     \cs_gset_eq:NN \@unusedoptionlist \@unusedoptionlist
@@ -196,6 +201,22 @@
     \__akizumi_thm_apply_all:
   }
 
+% Equations: the classes call \akizumi@eqwithin{section} (notes); eqwithin= wins.
+\cs_new_protected:Npn \__akizumi_eq_within:n #1
+  {
+    \cs_if_exist:NT \c@chapter { \counterwithout { equation } { chapter } }
+    \cs_if_exist:NT \c@section { \counterwithout { equation } { section } }
+    \str_if_eq:nnF {#1} { none }
+      {
+        \cs_if_exist:cTF { c@#1 } { \counterwithin { equation } {#1} }
+          { \PackageWarningNoLine { akizumi-theorems } { eqwithin=#1\space needs~a~class~with~#1s;~ignored } }
+      }
+  }
+\cs_gset_protected:Npn \akizumi@eqwithin #1
+  { \tl_if_empty:NT \g__akizumi_eq_within_tl { \__akizumi_eq_within:n {#1} } }
+\AtBeginDocument
+  { \tl_if_empty:NF \g__akizumi_eq_within_tl { \exp_args:NV \__akizumi_eq_within:n \g__akizumi_eq_within_tl } }
+
 % ---------- [number=...] ----------
 % A manual number shows instead of the next one, \label and \cref pick it up,
 % and the counter is left where it was.
@@ -208,7 +229,8 @@
   }
 \NewDocumentCommand \akizumi@thmbegin { m o }
   {
-    \IfNoValueTF {#2}
+    % [] counts as no note (thmtools stops on an empty one)
+    \bool_lazy_or:nnTF { \tl_if_novalue_p:n {#2} } { \tl_if_blank_p:n {#2} }
       { \use:c { akizumi@thmorig@#1 } }
       {
         \regex_match:nnTF { \A \s* number \s* = } {#2}

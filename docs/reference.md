@@ -340,7 +340,7 @@ $ python main.py
 \iosample{}{[89.2, 74.8] \\}     % 一邊留空就只印另一邊
 ```
 
-`\iosample` 的兩個參數是一般文字，每行用 `\\` 分開；`\\` 後面直接接 `[` 也沒問題。
+`\iosample` 的兩個參數是一般文字，每行用 `\\` 分開；`\\` 後面直接接 `[` 也沒問題。框上的標題可以換：`\iosample[input=input.txt, output=\$\ ./a.out]{…}{…}`，整份文件則用 `\akizumisetup{iosample/input=…, iosample/output=…}`。
 
 #### 行內程式碼
 
@@ -634,7 +634,7 @@ $A\cup B=[-2,3]$。
 
 考卷用 [exam](https://ctan.org/pkg/exam) 的寫法：`\begin{questions} \question[10] ... \begin{parts} \part[5] ...`，`\gradetable` 產生評分表。
 
-解答開關：作業預設顯示解答，`\documentclass[solutions=false]{akizumi-hw}` 隱藏；考卷預設隱藏，`solutions=true` 顯示。用 `ax both` 就不用手動切換。
+解答開關：作業預設顯示解答，`\documentclass[solutions=false]{akizumi-hw}` 隱藏；考卷預設隱藏，`solutions=true` 顯示。用 `ax both` 就不用手動切換。作業的 `solution` 裡可以放 `verbatim`、`codeblock`。
 
 ### 簡報專用
 
@@ -731,10 +731,12 @@ $A\cup B=[-2,3]$。
 | `asides` | `numbered` `unnumbered` | `numbered` | `unnumbered`：example、remark、remarks 不編號 |
 | `aliases` | `none` `short` | `none` | `short`：另外提供 `thm` `lem` `prop` `cor` 等短名稱 |
 | `thmname` | `{種類=名稱, …}` | | 換掉某一種的名稱，例如 `thmname={corollary=系理}` |
-| `titleinfo` | `row` `line` `none` | `row` | 標題下方的資訊：`row` 一列附小標籤的欄位（課程、作者、學號、日期；作業是繳交期限；`\akizumisetup{info={授課教師=…}}` 加欄位，四欄換行）；`line` 一行灰字「作者 · 學號 · 日期」；`none` 不印。標題上方的 `kicker=`（例如 `Lecture 9`）以加字距的大寫藍字印出。標題頁沒有頁首。舊的 `byline=true` 等同 `line` |
+| `titleinfo` | `row` `line` `none` | `row` | 標題下方的資訊：`row` 一列附小標籤的欄位（課程、作者、學號、日期；作業是繳交期限；`\akizumisetup{info={授課教師=…}}` 加欄位，四欄換行）；`line` 一行灰字「作者 · 學號 · 日期」；`none` 不印。標題上方的 `kicker=`（例如 `Lecture 9`）以加字距的大寫藍字印出。標題頁沒有頁首。舊的 `byline=true` 等同 `line`。也可以寫在 `\akizumisetup{titleinfo=…}`。欄位太長時會在欄內換行 |
 | `bib` | 檔名 | | 載入參考文獻，例如 `bib=refs.bib` |
 | `solutions` | `true` `false`；書、講義另有 `inline` `chapter` `end` `hide` | 作業 `true`，考卷 `false`，書和講義 `inline` | 是否印出解答、印在哪裡（見〈習題與解答〉） |
 | `exercisewithin` | `chapter` `section` `none` | 書 `chapter`，講義 `section`，其他 `none` | 習題、例題的編號單位 |
+| `eqwithin` | `chapter` `section` `none` | 講義 `section`，書 `chapter`，其他 `none` | 方程式的編號單位。只用 `\section*` 的講義寫 `thmwithin=none, eqwithin=none, codewithin=none`，編號就是 (1)、定理 1、Listing 1，不會變成 0.1 |
+| `codewithin` | `chapter` `section` `none` | 書 `chapter`，講義 `section`，其他 `none` | 有編號的程式碼區塊的編號單位 |
 | `10pt` `11pt` `12pt` `13pt` `14pt`、`fontsize` | 例如 `fontsize=13pt` | `11pt` | 字級。`13pt`、`14pt` 或任意 `fontsize=` 由 scrextend 處理 |
 | `cjk`、`cjk-bold` | 字型名稱 | 蘋方 | 換掉中文無襯線字型 |
 | `par` | `skip` `indent` | `skip` | 段落。`indent` 每段（含標題後第一段）首行縮排 2 字，段落間不留空白，適合中文報告 |
@@ -867,6 +869,7 @@ $A\cup B=[-2,3]$。
 - `\usepackage{algpseudocode}`：略過。akizumi 已經載入 algpseudocodex，`algorithmic` 的寫法完全一樣，`\algrenewcommand\algorithmiccomment[1]{…}` 也照常生效。
 - `\usepackage{algorithm2e}`：照常載入，但會自動加上 `algo2e`，避免跟 akizumi 的 `algorithm` 衝突。`\begin{algorithm}` 會接到 algorithm2e 的環境，所以 `\KwIn`、`\eIf`、`;` 結尾這些寫法都不用改，`\cref` 也照常可用。你自己加了 `algo2e` 的話就維持原樣：`algorithm2e` 環境給 algorithm2e，`algorithm` 留給 algorithmic。
 - `\begin{li}[label=(\alph*)]`：舊 preamble 常見的清單，沒人定義時就當成 `enumerate`，選項跟 enumitem 一樣。
+- ctex 的 `\chinese`：`\begin{enumerate}[label=\chinese*、]` 照樣編成 一、二、三。
 
 想看到原本的錯誤訊息，可以加 `legacy=false` 把這些全部關掉。
 
@@ -879,8 +882,10 @@ $A\cup B=[-2,3]$。
 | `\documentclass[12pt,letterpaper,…]{memoir}`（或 article、book） | `\documentclass[12pt, paper=letter]{akizumi-hw}`。種類依內容判斷：有 Problem 標題或是作業就是 hw，有兩章以上是 book，其他是 note；可以用 `--kind` 指定。中文內容會加 `lang=zh` |
 | `\def\coursename{…}`、`\authorID`、`\authorname`、`\documentname` | `\akizumisetup{course=…, id=…}`、`\author{…}`、`\title{…}`。內文還用到的巨集會保留成 `\newcommand` |
 | `\coursecode`、`\headingright`、`\chaptertitleformat` 這類版面巨集 | 註解掉，並列出來 |
-| `\setcounter{chapter}{N}`，後面接 `\chapter{Homework …}` | 作業的 `number=N+1`；那一行 `\chapter` 換成 `\maketitle`。沒有接 `\chapter` 時是 `number=N` |
-| `\section*{Problem 3: 標題}`、`Question 3`、`第三題` | `\begin{problem}[標題] … \end{problem}`。題號跳號時會補上 `\setcounter{problem}{…}` |
+| `\setcounter{chapter}{N}`（preamble 或內文），後面接 `\chapter{Homework …}` | 作業的 `number=N+1`（`\chapter*` 不加一）；那一行 `\chapter` 換成 `\maketitle`。沒有接 `\chapter` 時是 `number=N`。講義則把 `\chapter{X}` 變成 `\title{X}`，有 `\setcounter` 時再加 `kicker={Chapter N}` |
+| `\section*{Problem 3: 標題}`、`Question 3`、`第三題` | `\begin{problem}[標題] … \end{problem}`。題號跳號時會補上 `\setcounter{problem}{…}`；`Problem 1.1`、`Problem 2.a` 變成 `[label=1.1]` |
+| 只有 `\section*`、沒有編號 `\section` 的講義 | 加上 `thmwithin=none, eqwithin=none, codewithin=none` |
+| `13pt`、`14pt` 等字級 | 保留；memoir 的其他字級變成 `fontsize=` |
 | `\begin{CJK*}{UTF8}{bsmi}`、`\end{CJK*}` | 刪掉 |
 | `\usepackage{CJKutf8}`、`math-notes`、`algpseudocode`，以及 akizumi 已經載入的套件 | 註解掉；原本帶的選項（例如 geometry 的 `margin=1in`）會列出來讓你確認 |
 | 主檔裡 `\newcommand{\R}{…}` 這種跟 akizumi 撞名的定義 | 改成 `\renewcommand`，保留你原本的意思 |

@@ -202,9 +202,9 @@
   \def\akizumi@zhsecsep{、}
   % article appendices number sections A, B: no 、 there
   \@ifundefined{c@chapter}{\g@addto@macro\appendix{\def\akizumi@zhsecsep{\hspace{0.8em}}}}{}
-  \titleformat{\section}{\sffamily\Large\bfseries}{\textcolor{mute}{\thesection\akizumi@zhsecsep}}{0pt}{}
-  \titleformat{\subsection}{\sffamily\large\bfseries}{\textcolor{mute}{\thesubsection}}{0pt}{}
-  \titleformat{\subsubsection}{\sffamily\normalsize\bfseries}{\textcolor{mute}{\thesubsubsection.}}{0.5em}{}
+  \titleformat{\section}{\sffamily\Large\bfseries\akizumi@headingshape}{\textcolor{mute}{\thesection\akizumi@zhsecsep}}{0pt}{}
+  \titleformat{\subsection}{\sffamily\large\bfseries\akizumi@headingshape}{\textcolor{mute}{\thesubsection}}{0pt}{}
+  \titleformat{\subsubsection}{\sffamily\normalsize\bfseries\akizumi@headingshape}{\textcolor{mute}{\thesubsubsection.}}{0.5em}{}
   % contents: room for 二十三 and （十二）
   \patchcmd{\l@section}{\setlength\@tempdima{1.5em}}{\setlength\@tempdima{2.8em}}{}{}
   \@ifundefined{c@chapter}

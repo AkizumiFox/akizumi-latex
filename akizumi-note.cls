@@ -33,9 +33,10 @@
 
 \renewcommand{\akizumi@headleft}{\ifx\akizumi@course\@empty\@title\else\akizumi@course\fi}
 
-% Theorems and equations numbered within sections in notes.
+% Theorems and equations numbered within sections in notes (thmwithin=,
+% eqwithin=, codewithin= change it, e.g. =none for a note with only \section*).
 \akizumi@thmwithin{section}
-\counterwithin{equation}{section}
+\akizumi@eqwithin{section}
 
 % Running header: course (or title) left, current section right.
 \renewcommand{\sectionmark}[1]{\markboth{\ifnum\c@secnumdepth>\z@\akizumi@headnum{\thesection}\fi#1}{}}

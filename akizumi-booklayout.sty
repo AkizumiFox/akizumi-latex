@@ -100,9 +100,9 @@
 \RenewDocumentCommand \part { s o m }
   { \__akizumi_heading:Nnnn \akizumi@origpart {#1} {#2} {#3} }
 \ExplSyntaxOff
-\titleformat{\chapter}[display]{\sffamily\bfseries}
+\titleformat{\chapter}[display]{\sffamily\bfseries\akizumi@headingshape}
   {\color{mute}\large\akizumi@chapterlabel}{0.5em}{\Huge}[\akizumi@printsub]
-\titleformat{name=\chapter,numberless}[display]{\sffamily\bfseries}
+\titleformat{name=\chapter,numberless}[display]{\sffamily\bfseries\akizumi@headingshape}
   {}{0pt}{\Huge}[\akizumi@printsub]
 
 \ExplSyntaxOn

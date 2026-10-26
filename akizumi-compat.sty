@@ -8,7 +8,8 @@
 %     {algpseudocode} are ignored (algpseudocodex is loaded, so algorithmic
 %     and \algrenewcommand\algorithmiccomment keep working); algorithm2e
 %     loads with algo2e, and \begin{algorithm} becomes its algorithm2e;
-%     a `li` list (enumerate with enumitem options) when nothing defines one.
+%     a `li` list (enumerate with enumitem options) and ctex's \chinese
+%     (label=\chinese*、) when nothing defines them.
 %     One warning per kind of thing ignored.
 %   sharedpreamble = true | false  (default true)
 %     The nearest .akizumi/preamble.tex in the document's folder or up to
@@ -88,7 +89,12 @@
       \else\crefname{algocf}{Algorithm}{Algorithms}\fi}
     % li: the list old course preambles defined (\begin{li}[label=(\alph*)])
     \AtBeginDocument{\@ifundefined{li}{%
-      \newenvironment{li}[1][]{\begin{enumerate}[#1]}{\end{enumerate}}}{}}}
+      \newenvironment{li}[1][]{\begin{enumerate}[#1]}{\end{enumerate}}}{}%
+    % ctex's \chinese: enumitem labels such as label=\chinese*、
+    \@ifundefined{chinese}{%
+      \def\chinese#1{\expandafter\@chinese\csname c@#1\endcsname}%
+      \providecommand*{\@chinese}[1]{\akizumizhnum{\number#1}}%
+      \AddEnumerateCounter{\chinese}{\@chinese}{九十九}}{}}}
 \fi
 
 % ---------- shared preamble: the nearest .akizumi/preamble.tex upwards ----------

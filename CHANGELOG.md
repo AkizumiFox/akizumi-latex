@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Fixes from converting a whole folder of old documents:
+  - Chapter, section and subsection titles are ragged right and not hyphenated: a long title wraps instead of running into the margin.
+  - `\mathbf{\Sigma}`, `\mathrm{\Gamma}` and the other text alphabets print Greek capitals (they printed nothing).
+  - A theorem, proof or other barred environment right after `\item` builds (it stopped with "perhaps a missing \item"); a theorem whose body opens with a list starts the list on the next line, so a long note wraps.
+  - `\begin{theorem}[]` is a theorem without a note (it stopped with "Undefined control sequence").
+  - Homework `solution` may contain `verbatim` and `codeblock`, shown or hidden.
+  - `\usepackage{mdframed}` (anything that loads zref) builds; `\crefname{equation}{}{}` builds.
+  - `\title{A\\ B}` works in the running header; with `twocolumn` the title spans both columns; long `info=` values wrap in the details row; `titleinfo=` works in `\akizumisetup` and, like `header=` and `footer=`, is no longer reported as an unused option.
+  - Code font without ligatures (`!=` stays `!=`); the ellipsis ⋯ is set in the CJK font instead of vanishing.
+  - New options `eqwithin=chapter|section|none` and `codewithin=chapter|section|none`; `\iosample[input=…, output=…]` and `\akizumisetup{iosample/input=…, iosample/output=…}` set its box titles; ctex's `\chinese` works in enumitem labels (`label=\chinese*、`).
+  - `ax migrate`: keeps `13pt` / `14pt`; handles `\setcounter{chapter}{N}` in the preamble and `\chapter*` (no +1); turns a note's single `\chapter{X}` into `\title{X}`; `Problem 1.1` becomes `[label=1.1]`; a note with only `\section*` gets `thmwithin=none, eqwithin=none, codewithin=none`; several statements on one preamble line are handled one by one; slides keep `\usetikzlibrary` after `\usetheme{Akizumi}`; the aaron → akizumi rename no longer touches URLs and words; `\maketitle` is added unless the opening block really is a title.
 - `thmnames=english` (the default) now covers every label, not only theorem names: Chinese, Japanese and Korean documents say Figure 1, Table 1, Equation (1.1), Section 2, Chapter 1, Appendix A, Algorithm 1, Listing 1.1, Key idea / Tip / Warning, List of Theorems. `thmnames=native` localises all of them as before. Dates, contents, bibliography, problem numbers and exam tables still follow `lang`.
 - Fixes found by building a sample of every document kind in both languages:
   - `ax both` could leave a stale `main.pdf` (with or without solutions): the build stamp now includes the solutions switch, and the problems build clears latexmk's state for the next `ax build` / Cursor build.

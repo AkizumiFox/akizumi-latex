@@ -78,6 +78,12 @@
       { \tl_set_eq:NN \akizumi@titleinfo \l_keys_choice_tl },
   }
 \ProcessKeyOptions [ akizumi/core ]
+% The classes hand unknown options on to article, which reports them as unused.
+\clist_map_inline:nn { titleinfo, byline }
+  {
+    \clist_remove_all:Nn \@unusedoptionlist {#1}
+    \exp_args:NNe \clist_remove_all:Nn \@unusedoptionlist { \tl_to_str:n {#1} }
+  }
 % labels in the main language (圖 1, 第 2 節, 定理 3): CJK and thmnames=native
 \newif\ifakizumi@cjklabels
 \ifakizumi@cjk\ifakizumi@nativethm\akizumi@cjklabelstrue\fi\fi
@@ -97,7 +103,8 @@
   \let\akizumi@crefname@orig\crefname
   \renewcommand{\crefname}[3]{\akizumi@crefname@orig{#1}{#2}{#3}%
     \akizumi@ifcs{#2}{\Crefname{#1}{#2}{#3}}{}}}
-\long\def\akizumi@ifcs#1{\akizumi@ifcs@#1\@nil}
+% an empty name (\crefname{equation}{}{}: \cref gives just (1.1)) counts as one
+\long\def\akizumi@ifcs#1{\akizumi@ifcs@#1\relax\@nil}
 \long\def\akizumi@ifcs@#1#2\@nil{\ifcat\relax\noexpand#1\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi}
 % capitals in math are matrices: bold upright (matrices=normal turns it off)
 \providecommand{\akizumi@matrices}{latin}
@@ -133,8 +140,10 @@
 \else
   \renewcommand{\familydefault}{\sfdefault}
 \fi
+% Code: JetBrains Mono without its ligatures (!= as ≠, -> as an arrow), so
+% readers see the characters they would type.
 \IfFontExistsTF{JetBrains Mono}
-  {\setmonofont{JetBrains Mono}[Scale=MatchLowercase]}
+  {\setmonofont{JetBrains Mono}[Scale=MatchLowercase, Contextuals=NoAlternate]}
   {}
 
 \RequirePackage{xeCJK}
@@ -259,6 +268,8 @@
 % In English documents the middle dot is Latin punctuation ("Course · Lecture
 % 9"): Latin font, spaces kept. CJK documents keep it CJK, for 約翰·史密斯.
 \ifakizumi@cjk\else\xeCJKDeclareCharClass{Default}{"00B7}\fi
+% The midline ellipsis ⋯ (U+22EF, Taiwan's ⋯⋯) is in no Latin font: CJK punctuation.
+\xeCJKDeclareCharClass{FullRight}{"22EF}
 % Korean inside a zh / ja / en document keeps its word spaces: Hangul gets an
 % intercharacter class of its own, set like Latin text (spaces kept, no glue
 % to digits) in the Korean font. xeCJK joins the class to its own ones at the
@@ -323,6 +334,8 @@
     due    .tl_set:N = \akizumi@due,
     id     .tl_set:N = \akizumi@id,
     kicker .tl_set:N = \akizumi@kicker,
+    titleinfo .choices:nn = { row, line, none }
+      { \tl_set_eq:NN \akizumi@titleinfo \l_keys_choice_tl },
   }
 \NewDocumentCommand \akizumisetup { m } { \keys_set:nn { akizumi/meta } {#1} }
 \ExplSyntaxOff
@@ -636,9 +649,11 @@
 
 % ---------- sections: bold ink title, muted number ----------
 \RequirePackage{titlesec}
-\titleformat{\section}{\sffamily\Large\bfseries}{\textcolor{mute}{\thesection}}{0.8em}{}
-\titleformat{\subsection}{\sffamily\large\bfseries}{\textcolor{mute}{\thesubsection}}{0.7em}{}
-\titleformat{\subsubsection}{\sffamily\normalsize\bfseries}{\textcolor{mute}{\thesubsubsection}}{0.6em}{}
+% Ragged right, not hyphenated: a long title wraps instead of running into the margin.
+\newcommand{\akizumi@headingshape}{\raggedright\hyphenpenalty\@M\exhyphenpenalty\@M}
+\titleformat{\section}{\sffamily\Large\bfseries\akizumi@headingshape}{\textcolor{mute}{\thesection}}{0.8em}{}
+\titleformat{\subsection}{\sffamily\large\bfseries\akizumi@headingshape}{\textcolor{mute}{\thesubsection}}{0.7em}{}
+\titleformat{\subsubsection}{\sffamily\normalsize\bfseries\akizumi@headingshape}{\textcolor{mute}{\thesubsubsection}}{0.6em}{}
 \titlespacing*{\section}{0pt}{1.6em}{0.6em}
 \titlespacing*{\subsection}{0pt}{1.2em}{0.4em}
 \titlespacing*{\subsubsection}{0pt}{1em}{0.3em}
@@ -711,12 +726,16 @@
 \renewcommand{\qedsymbol}{\textcolor{mute}{$\square$}}
 \renewenvironment{proof}[1][\proofname]{%
   \par\pushQED{\qed}\normalfont\topsep\z@\relax
-  \trivlist\item[\hskip\labelsep{\sffamily\bfseries\color{mute}#1\akizumi@thmpunct}]\ignorespaces}
+  \trivlist\item[\hskip\labelsep{\sffamily\bfseries\color{mute}#1\akizumi@thmpunct}]\akizumi@thmheadtrue\ignorespaces}
   {\popQED\endtrivlist\@endpefalse}
 
+% Right after \item the item's label goes on a line of its own first, as with
+% amsthm (else: "Something's wrong--perhaps a missing \item").
+\def\akizumi@afteritem{\if@inlabel\leavevmode\fi}
 \def\akizumi@onebar#1#2#3{%
   \tcolorboxenvironment{#1}{akizumi/bar={#2}{#3}}%
-  \AddToHook{env/#1/before}{\Needspace{4\baselineskip}}%
+  \AddToHook{env/#1/before}{\akizumi@afteritem\Needspace{4\baselineskip}}%
+  \DeclareHookRule{env/#1/before}{akizumi-core}{before}{tcolorbox}% outside the box
   \akizumi@directbar{#1}{#2}{#3}}
 % The bar hangs on \begin{env}. thmtools' restatable (and its \name* copies)
 % call \env ... \endenv directly, so at \begin{document}, when every kind is
@@ -739,7 +758,7 @@
     \csname akizumi@orig@#1\endcsname}%
   \@namedef{end#1}{\csname akizumi@origend@#1\endcsname
     \ifakizumi@ownbar\end{tcolorbox}\fi}}
-\def\akizumi@openbar#1#2{\Needspace{4\baselineskip}\begin{tcolorbox}[akizumi/bar={#1}{#2}]}
+\def\akizumi@openbar#1#2{\akizumi@afteritem\Needspace{4\baselineskip}\begin{tcolorbox}[akizumi/bar={#1}{#2}]}
 \AtBeginDocument{\@for\akizumi@k:=\akizumi@barkinds\do{%
   \@ifundefined{\akizumi@k}{}{\@ifundefined{akizumi@bar@\akizumi@k}{}%
     {\expandafter\akizumi@wrapbar\expandafter{\akizumi@k}}}}}
@@ -770,6 +789,22 @@
 % \thmt@gobble@label inside the copy, which is how we recognise it.
 \newcommand{\akizumi@noloe}[3]{}
 \addtotheorempreheadhook{\ifx\label\thmt@gobble@label\let\addcontentsline\akizumi@noloe\fi}
+% A body that opens with a list starts it on the line after the heading
+% (not on the heading's line, where a long note ran into the margin). The
+% first list in the body clears the flag, so \item\begin{enumerate} further
+% in keeps both labels on one line.
+\newif\ifakizumi@thmhead
+\addtotheorempostheadhook{\akizumi@thmheadtrue}
+\def\akizumi@listafterhead{\if@inlabel\ifakizumi@thmhead\leavevmode\fi\fi\akizumi@thmheadfalse}
+\AddToHook{env/itemize/before}{\akizumi@listafterhead}
+\AddToHook{env/enumerate/before}{\akizumi@listafterhead}
+\AddToHook{env/description/before}{\akizumi@listafterhead}
+% \begin{theorem}[] is a theorem without a note (thmtools leaves the short
+% note undefined and stops in the list of theorems)
+\ExplSyntaxOn
+\addtotheorempreheadhook
+  { \tl_if_blank:VT \thmt@optarg { \cs_set_eq:NN \thmt@optarg \@empty \cs_set_eq:NN \thmt@shortoptarg \@empty } }
+\ExplSyntaxOff
 
 % \akizumi@thmwithin{section}: number theorems per section/chapter. The kinds
 % sharing the counter copied the old format when defined, so reset theirs too
@@ -843,7 +878,6 @@
     { \small \color{ink} #2 }
   }
 \int_new:N \l__akizumi_title_cols_int
-\tl_new:N \l__akizumi_title_row_tl
 \cs_new_protected:Npn \akizumi@titlerow
   {
     \seq_clear:N \l__akizumi_title_fields_seq
@@ -861,25 +895,62 @@
         \normalsize  % the same on a book cover, which is set \Large
         % rows of at most four cells, each centred on the page
         \int_zero:N \l__akizumi_title_cols_int
-        \tl_clear:N \l__akizumi_title_row_tl
         \seq_map_inline:Nn \l__akizumi_title_fields_seq
           {
             \int_compare:nNnT { \l__akizumi_title_cols_int } = { 4 }
               { \__akizumi_title_flush: \par \vspace{0.6em} }
-            \int_compare:nNnT { \l__akizumi_title_cols_int } > { 0 }
-              { \tl_put_right:Nn \l__akizumi_title_row_tl { \hspace{2.4em} } }
             \int_incr:N \l__akizumi_title_cols_int
-            \tl_put_right:Nn \l__akizumi_title_row_tl
+            \tl_set:cn { l__akizumi_title_cell_ \int_use:N \l__akizumi_title_cols_int _tl } {##1}
+            \hbox_set:cn { l__akizumi_title_cell_ \int_use:N \l__akizumi_title_cols_int _box }
               { \begin{tabular}[t]{@{}c@{}} \__akizumi_title_cell:nn ##1 \end{tabular} }
           }
         \__akizumi_title_flush: \par
       }
   }
+\int_step_inline:nn { 4 }
+  { \box_new:c { l__akizumi_title_cell_#1_box } \tl_new:c { l__akizumi_title_cell_#1_tl } }
+\dim_new:N \l__akizumi_title_cap_dim
+\dim_new:N \l__akizumi_title_fixed_dim
+\int_new:N \l__akizumi_title_wide_int
+\cs_new:Npn \__akizumi_title_wd:n #1 { \box_wd:c { l__akizumi_title_cell_#1_box } }
+% Set the row and start a new one. Cells too wide for the line share what
+% the others leave and wrap: no cell is wider than \l__akizumi_title_cap_dim.
 \cs_new_protected:Npn \__akizumi_title_flush:
   {
-    % set the row, start a new one
-    \mbox { \l__akizumi_title_row_tl }
-    \tl_clear:N \l__akizumi_title_row_tl
+    \dim_set:Nn \l__akizumi_title_cap_dim
+      { ( \linewidth - 2.4em * ( \l__akizumi_title_cols_int - 1 ) ) / \l__akizumi_title_cols_int }
+    \prg_replicate:nn { \l__akizumi_title_cols_int }
+      {
+        \dim_zero:N \l__akizumi_title_fixed_dim
+        \int_zero:N \l__akizumi_title_wide_int
+        \int_step_inline:nn { \l__akizumi_title_cols_int }
+          {
+            \dim_compare:nNnTF { \__akizumi_title_wd:n {##1} } > { \l__akizumi_title_cap_dim }
+              { \int_incr:N \l__akizumi_title_wide_int }
+              { \dim_add:Nn \l__akizumi_title_fixed_dim { \__akizumi_title_wd:n {##1} } }
+          }
+        \int_compare:nNnT { \l__akizumi_title_wide_int } > { 0 }
+          {
+            \dim_set:Nn \l__akizumi_title_cap_dim
+              {
+                ( \linewidth - 2.4em * ( \l__akizumi_title_cols_int - 1 ) - \l__akizumi_title_fixed_dim )
+                / \l__akizumi_title_wide_int
+              }
+          }
+      }
+    \mbox
+      {
+        \int_step_inline:nn { \l__akizumi_title_cols_int }
+          {
+            \int_compare:nNnT {##1} > { 1 } { \hspace{2.4em} }
+            \dim_compare:nNnTF { \__akizumi_title_wd:n {##1} } > { \l__akizumi_title_cap_dim + 0.1pt }
+              {
+                \parbox[t]{ \l__akizumi_title_cap_dim }
+                  { \centering \exp_last_unbraced:Nv \__akizumi_title_cell:nn { l__akizumi_title_cell_##1_tl } }
+              }
+              { \box_use:c { l__akizumi_title_cell_##1_box } }
+          }
+      }
     \int_zero:N \l__akizumi_title_cols_int
   }
 \cs_generate_variant:Nn \__akizumi_title_field:nn { Vn }
@@ -904,7 +975,13 @@
   \akizumi@titleinfopart
   \vspace{2em}%
   \endgroup}
-\renewcommand{\maketitle}{\akizumi@titleblock\akizumi@titlepagestyle}
+% With twocolumn the title spans both columns, as in article.
+\newif\ifakizumi@spantitle
+\renewcommand{\maketitle}{%
+  \akizumi@spantitlefalse
+  \if@twocolumn\ifnum\col@number=\@ne\else\akizumi@spantitletrue\fi\fi
+  \ifakizumi@spantitle\twocolumn[\akizumi@titleblock]\else\akizumi@titleblock\fi
+  \akizumi@titlepagestyle}
 % The title page has no header by default (firstpage=empty); the footer stays.
 \newcommand{\akizumi@titlepagestyle}{\thispagestyle{akizumi-title}}
 

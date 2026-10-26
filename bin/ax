@@ -2411,7 +2411,10 @@ def cmd_upgrade(a):
 
 AARON_SWAPS = [(re.compile(r"(\\usetheme(?:\[[^\]]*\])?)\{Aaron\}"), r"\1{Akizumi}"),
                (re.compile(r"beamerthemeAaron"), "beamerthemeAkizumi"),
-               (re.compile(r"aaron(?=[-/@a-z])"), "akizumi")]
+               # package files (aaron-hw), macros (\\aaronsetup, \\aaron@x), styles (aaron/box);
+               # not a word or URL that merely contains it (aaronlin1229.github.io)
+               (re.compile(r"(?<=\\)aaron(?=[A-Za-z@])"), "akizumi"),
+               (re.compile(r"(?<![\w./:@-])aaron(?=[-/@][A-Za-z])"), "akizumi")]
 
 
 def rename_aaron(root):
@@ -3553,7 +3556,8 @@ DROP_PACKAGES = {"CJK", "CJKutf8", "CJKspace", "CJKpunct", "algpseudocode", "mat
 ZH_DIGITS = {c: i for i, c in enumerate("零一二三四五六七八九")}
 PROBLEM_HEAD = re.compile(
     r"^(?P<indent>\s*)\\(?P<level>sub)?section\*?\s*\{\s*(?:(?:Problem|Question|Exercise|Q|問題|題目)\s*"
-    r"(?P<n>\d+)|第\s*(?P<zh>\d+|[一二三四五六七八九十]+)\s*題)\s*[.:：、)）-]?\s*(?P<title>.*?)\s*\}\s*$")
+    r"(?P<n>\d+[a-z]?(?:\.[0-9A-Za-z]+)*(?![0-9A-Za-z]))|第\s*(?P<zh>\d+|[一二三四五六七八九十]+)\s*題)"
+    r"\s*[.:：、)）-]?\s*(?P<title>.*?)\s*\}\s*$")
 # Headings that end a problem, by level; the others always do.
 HEADING = re.compile(r"^\s*\\(?:(?P<level>part|chapter|section|subsection)\b|appendix\b|printbibliography\b"
                      r"|bibliography\b|end\{document\})")
@@ -3609,6 +3613,35 @@ def _own_lines(lines):
     return out
 
 
+STATEMENT_START = re.compile(
+    r"\\(?:usepackage|RequirePackage|def|gdef|edef|xdef|newcommand|renewcommand|providecommand|"
+    r"setlength|setcounter|title|author|date|DeclareMathOperator|newtheorem|usetikzlibrary)(?![A-Za-z@])")
+
+
+def _split_statements(line):
+    """A preamble line holding several statements (\\usepackage{a}\\setlength{...}),
+    as one line per statement, so each is migrated (or kept) on its own."""
+    code = _strip_comment(line)
+    cuts, depth, i = [], 0, 0
+    while i < len(code):
+        c = code[i]
+        if c == "\\":
+            m = STATEMENT_START.match(code, i)
+            if m and depth == 0 and code[:i].strip() and not re.search(
+                    r"\\(?:expandafter|global|long|protected|outer|let\\[A-Za-z@]+)\s*$", code[:i]):
+                cuts.append(i)
+            i += 2
+            continue
+        depth += c == "{"
+        depth -= c == "}"
+        i += 1
+    if not cuts:
+        return [line]
+    parts = [code[a:b].rstrip() for a, b in zip([0] + cuts, cuts + [len(code)])]
+    parts[-1] += line[len(code):]  # the comment stays at the end
+    return parts
+
+
 def migrate_text(text, kind=None):
     """Rewrite one document. Returns (new text, kind, changes, notes): what
     was changed, and what needs a look."""
@@ -3618,7 +3651,7 @@ def migrate_text(text, kind=None):
     if begin is None:
         die(T("找不到 \\begin{document}：ax migrate 只處理主檔", "No \\begin{document}: ax migrate works on main files"),
             T("被 \\input 的檔案不用轉，主檔轉好後照樣讀得到", "Files read with \\input need no migration"))
-    pre, body = lines[:begin], lines[begin:]
+    pre, body = [p for l in lines[:begin] for p in _split_statements(l)], lines[begin:]
     # v0.6 renamed aaron to akizumi (\usetheme{Aaron}, \aaronsetup, ...)
     renamed = False
     for part in (pre, body):
@@ -3702,12 +3735,23 @@ def migrate_text(text, kind=None):
             opts.append(f"lang={lang}")
         dropped = []
         for o in old_opts:
-            if o in ("10pt", "11pt", "12pt"):
+            if o in ("10pt", "11pt", "12pt", "13pt", "14pt"):
                 opts.append(o)
             elif o == "letterpaper":
                 opts.append("paper=letter")
-            elif o != "a4paper":
+            elif re.fullmatch(r"(?:9|1[5-9]|[2-9]\d)pt", o):  # memoir's extrafontsizes sizes
+                opts.append(f"fontsize={o}")
+            elif o not in ("a4paper", "extrafontsizes", "oneside", "openany"):
                 dropped.append(o)
+        # a note with only \section*: (1), Theorem 1, Listing 1, not 0.1
+        starred = re.search(r"^\s*\\section\*", body_text, re.M)
+        numbered = re.search(r"^\s*\\section\s*(?:\[[^\]]*\])?\s*\{", body_text, re.M)
+        if kind == "note" and starred and not numbered:
+            opts += ["thmwithin=none", "eqwithin=none", "codewithin=none"]
+            notes.append(T("只有 \\section*：加上 thmwithin=none, eqwithin=none, codewithin=none，"
+                           "定理、方程式、程式碼編成 1、2、3，不是 0.1",
+                           "only \\section*: added thmwithin=none, eqwithin=none, codewithin=none, so theorems, "
+                           "equations and code count 1, 2, 3 instead of 0.1"))
         pre[cls_line] = f"\\documentclass{'[' + ', '.join(opts) + ']' if opts else ''}{{{KINDS[kind]}}}"
         changes.append(T(f"{old_cls} → {KINDS[kind]}" + (f"（{', '.join(opts)}）" if opts else ""),
                          f"{old_cls} -> {KINDS[kind]}" + (f" ({', '.join(opts)})" if opts else "")))
@@ -3740,6 +3784,19 @@ def migrate_text(text, kind=None):
         new = f"{m.group(1)}\\usepackage{m.group(2) or ''}{{{','.join(keep)}}}{m.group(4)}" if keep else None
         pre[i] = (new + "\n" if new else "") + f"% ax migrate: {l.strip()}"
         dropped_pkgs += gone
+    if kind == "slides" and dropped_pkgs:
+        # the theme loads what was dropped (TikZ): \usetikzlibrary and the
+        # like must come after it
+        at = next((i for i, l in enumerate(pre) if re.match(r"\s*\\usetheme\s*(?:\[[^\]]*\])?\s*\{Akizumi\}", l)), None)
+        needs = next((i for i, l in enumerate(pre) if not l.lstrip().startswith("%") and re.match(
+            r"\s*\\(?:usetikzlibrary|tikzset|pgfplotsset|usepgfplotslibrary|pgfdeclare)", l)), None)
+        if at is not None and needs is not None and needs < at:
+            theme_line, rest = pre[at].split("\n", 1) if "\n" in pre[at] else (pre[at], None)
+            if rest is None:
+                del pre[at]
+            else:
+                pre[at] = rest
+            pre.insert(needs, theme_line)
     if dropped_pkgs:
         changes.append(T(f"不再載入 {', '.join(dropped_pkgs)}（akizumi 已經有，或用不到）",
                          f"no longer loading {', '.join(dropped_pkgs)} (akizumi has them, or they are not needed)"))
@@ -3833,38 +3890,65 @@ def migrate_text(text, kind=None):
         changes.append(T("課程巨集改成 " + "、".join(labels), "course macros moved to " + ", ".join(labels)))
     pre[cls_line + 1:cls_line + 1] = setup + keep_defs
 
-    # \setcounter{chapter}{N} and the memoir \chapter title
+    # \setcounter{chapter}{N} (in the preamble or the body) and the memoir
+    # \chapter title: homework gets number=, a note the \chapter as its \title
     has_title = any(re.match(r"\s*\\maketitle", l) for l in body)
-    for i, l in enumerate(body):
-        m = re.match(r"(\s*)\\setcounter\{chapter\}\{(\d+)\}", l)
-        if not m:
-            continue
-        number = int(m.group(2))
-        nxt = next((j for j in range(i + 1, len(body)) if body[j].strip() and not body[j].lstrip().startswith("%")), None)
-        if kind == "book":
-            break
-        chapter = nxt is not None and re.match(r"\s*\\chapter\*?\{", body[nxt])
-        if chapter:
-            number += 1
-        if kind == "hw":
-            meta.insert(0, f"number={number}")
-            changes.append(T(f"\\setcounter{{chapter}}{{{m.group(2)}}} → number={number}",
-                             f"\\setcounter{{chapter}}{{{m.group(2)}}} -> number={number}"))
-        else:
-            notes.append(T(f"\\setcounter{{chapter}}{{{m.group(2)}}} 已註解掉（{KINDS[kind]} 沒有章）",
-                           f"\\setcounter{{chapter}}{{{m.group(2)}}} commented out ({KINDS[kind]} has no chapters)"))
-        body[i] = f"{m.group(1)}% ax migrate: {l.strip()}"
-        if chapter:
-            title, _ = _braced(body[nxt], body[nxt].index("{"))
-            body[nxt] = f"{m.group(1)}% ax migrate: {body[nxt].strip()}" + ("" if has_title else f"\n{m.group(1)}\\maketitle")
-            if kind != "hw" and title and not any("\\title{" in s for s in setup):
+    live = lambda l: l.strip() and not l.lstrip().startswith("%")
+    counter = next(((part, i, m) for part in (pre, body) for i, l in enumerate(part)
+                    for m in [re.match(r"(\s*)\\setcounter\{chapter\}\{(\d+)\}", l)] if m), None)
+    chapters_in_body = [i for i, l in enumerate(body) if re.match(r"\s*\\chapter\*?\s*(?:\[[^\]]*\])?\s*\{", l)]
+    if kind != "book" and (counter or len(chapters_in_body) == 1):
+        nxt = None
+        if counter:
+            part, i, m = counter
+            start = i + 1 if part is body else 1
+            nxt = next((j for j in range(start, len(body)) if live(body[j])), None)
+            if nxt is not None and not re.match(r"\s*\\chapter\*?\s*(?:\[[^\]]*\])?\s*\{", body[nxt]):
+                nxt = None
+        elif not old_cls.startswith("akizumi-"):
+            nxt = chapters_in_body[0]
+        starred = nxt is not None and re.match(r"\s*\\chapter\*", body[nxt])
+        number = int(counter[2].group(2)) if counter else None
+        if number is not None and nxt is not None and not starred:
+            number += 1  # \chapter steps the counter; \chapter* does not
+        if counter:
+            part, i, m = counter
+            if kind == "hw":
+                meta.insert(0, f"number={number}")
+                changes.append(T(f"\\setcounter{{chapter}}{{{m.group(2)}}} → number={number}",
+                                 f"\\setcounter{{chapter}}{{{m.group(2)}}} -> number={number}"))
+            else:
+                notes.append(T(f"\\setcounter{{chapter}}{{{m.group(2)}}} 已註解掉（{KINDS[kind]} 沒有章）",
+                               f"\\setcounter{{chapter}}{{{m.group(2)}}} commented out ({KINDS[kind]} has no chapters)"))
+            part[i] = f"{m.group(1)}% ax migrate: {part[i].strip()}"
+        if nxt is not None:
+            indent = re.match(r"\s*", body[nxt]).group(0)
+            title, _ = _braced(body[nxt], body[nxt].index("{", body[nxt].index("\\chapter") + 8))
+            body[nxt] = f"{indent}% ax migrate: {body[nxt].strip()}" + ("" if has_title else f"\n{indent}\\maketitle")
+            n_title = re.search(r"(\d+)\s*$", title or "")
+            if kind == "hw" and not counter and n_title:  # \chapter*{Homework 3}
+                meta.insert(0, f"number={n_title.group(1)}")
+                changes.append(T(f"\\chapter{{{title}}} → number={n_title.group(1)}",
+                                 f"\\chapter{{{title}}} -> number={n_title.group(1)}"))
+            if kind != "hw" and title and not any("\\title{" in x for x in setup):
                 pre.insert(cls_line + 1, f"\\title{{{title}}}")
+                if number is not None and not starred:
+                    kicker = f"第 {number} 章" if _guess_lang(body_text) == "zh" else f"Chapter {number}"
+                    meta.append(f"kicker={{{kicker}}}")
+                changes.append(T(f"\\chapter{{{title}}} → \\title" + ("、kicker" if number and not starred else ""),
+                                 f"\\chapter{{{title}}} -> \\title" + (", kicker" if number and not starred else "")))
             has_title = True
-        break
     if meta:
         pre.insert(cls_line + 1, "\\akizumisetup{" + ", ".join(meta) + "}")
-    # unless the body opens with a title of its own
-    own_title = re.search(r"\\begin\{(center|titlepage)\}|\\(LARGE|huge|Huge)\b", "\n".join(body[:8]))
+    # unless the body opens with a title of its own: a titlepage, or a
+    # centred / large block near the top that names the course, the author,
+    # the assignment or the date (not a heading such as "Hand-Written Part")
+    top = "\n".join(body[:12])
+    names = [re.escape(v) for v in values.values() if v and len(v) > 2]
+    own_title = re.search(r"\\begin\{titlepage\}", top) or (
+        re.search(r"\\begin\{center\}|\\(LARGE|huge|Huge)\b", top)
+        and re.search("|".join([r"\\today", r"\\(?:course|author|document)name", r"\\@?title\b",
+                                r"\b(?:Homework|Assignment|Problem Set|Report)\b", "作業", "報告"] + names), top, re.I))
     if not has_title and not own_title and kind in ("hw", "note") and not old_cls.startswith("akizumi-"):
         body.insert(1, "\\maketitle")
         changes.append(T("加上 \\maketitle", "added \\maketitle"))
@@ -3888,11 +3972,17 @@ def migrate_text(text, kind=None):
                 close()
                 open_ = False
             if m:
+                title = m["title"].strip("()（） ")
+                if m["n"] and not m["n"].isdigit():
+                    # Problem 1.1, 2.a, 3b: a label of its own, the count is untouched
+                    opt = f"label={m['n']}" + (f", title={{{title}}}" if title else "")
+                    out.append(f"{m['indent']}\\begin{{problem}}[{opt}]")
+                    open_, rank = True, 3 if m["level"] else 2
+                    continue
                 k = int(m["n"]) if m["n"] else _zh_number(m["zh"])
                 if k is not None and k != expected:
                     out.append(f"{m['indent']}\\setcounter{{problem}}{{{k - 1}}}")
                 expected = (k or expected) + 1
-                title = m["title"].strip("()（） ")
                 out.append(f"{m['indent']}\\begin{{problem}}" + (f"[{title}]" if title else ""))
                 open_, rank = True, 3 if m["level"] else 2
                 continue
@@ -4189,6 +4279,29 @@ def selftest_compat(ax, tmp, result):
         if code:
             print(out)
             print_error(d / "old-hw-akizumi.log")
+        # more shapes: what migrate writes, and that it builds
+        for name, kind, wanted in (
+                ("old-note", "note", ["14pt", "eqwithin=none", "\\title{Sequences}", "kicker={Chapter 2}",
+                                      "\\author{Tzu-You Lin}", "id={B1}", "\\setlength{\\parindent}{25pt}",
+                                      "aaronlin1229.github.io"]),
+                ("old-hw2", "hw", ["number=1,", "[label=1.1]", "[label=2.a]", "\\maketitle"]),
+                ("old-slides", "slides", ["\\usetheme{Akizumi}\n\\usetikzlibrary"])):
+            shutil.copyfile(REPO / "tests" / "migrate" / f"{name}.tex", d / f"{name}.tex")
+            r = subprocess.run(ax + ["migrate", f"{name}.tex", "--kind", kind], cwd=d, stdin=subprocess.DEVNULL,
+                               capture_output=True, encoding="utf-8", errors="replace")
+            code, out = r.returncode, r.stdout + r.stderr
+            new = (d / f"{name}-akizumi.tex").read_text() if code == 0 else ""
+            missing = [w for w in wanted if w not in new]
+            if code == 0 and missing:
+                code, out = 1, T("轉出的檔案少了：", "the migrated file lacks: ") + ", ".join(missing) + "\n" + new
+            if code == 0:
+                code, out, _ = run_with_spinner(
+                    ["latexmk", "-xelatex", "-halt-on-error", "-interaction=nonstopmode", f"{name}-akizumi.tex"],
+                    T(f"ax migrate {name}", f"ax migrate {name}"), cwd=d)
+            result(code == 0, T(f"ax migrate（{name}）", f"ax migrate ({name})"))
+            if code:
+                print(out)
+                print_error(d / f"{name}-akizumi.log")
     finally:
         if saved is None:
             os.environ.pop("TEXINPUTS", None)

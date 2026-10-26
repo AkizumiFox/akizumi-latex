@@ -58,9 +58,9 @@
   \ifakizumi@cjk
     \ifakizumi@inappendix\akizumi@num{appendix}{\thechapter}\else\akizumi@num{chapter}{\thechapter}\fi
   \else \@chapapp~\thechapter\fi}
-\titleformat{\chapter}[display]{\sffamily\bfseries}
+\titleformat{\chapter}[display]{\sffamily\bfseries\akizumi@headingshape}
   {\color{mute}\large\akizumi@chapterlabel}{0.5em}{\Huge}
-\titleformat{name=\chapter,numberless}[display]{\sffamily\bfseries}
+\titleformat{name=\chapter,numberless}[display]{\sffamily\bfseries\akizumi@headingshape}
   {}{0pt}{\Huge}
 \titlespacing*{\chapter}{0pt}{1.5cm}{1.4cm}
 \ifakizumi@cjklabels\crefformat{chapter}{#2\akizumi@num{chapter}{#1}#3}\fi

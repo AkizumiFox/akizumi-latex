@@ -108,6 +108,12 @@
       { \tl_set_eq:NN \l__akizumi_hf_footer_tl \l_keys_choice_tl },
   }
 \ProcessKeyOptions [ akizumi/pagestyle ]
+% The classes hand unknown options on to article, which reports them as unused.
+\clist_map_inline:nn { header, footer }
+  {
+    \clist_remove_all:Nn \@unusedoptionlist {#1}
+    \exp_args:NNe \clist_remove_all:Nn \@unusedoptionlist { \tl_to_str:n {#1} }
+  }
 \keys_define:nn { akizumi/meta }
   {
     header .code:n = \keys_set:nn { akizumi/pagestyle } { header = {#1} },
@@ -168,6 +174,9 @@
 % leaves; without one, each gets what the other side leaves; the centre gets
 % at most a third. A long section title never runs into the course name.
 \dim_new:N \l__akizumi_hf_max_dim
+% a title written on two lines (\title{A\\ B}) is one line here
+\cs_new_protected:Npn \__akizumi_hf_oneline:
+  { \cs_set:Npn \\ { ~ } \cs_set_eq:NN \newline \\ }
 \box_new:N \l__akizumi_hf_box
 \cs_new_protected:Npn \akizumi@headpart #1#2#3
   {
@@ -175,6 +184,7 @@
       % book classes upper-case their marks
       \cs_set_eq:NN \MakeUppercase \use:n
       \cs_set_eq:NN \uppercase \use:n
+      \__akizumi_hf_oneline:
       \__akizumi_hf_fetch:nnn {#2} {#1} {#3}
       % the marks and keywords become plain text, which can be cut
       \protected@edef \l__akizumi_hf_text_tl { \l__akizumi_hf_text_tl }
@@ -207,6 +217,7 @@
     \group_begin:
       \cs_set_eq:NN \MakeUppercase \use:n
       \cs_set_eq:NN \uppercase \use:n
+      \__akizumi_hf_oneline:
       \__akizumi_hf_fetch:nnn {#1} {#2} {#3}
       \akizumi@headerstyle
       \hbox_set:Nn \l_tmpa_box { \l__akizumi_hf_text_tl }

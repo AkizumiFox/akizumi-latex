@@ -155,6 +155,34 @@
   }
 \ExplSyntaxOff
 
+% ---------- Greek capitals in \mathbf, \mathrm, \mathsf, \mathit, \mathtt ----------
+% With fontspec those alphabets are Unicode text fonts, while \Sigma is a
+% slot of the old 7-bit math fonts (6), which they lack: \mathbf{\Sigma}
+% printed nothing. Inside them the capitals take their Unicode slots.
+\ExplSyntaxOn
+\cs_new_protected:Npn \akizumi@tugreek
+  {
+    \clist_map_inline:nn
+      { {Gamma}{393}, {Delta}{394}, {Theta}{398}, {Lambda}{39B}, {Xi}{39E}, {Pi}{3A0},
+        {Sigma}{3A3}, {Upsilon}{3A5}, {Phi}{3A6}, {Psi}{3A8}, {Omega}{3A9} }
+      { \__akizumi_math_tugreek:nn ##1 }
+  }
+\cs_new_protected:Npn \__akizumi_math_tugreek:nn #1#2
+  { \exp_args:Nc \Umathchardef {#1} = 7 ~ 0 ~ "#2 \scan_stop: }
+\ExplSyntaxOff
+% Every alphabet goes through \use@mathgroup{<encoding switch>}{<group>}: the
+% kernel's definition plus \akizumi@tugreek for the TU ones. After
+% \begin{document}, as fontspec is loaded after this package.
+\def\akizumi@patchgroup{%
+  \ifdefined\Umathchardef\ifdefined\M@TU\@ifpackageloaded{unicode-math}{}{%
+    \def\use@mathgroup##1##2{\relax\ifmmode
+      \math@bgroup
+        \expandafter\ifx\csname M@\f@encoding\endcsname##1\else##1\fi
+        \mathgroup##2\relax
+        \ifx##1\M@TU\akizumi@tugreek\fi
+      \expandafter\math@egroup\fi}}\fi\fi}
+\AddToHook{begindocument/end}{\akizumi@patchgroup}
+
 % ---------- bold: \vb{x}, \vb{A}, \vb{\Lambda} ----------
 % Greek (any argument starting with a control sequence) goes through \bm,
 % since \mathbf has no Greek in the legacy math setup: uppercase comes out
@@ -350,7 +378,11 @@
 % \@ifdefinable first. For a name that still has the meaning given above,
 % drop it (and mathtools' helpers for it) so the new definition goes through.
 % \renewcommand resets \@ifdefinable from \@@ifdefinable, so both are set.
-\def\akizumi@yield#1{%
+% Names may be several tokens (zref: \@ifdefinable{Z@L@\ZREF@mainlist}).
+\ExplSyntaxOn
+\cs_new:Npn \akizumi@yield #1 { \tl_if_single_token:nT {#1} { \akizumi@yield@ #1 } }
+\ExplSyntaxOff
+\def\akizumi@yield@#1{%
   \ifcsname akizumi@soft@\expandafter\@gobble\string#1\endcsname
     \expandafter\ifx\csname akizumi@soft@\expandafter\@gobble\string#1\endcsname#1%
       \PackageInfo{akizumi-math}{\string#1 redefined by the document}%
@@ -366,7 +398,7 @@
   \fi}
 \ifakizumi@mathyield
   \let\akizumi@ifdefinable\@ifdefinable
-  \long\def\@ifdefinable#1{\akizumi@yield#1\akizumi@ifdefinable#1}
+  \long\def\@ifdefinable#1{\akizumi@yield{#1}\akizumi@ifdefinable{#1}}
   \let\@@ifdefinable\@ifdefinable
 \fi
 

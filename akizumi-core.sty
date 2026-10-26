@@ -557,6 +557,46 @@
     \crefformat{subappendix}{##2\akizumi@num{appendix}{##1}##3}%
   \fi}
 
+% A link's specials (colour, annotation) come between a CJK character and the
+% link text, or between the text and the next CJK character, and hide the
+% marker xeCJK leaves there to add the CJK–Latin gap: "於是Theorem 1.1給出"
+% lost both gaps. Move the marker past the specials, so links space like text.
+\ExplSyntaxOn
+\dim_new:N \g__akizumi_cjk_node_dim
+\cs_new_protected:Npn \akizumi@cjkthrough #1
+  {
+    \mode_if_horizontal:TF
+      {
+        % global: the link's colour group ends inside #1 at the link's end
+        \dim_gset:Nn \g__akizumi_cjk_node_dim { \tex_lastkern:D }
+        \bool_lazy_and:nnTF
+          { \dim_compare_p:nNn { \g__akizumi_cjk_node_dim } > { 10sp } }
+          { \dim_compare_p:nNn { \g__akizumi_cjk_node_dim } < { 100sp } }
+          {
+            % xeCJK's markers are a pair of kerns, -d then d, with d a few sp
+            \tex_unkern:D
+            \dim_compare:nNnTF { \tex_lastkern:D } = { - \g__akizumi_cjk_node_dim }
+              {
+                \tex_unkern:D
+                #1
+                \tex_kern:D - \g__akizumi_cjk_node_dim
+                \tex_kern:D \g__akizumi_cjk_node_dim
+              }
+              { \tex_kern:D \g__akizumi_cjk_node_dim #1 }
+          }
+          {#1}
+      }
+      {#1}
+  }
+\ExplSyntaxOff
+\AtBeginDocument{%
+  \ifdefined\Hy@BeginAnnot
+    \let\akizumi@BeginAnnot\Hy@BeginAnnot
+    \let\akizumi@EndAnnot\Hy@EndAnnot
+    \def\Hy@BeginAnnot#1{\akizumi@cjkthrough{\akizumi@BeginAnnot{#1}}}%
+    \def\Hy@EndAnnot{\akizumi@cjkthrough\akizumi@EndAnnot}%
+  \fi}
+
 % Everything below is for documents only; beamerthemeAkizumi handles slides.
 \@ifclassloaded{beamer}{\endinput}{}
 

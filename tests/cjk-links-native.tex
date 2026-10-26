@@ -1,0 +1,25 @@
+% !TEX program = xelatex
+% \cref, \ref and \href next to CJK text get the same CJK–Latin gap as plain
+% text (hyperref's specials used to hide the neighbour from xeCJK); nothing
+% changes next to CJK punctuation or Latin text. Fails the build otherwise.
+% Here: thmnames=native (定理 1.1).
+\documentclass[lang=zh, thmnames=native]{akizumi-note}
+\makeatletter
+% (only once the label is known: the first run prints ??)
+\newcommand\samewidth[2]{\@ifundefined{r@t}{}{\sbox0{#1}\sbox2{#2}%
+  \ifdim\wd0=\wd2 \else\PackageError{cjk-links}{\detokenize{#1} is \the\wd0, not \the\wd2}{}\fi}}
+\makeatother
+\begin{document}
+\section{Links}
+\begin{theorem}\label{t}$x$\end{theorem}
+於是\cref{t}給出，於是\ref{t}給出；見\href{https://example.org}{site}說明。
+
+\samewidth{於是\cref{t}給出}{於是定理~1.1給出}
+\samewidth{於是\ref{t}給出}{於是1.1給出}
+\samewidth{見\href{https://example.org}{site}說明}{見site說明}
+\samewidth{。\cref{t}，}{。定理~1.1，}
+\samewidth{、\ref{t}。}{、1.1。}
+\samewidth{（\ref{t}）}{（1.1）}
+\samewidth{see \cref{t} now}{see 定理~1.1 now}
+\samewidth{see\ref{t}now}{see1.1now}
+\end{document}

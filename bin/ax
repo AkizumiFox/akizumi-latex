@@ -4096,6 +4096,18 @@ def cmd_migrate(a):
     shared = shared_preamble(dest.parent)
     if shared:
         note(T(f"  也會讀共用 preamble {shared}", f"  It also reads the shared preamble {shared}"))
+    if a.project:
+        # make the folder an ax project around the migrated file: ax build,
+        # ax watch and Cursor then use XeLaTeX and the templates
+        folder = dest.parent
+        cfg_path = folder / PROJECT_CONFIG
+        cfg = load_json(cfg_path) if cfg_path.exists() else {}
+        cfg.update({"kind": kind, "main": dest.name})
+        cfg.setdefault("template", a.pin or "latest")
+        cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n")
+        write_build_files(folder, kind)
+        ok(T(f"已設成 ax 專案（{PROJECT_CONFIG}、latexmkrc、.vscode；模板 {cfg['template']}）",
+             f"Set up as an ax project ({PROJECT_CONFIG}, latexmkrc, .vscode; template {cfg['template']})"))
 
 
 # ---------- ax selftest ----------
@@ -5322,6 +5334,11 @@ def main():
                    help=T("要轉成的種類；預設依內容判斷", "kind to convert to; default: guessed from the content"))
     m.add_argument("--dry-run", action="store_true", help=T("只列出會改什麼，不寫檔", "list the changes, write nothing"))
     m.add_argument("--force", action="store_true", help=T("輸出檔已存在也覆寫", "overwrite the output file"))
+    m.add_argument("--project", action="store_true",
+                   help=T("同時把資料夾設成 ax 專案（.ax.json、latexmkrc、.vscode）",
+                          "also make the folder an ax project (.ax.json, latexmkrc, .vscode)"))
+    m.add_argument("--pin", metavar=T("版本", "version"),
+                   help=T("搭配 --project：模板版本，預設 latest", "with --project: template version, default latest"))
     m.set_defaults(func=cmd_migrate)
     d = sub.add_parser("docs", **cmd_help("docs"))
     d.add_argument("topic", nargs="*", metavar=T("主題", "topic"),

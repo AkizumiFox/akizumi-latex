@@ -328,8 +328,17 @@
     \tl_set:Ne \l__akizumi_code_first_tl { \seq_item:Nn \l__akizumi_code_lines_seq { 1 } }
     \tl_set:Ne \l__akizumi_code_last_tl { \seq_item:Nn \l__akizumi_code_lines_seq { 2 } }
   }
+\cs_generate_variant:Nn \tl_replace_all:Nnn { Ne }
 \cs_new_protected:Npn \__akizumi_code_finish:
   {
+    % title=low_rank.py: file names often have _, which would end up in
+    % text mode as a subscript; print it as an underscore (titles with $...$
+    % keep their math subscripts)
+    \cs_if_exist:NT \kvtcb@title
+      {
+        \tl_if_in:NnF \kvtcb@title { $ }
+          { \tl_replace_all:Nen \kvtcb@title { \char_generate:nn { 95 } { 8 } } { \textunderscore } }
+      }
     \bool_if:NT \l__akizumi_code_numbered_bool
       {
         \prop_if_in:NVF \g__akizumi_code_kinds_prop \l__akizumi_code_kind_tl

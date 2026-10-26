@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `codeblock` / `\inputcode` titles may contain `_` (`title=low_rank.py`); before, a file name with an underscore stopped the build with "Missing $ inserted". Titles with `$...$` keep their math subscripts.
+
 ## v0.9 — 2026-10-26
 
 - Friendlier menus: bare `ax` shows a home menu outside a project (start a document, recent projects, check the setup, look something up) and an action menu inside one (build, watch, background watch, open the PDF, Cursor). Bare `ax new` walks through kind, title, language, bibliography and folder (suggested from the title) with defaults, then asks for confirmation. Arrow keys / j k / digits; plain prompts when not on a terminal.

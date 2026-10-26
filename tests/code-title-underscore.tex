@@ -1,0 +1,15 @@
+% !TEX program = xelatex
+% codeblock / inputcode titles with an underscore (file names), and a title with math
+\documentclass{akizumi-note}
+\begin{document}
+\begin{codeblock}[lang=Python, title=low_rank.py]
+x_1 = 1
+\end{codeblock}
+\begin{codeblock}[numbered, lang=Python, title=best_rank_k.py, label=lst:a]
+y = 2
+\end{codeblock}
+\begin{codeblock}[title={\texttt{main}: the $x_1$ case}]
+z
+\end{codeblock}
+\cref{lst:a}.
+\end{document}

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0 — 2026-10-27
 
 - Fix: updating a project's `latexmkrc` (ax build, ax upgrade, ax migrate --project) threw away settings the user had added, and `ax migrate --project` overwrote a `latexmkrc` / `.latexmkrc` ax did not write. Now ax's part ends at a separator line and everything below it is kept; files from older ax versions are recognised (bin/latexmkrc-history.json) and their additions kept; a user's own file is renamed `*.before-ax` and its settings listed.
 - Copying from the PDF gives the characters typed: `bijection`, not the ij ligature `bĳection`; 。、 instead of the vertical forms ︒︑ in Songti / PingFang; also `-` and `·` instead of ‐ and ∙. Latin words and CJK punctuation carry /ActualText; the layout is unchanged (PDFs about 1–13% larger).

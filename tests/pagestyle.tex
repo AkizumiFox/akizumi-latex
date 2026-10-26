@@ -1,0 +1,15 @@
+% !TEX program = xelatex
+% headers and footers: custom parts, keywords, a long section title cut with
+% an ellipsis, footer=page-total, firstpage=same
+\documentclass[footer=page-total]{akizumi-note}
+\akizumisetup{course={Linear Algebra II}, header/left={\akizumiTitle\ (draft)},
+  header/center=date, firstpage=same, header/number=plain}
+\title{Headers}
+\author{Aaron Lin}
+\begin{document}
+\maketitle
+\section{A very long section title that goes on and on well past half of the line width}
+text \newpage
+\section{短節}
+文字
+\end{document}

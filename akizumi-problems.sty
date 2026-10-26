@@ -10,9 +10,7 @@
 \newif\ifakizumi@problembreak
 \newif\ifakizumi@firstproblem \akizumi@firstproblemtrue
 \newcommand{\akizumi@kind}{homework}
-% "Aaron Lin · B12345678"
-\newcommand{\akizumi@nameid}{\@author
-  \ifx\@author\@empty\else\ifx\akizumi@id\@empty\else\akizumisep\fi\fi\akizumi@id}
+% header=name-id ("Aaron Lin · B12345678") is handled by akizumi-pagestyle.
 
 \ExplSyntaxOn
 \keys_define:nn { akizumi/problems }
@@ -22,12 +20,6 @@
     problembreak .choices:nn = { true, false }
       { \use:c { akizumi@problembreak \l_keys_choice_tl } },
     problembreak .default:n = true,
-    header .choices:nn = { author, name-id }
-      {
-        \str_if_eq:VnTF \l_keys_choice_tl { name-id }
-          { \cs_set:Npn \akizumi@headright { \akizumi@nameid } }
-          { \cs_set:Npn \akizumi@headright { \@author } }
-      },
   }
 \ProcessKeyOptions [ akizumi/problems ]
 % The same keys in \akizumisetup.
@@ -36,7 +28,6 @@
     kind         .code:n = \keys_set:nn { akizumi/problems } { kind = {#1} },
     problembreak .code:n = \keys_set:nn { akizumi/problems } { problembreak = {#1} },
     problembreak .default:n = true,
-    header       .code:n = \keys_set:nn { akizumi/problems } { header = {#1} },
   }
 
 % [label=B1, title=...] sets keys; anything else is the title, as before.

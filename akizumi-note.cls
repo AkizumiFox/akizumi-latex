@@ -40,7 +40,7 @@
 \counterwithin{equation}{section}
 
 % Running header: course (or title) left, current section right.
-\renewcommand{\sectionmark}[1]{\markboth{\ifnum\c@secnumdepth>\z@\thesection\quad\fi#1}{}}
+\renewcommand{\sectionmark}[1]{\markboth{\ifnum\c@secnumdepth>\z@\akizumi@headnum{\thesection}\fi#1}{}}
 \renewcommand{\akizumi@headright}{\leftmark}
 
 \endinput

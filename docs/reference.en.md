@@ -628,7 +628,7 @@ Title and headers:
 | `header=author\|name-id` | Right side of the running header: the author (default), or "Author · ID" |
 | `problembreak=true\|false` | Each problem on a new page; default `false` |
 
-These three are `\documentclass` options and also work in `\akizumisetup{...}`. In every document kind except exams, `\akizumisetup` also takes `headleft=...` and `headright=...`, the text on the left and right of the running header; the first page's header is not affected.
+These three are `\documentclass` options and also work in `\akizumisetup{...}`. For the rest of the header see "Headers and footers".
 
 Exams use the [exam](https://ctan.org/pkg/exam) syntax: `\begin{questions} \question[10] ... \begin{parts} \part[5] ...`; `\gradetable` makes the grading table.
 
@@ -754,6 +754,38 @@ Put them in `\documentclass[...]` (for slides, `\usetheme[...]{Akizumi}`):
 | `sharedpreamble` | `true` `false` | `true` | Reads the `.akizumi/preamble.tex` found upwards (see [One preamble for a whole course](#one-preamble-for-a-whole-course)); `false` skips it |
 
 Slides also take `progress` (progress bar along the bottom); `tikz` and `plots` work in slides too. For slides, give the math options before `\documentclass`: `\PassOptionsToPackage{delims=auto, letters=bold}{akizumi-math}`.
+
+### Headers and footers
+
+The footer shows just the page number by default. The header shows the course on the left (the title in notes without one) and the current section on the right; books show the chapter left and the section right, homework the author right. The section number is in the accent colour. The first (title) page shows the course left and author · date right. A section title too long for the line is cut, with an ellipsis, before it reaches the other side.
+
+| Option | Values | Default | Effect |
+|---|---|---|---|
+| `header` | `default` `minimal` `title` `none` | `default` | Header layout: `minimal` keeps the left part only; `title` puts the title left and the author right; `none` drops the header |
+| `footer` | `page` `page-total` `none` | `page` | Footer: `3`, `3 / 5`, or nothing |
+
+Both go in `\documentclass[...]` or `\akizumisetup{...}` (exams take `footer` only). Each part can also be set on its own, with a keyword or any text:
+
+```latex
+\akizumisetup{
+  header/left   = title,               % left: the title
+  header/center = date,                % centre: the date
+  header/right  = {Draft · \akizumiPage},  % right: your own text
+  footer/center = page-total,          % footer centre: 3 / 5
+  firstpage     = same,                % first page like the others
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `header/left` `header/center` `header/right` | The three parts of the running header |
+| `footer/left` `footer/center` `footer/right` | The three parts of the footer |
+| `firstpage/left` `firstpage/center` `firstpage/right` | The title page's header |
+| `firstpage` | `title` (default: course, author · date), `same` (like other pages), `empty` |
+| `header/number` | `accent` (default: the section number in bold accent colour) or `plain` |
+| `headerstyle` `footerstyle` | Font and colour, default `\sffamily\footnotesize\color{mute}` |
+
+Keywords: `course` `title` `author` `date` `id` `byline` (author · ID · date) `section` `chapter` `page` `pages` (page count) `page-total` `none`. To mix them with text use the commands: `\akizumiCourse` `\akizumiTitle` `\akizumiAuthor` `\akizumiDate` `\akizumiID` `\akizumiByline` `\akizumiSection` `\akizumiChapter` `\akizumiPage` `\akizumiPages`. A `twoside` book mirrors them: left parts go on even pages, right parts on odd pages. The older `headleft=` and `headright=` still work and mean `header/left` and `header/right`.
 
 ## ax commands in detail
 

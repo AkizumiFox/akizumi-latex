@@ -628,7 +628,7 @@ $A\cup B=[-2,3]$。
 | `header=author\|name-id` | 內頁頁首右邊：作者（預設），或「作者 · 學號」 |
 | `problembreak=true\|false` | 每題換頁，預設 `false` |
 
-這三個是 `\documentclass` 選項，也可以寫在 `\akizumisetup{...}`。所有文件類型（考卷除外）的 `\akizumisetup` 另外接受 `headleft=...`、`headright=...`，直接指定內頁頁首左右兩邊的文字；第一頁的頁首不受影響。
+這三個是 `\documentclass` 選項，也可以寫在 `\akizumisetup{...}`。頁首其他部分怎麼改見〈頁首與頁尾〉。
 
 考卷用 [exam](https://ctan.org/pkg/exam) 的寫法：`\begin{questions} \question[10] ... \begin{parts} \part[5] ...`，`\gradetable` 產生評分表。
 
@@ -755,6 +755,38 @@ $A\cup B=[-2,3]$。
 | `sharedpreamble` | `true` `false` | `true` | 讀往上找到的 `.akizumi/preamble.tex`（見〈同一門課共用 preamble〉）。`false` 不讀 |
 
 簡報另有 `progress`（底部進度條）；`tikz`、`plots` 在簡報也能用。簡報的數學選項寫在 `\documentclass` 之前：`\PassOptionsToPackage{delims=auto, letters=bold}{akizumi-math}`。
+
+### 頁首與頁尾
+
+頁尾預設只印頁碼；頁首左邊是課名（講義沒有課名時是標題），右邊是目前的節名，書是左章右節、作業是右邊作者。節號用強調色。第一頁（標題頁）左邊課名、右邊作者 · 日期。太長的節名會在碰到另一邊之前截斷加「…」。
+
+| 選項 | 值 | 預設 | 作用 |
+|---|---|---|---|
+| `header` | `default` `minimal` `title` `none` | `default` | 頁首樣式：`minimal` 只留左邊；`title` 左標題、右作者；`none` 不要頁首 |
+| `footer` | `page` `page-total` `none` | `page` | 頁尾：`3`、`3 / 5`，或不印 |
+
+這兩個寫在 `\documentclass[...]` 或 `\akizumisetup{...}`（考卷只有 `footer`）。每一格也可以自己指定，填關鍵字或任何文字：
+
+```latex
+\akizumisetup{
+  header/left   = title,               % 左：標題
+  header/center = date,                % 中：日期
+  header/right  = {Draft · \akizumiPage},  % 右：自己的文字
+  footer/center = page-total,          % 頁尾中間：3 / 5
+  firstpage     = same,                % 第一頁和其他頁一樣
+}
+```
+
+| 鍵 | 說明 |
+|---|---|
+| `header/left` `header/center` `header/right` | 內頁頁首的三格 |
+| `footer/left` `footer/center` `footer/right` | 頁尾的三格 |
+| `firstpage/left` `firstpage/center` `firstpage/right` | 標題頁的頁首 |
+| `firstpage` | `title`（預設：課名、作者 · 日期）、`same`（和內頁一樣）、`empty` |
+| `header/number` | `accent`（預設，節號強調色加粗）或 `plain` |
+| `headerstyle` `footerstyle` | 字型和顏色，預設 `\sffamily\footnotesize\color{mute}` |
+
+關鍵字：`course` `title` `author` `date` `id` `byline`（作者 · 學號 · 日期）`section` `chapter` `page` `pages`（總頁數）`page-total` `none`。要和文字混在一起時用對應的指令：`\akizumiCourse` `\akizumiTitle` `\akizumiAuthor` `\akizumiDate` `\akizumiID` `\akizumiByline` `\akizumiSection` `\akizumiChapter` `\akizumiPage` `\akizumiPages`。`twoside` 的書左右對調：左邊的格子印在偶數頁、右邊的印在奇數頁。以前的 `headleft=`、`headright=` 照樣能用，等同 `header/left`、`header/right`。
 
 ## ax 指令細節
 

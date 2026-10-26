@@ -10,6 +10,8 @@
 \ExplSyntaxOn
 \tl_new:N \l__akizumi_size_tl
 \tl_set:Nn \l__akizumi_size_tl { 11pt }
+\tl_new:N \l__akizumi_examfoot_tl
+\tl_set:Nn \l__akizumi_examfoot_tl { page }
 \keys_define:nn { akizumi/exam }
   {
     lang      .code:n = \PassOptionsToPackage { lang = #1 } { akizumi-core },
@@ -25,6 +27,8 @@
     solutions .choices:nn = { true, false }
       { \use:c { akizumi@solutions \l_keys_choice_tl } },
     solutions .default:n = true,
+    footer    .choices:nn = { page, page-total, none }
+      { \tl_set_eq:NN \l__akizumi_examfoot_tl \l_keys_choice_tl },
     10pt      .code:n = \tl_set:Nn \l__akizumi_size_tl { 10pt },
     11pt      .code:n = \tl_set:Nn \l__akizumi_size_tl { 11pt },
     12pt      .code:n = \tl_set:Nn \l__akizumi_size_tl { 12pt },
@@ -56,7 +60,12 @@
 \firstpageheader{\ifakizumi@byline\else\sffamily\small\color{mute}\akizumi@course\fi}{}%
   {\ifakizumi@byline\else\sffamily\small\color{mute}\akizumi@byline\fi}
 \runningheader{\sffamily\small\color{mute}\akizumi@course}{}{\sffamily\small\color{mute}\@title}
-\footer{}{\sffamily\scriptsize\color{mute}\thepage\,/\,\numpages}{}
+% footer=page (default): "3"; page-total: "3 / 5"; none
+\ExplSyntaxOn
+\footer{}{\sffamily\footnotesize\color{mute}
+  \str_case:Vn \l__akizumi_examfoot_tl { {page}{\thepage} {page-total}{\thepage\,/\,\numpages} }}{}
+\cs_generate_variant:Nn \str_case:nn { V }
+\ExplSyntaxOff
 
 % ---------- questions and points ----------
 \ifakizumi@cjk

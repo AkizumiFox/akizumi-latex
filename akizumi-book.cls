@@ -68,8 +68,8 @@
 \akizumi@thmwithin{chapter}
 
 % Running header: chapter left, section right.
-\renewcommand{\chaptermark}[1]{\markboth{\ifnum\c@secnumdepth>\m@ne\if@mainmatter\thechapter\quad\fi\fi#1}{}}
-\renewcommand{\sectionmark}[1]{\markright{\ifnum\c@secnumdepth>\z@\thesection\quad\fi#1}}
+\renewcommand{\chaptermark}[1]{\markboth{\ifnum\c@secnumdepth>\m@ne\if@mainmatter\akizumi@headnum{\thechapter}\fi\fi#1}{}}
+\renewcommand{\sectionmark}[1]{\markright{\ifnum\c@secnumdepth>\z@\akizumi@headnum{\thesection}\fi#1}}
 \renewcommand{\akizumi@headleft}{\leftmark}
 \renewcommand{\akizumi@headright}{\rightmark}
 

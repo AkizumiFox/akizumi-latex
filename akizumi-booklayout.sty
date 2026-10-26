@@ -14,16 +14,8 @@
 \akizumi@s{preface}{Preface}{序言}{まえがき}{머리말}
 
 % ---------- twoside: mirrored running headers, blank versos stay empty ----------
+% (mirrored headers: akizumi-pagestyle puts left parts on even pages, right on odd)
 \if@twoside
-  \fancypagestyle{akizumi}{%
-    \fancyhf{}%
-    \fancyhead[LE]{\sffamily\small\color{mute}\nouppercase{\akizumi@headleft}}%
-    \fancyhead[RO]{\sffamily\small\color{mute}\nouppercase{\akizumi@headright}}%
-    \fancyfoot[C]{\sffamily\scriptsize\color{mute}\thepage\,/\,\pageref*{LastPage}}%
-    \renewcommand{\headrulewidth}{0pt}%
-    \renewcommand{\footrulewidth}{0pt}%
-    \ifakizumi@marginlayout\fancyhfoffset[RO,LE]{\dimexpr\marginparwidth+\marginparsep\relax}\fi}
-  \pagestyle{akizumi}
   \renewcommand{\cleardoublepage}{\clearpage
     \ifodd\c@page\else\hbox{}\thispagestyle{empty}\newpage\fi}
 \fi

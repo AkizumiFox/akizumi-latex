@@ -1,0 +1,304 @@
+% akizumi-pagestyle.sty -- running headers and footers. Loaded by akizumi-core
+% for every class except exam, which keeps the exam class's own header system
+% (akizumi-exam reads footer= too).
+%
+% Class options (or \akizumisetup{...}):
+%   header = default | minimal | title | none
+%            default  what the class does (notes: course left, section right;
+%                     homework: course and title left, author right; books:
+%                     chapter left, section right)
+%            minimal  the left part only;  title  title left, author right
+%            author | name-id  default, with author / "author · ID" on the right
+%   footer = page | page-total | none   (page: "3", the default; page-total: "3 / 5")
+%
+% Each part on its own, in \akizumisetup:
+%   header/left, header/center, header/right
+%   footer/left, footer/center, footer/right
+%   firstpage/left, firstpage/center, firstpage/right    (the title page)
+%   firstpage = title | same | empty   (title: course left, byline right)
+%   headerstyle = {\sffamily\footnotesize\color{mute}}, footerstyle = {...}
+%   header/number = accent | plain   (the section number in the header: accent
+%                  colour and bold, the default, or like the rest)
+% A part takes a keyword or any text:
+%   course title author date id byline section chapter page pages page-total none
+% e.g.  \akizumisetup{header/left=title, header/right={Draft, \akizumiDate}}
+% The keywords as commands, to mix with text: \akizumiCourse \akizumiTitle
+% \akizumiAuthor \akizumiDate \akizumiID \akizumiByline \akizumiSection
+% \akizumiChapter \akizumiPage \akizumiPages.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{akizumi-pagestyle}[2026/10/26 v0.9 Aaron Lin headers and footers]
+
+\RequirePackage{fancyhdr,lastpage}
+
+% ---------- the pieces ----------
+\newcommand{\akizumiCourse}{\akizumi@course}
+\newcommand{\akizumiTitle}{\@title}
+\newcommand{\akizumiAuthor}{\@author}
+\newcommand{\akizumiDate}{\@date}
+\newcommand{\akizumiID}{\akizumi@id}
+\newcommand{\akizumiByline}{\akizumi@byline}
+% Books mark chapters left and sections right; articles mark sections left.
+\newcommand{\akizumiSection}{\@ifundefined{c@chapter}{\leftmark}{\rightmark}}
+\newcommand{\akizumiChapter}{\@ifundefined{c@chapter}{}{\leftmark}}
+\newcommand{\akizumiPage}{\thepage}
+\newcommand{\akizumiPages}{\pageref*{LastPage}}
+% The chapter / section number in a running header: "3  Norms and ...".
+\newif\ifakizumi@headnumaccent \akizumi@headnumaccenttrue
+\DeclareRobustCommand{\akizumi@headnum}[1]{%
+  \ifakizumi@headnumaccent{\color{accent}\bfseries#1}\else#1\fi\enspace}
+% "Aaron Lin · B12345678" (header=name-id)
+\providecommand{\akizumi@nameid}{%
+  \@author\ifx\@author\@empty\else\ifx\akizumi@id\@empty\else\akizumisep\fi\fi\akizumi@id}
+
+\ExplSyntaxOn
+% A part's text: \q_no_value until the user sets it, then the user's tokens.
+\clist_map_inline:nn { head, foot, first }
+  {
+    \clist_map_inline:nn { l, c, r }
+      { \tl_new:c { l__akizumi_hf_#1_##1_tl } \tl_set:cn { l__akizumi_hf_#1_##1_tl } { \q_no_value } }
+  }
+\tl_new:N \l__akizumi_hf_header_tl
+\tl_set:Nn \l__akizumi_hf_header_tl { default }
+\tl_new:N \l__akizumi_hf_footer_tl
+\tl_set:Nn \l__akizumi_hf_footer_tl { page }
+\tl_new:N \l__akizumi_hf_firstpage_tl
+\tl_set:Nn \l__akizumi_hf_firstpage_tl { title }
+\tl_new:N \akizumi@headerstyle
+\tl_set:Nn \akizumi@headerstyle { \sffamily \footnotesize \color { mute } }
+\tl_new:N \akizumi@footerstyle
+\tl_set:Nn \akizumi@footerstyle { \sffamily \footnotesize \color { mute } }
+
+% keyword -> its command; anything else stays as written
+\cs_new_protected:Npn \__akizumi_hf_set:nnn #1#2#3
+  {
+    \str_case_e:nnF { \tl_trim_spaces:n {#3} }
+      {
+        { course }     { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiCourse } }
+        { title }      { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiTitle } }
+        { author }     { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiAuthor } }
+        { date }       { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiDate } }
+        { id }         { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiID } }
+        { byline }     { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiByline } }
+        { section }    { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiSection } }
+        { chapter }    { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiChapter } }
+        { page }       { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiPage } }
+        { pages }      { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiPages } }
+        { page-total } { \tl_set:cn { l__akizumi_hf_#1_#2_tl } { \akizumiPage \,/\, \akizumiPages } }
+        { none }       { \tl_clear:c { l__akizumi_hf_#1_#2_tl } }
+      }
+      { \tl_set:cn { l__akizumi_hf_#1_#2_tl } {#3} }
+  }
+
+\cs_new_protected:Npn \__akizumi_hf_header:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        % at \begin{document}, over what the class set
+        { author }  { \AtBeginDocument { \cs_set:Npn \akizumi@headright { \@author } } }
+        { name-id } { \AtBeginDocument { \cs_set:Npn \akizumi@headright { \akizumi@nameid } } }
+      }
+      { \tl_set:Nn \l__akizumi_hf_header_tl {#1} }
+  }
+\keys_define:nn { akizumi/pagestyle }
+  {
+    header .choices:nn = { default, minimal, title, none, author, name-id }
+      { \__akizumi_hf_header:n {#1} },
+    footer .choices:nn = { page, page-total, none }
+      { \tl_set_eq:NN \l__akizumi_hf_footer_tl \l_keys_choice_tl },
+  }
+\ProcessKeyOptions [ akizumi/pagestyle ]
+\keys_define:nn { akizumi/meta }
+  {
+    header .code:n = \keys_set:nn { akizumi/pagestyle } { header = {#1} },
+    footer .code:n = \keys_set:nn { akizumi/pagestyle } { footer = {#1} },
+    header/left      .code:n = \__akizumi_hf_set:nnn { head } { l } {#1},
+    header/center    .code:n = \__akizumi_hf_set:nnn { head } { c } {#1},
+    header/right     .code:n = \__akizumi_hf_set:nnn { head } { r } {#1},
+    footer/left      .code:n = \__akizumi_hf_set:nnn { foot } { l } {#1},
+    footer/center    .code:n = \__akizumi_hf_set:nnn { foot } { c } {#1},
+    footer/right     .code:n = \__akizumi_hf_set:nnn { foot } { r } {#1},
+    firstpage/left   .code:n = \__akizumi_hf_set:nnn { first } { l } {#1},
+    firstpage/center .code:n = \__akizumi_hf_set:nnn { first } { c } {#1},
+    firstpage/right  .code:n = \__akizumi_hf_set:nnn { first } { r } {#1},
+    firstpage .choices:nn = { title, same, empty }
+      { \tl_set_eq:NN \l__akizumi_hf_firstpage_tl \l_keys_choice_tl },
+    header/number .choices:nn = { accent, plain }
+      { \use:c { akizumi@headnumaccent \str_if_eq:VnTF \l_keys_choice_tl { accent } { true } { false } } },
+    headerstyle .tl_set:N = \akizumi@headerstyle,
+    footerstyle .tl_set:N = \akizumi@footerstyle,
+    % the header keys before v0.9; header/left and header/right do the same
+    headleft  .code:n = \cs_set:Npn \akizumi@headleft {#1},
+    headright .code:n = \cs_set:Npn \akizumi@headright {#1},
+  }
+
+% What a part shows, decided when the page is built (so section marks are
+% current): the user's text if set, else the preset. Into \l__akizumi_hf_text_tl.
+\tl_new:N \l__akizumi_hf_text_tl
+\cs_generate_variant:Nn \quark_if_no_value:NTF { c }
+\cs_generate_variant:Nn \str_case:nn { V }
+\cs_new_protected:Npn \__akizumi_hf_fetch:nnn #1#2#3
+  {
+    \quark_if_no_value:cTF { l__akizumi_hf_#1_#2_tl }
+      { \tl_set:Nn \l__akizumi_hf_text_tl {#3} }
+      { \tl_set_eq:Nc \l__akizumi_hf_text_tl { l__akizumi_hf_#1_#2_tl } }
+  }
+% the header preset's text for side #1
+\cs_new:Npn \__akizumi_hf_preset:n #1
+  {
+    \str_case:Vn \l__akizumi_hf_header_tl
+      {
+        { default } { \str_case:nn {#1} { {l}{\akizumi@headleft} {r}{\akizumi@headright} } }
+        { minimal } { \str_if_eq:nnT {#1} { l } { \akizumi@headleft } }
+        { title }   { \str_case:nn {#1} { {l}{\akizumiTitle} {r}{\akizumiAuthor} } }
+      }
+  }
+\cs_new:Npn \__akizumi_hf_footpreset:
+  {
+    \str_case:Vn \l__akizumi_hf_footer_tl
+      {
+        { page }       { \exp_not:N \akizumiPage }
+        { page-total } { \exp_not:N \akizumiPage \exp_not:n { \,/\, } \exp_not:N \akizumiPages }
+      }
+  }
+
+% One header part: #1 l/c/r, #2 head/first, #3 the text when not set by the
+% user. A part that would run into its neighbours is cut, with an ellipsis:
+% with a centre part, left and right each get half of what the centre
+% leaves; without one, each gets what the other side leaves; the centre gets
+% at most a third. A long section title never runs into the course name.
+\dim_new:N \l__akizumi_hf_max_dim
+\box_new:N \l__akizumi_hf_box
+\cs_new_protected:Npn \akizumi@headpart #1#2#3
+  {
+    \group_begin:
+      % book classes upper-case their marks
+      \cs_set_eq:NN \MakeUppercase \use:n
+      \cs_set_eq:NN \uppercase \use:n
+      \__akizumi_hf_fetch:nnn {#2} {#1} {#3}
+      % the marks and keywords become plain text, which can be cut
+      \protected@edef \l__akizumi_hf_text_tl { \l__akizumi_hf_text_tl }
+      \akizumi@headerstyle
+      \hbox_set:Nn \l__akizumi_hf_box { \l__akizumi_hf_text_tl }
+      \__akizumi_hf_room:nn {#1} {#2}
+      \dim_compare:nNnT { \box_wd:N \l__akizumi_hf_box } > { \l__akizumi_hf_max_dim }
+        {
+          \bool_do_until:nn
+            {
+              \dim_compare_p:nNn { \box_wd:N \l__akizumi_hf_box } < { \l__akizumi_hf_max_dim }
+              || \tl_if_empty_p:N \l__akizumi_hf_text_tl
+            }
+            {
+              \tl_set:Ne \l__akizumi_hf_text_tl
+                { \tl_range:Nnn \l__akizumi_hf_text_tl { 1 } { -2 } }
+              % no space before the ellipsis
+              \tl_set:Ne \l__akizumi_hf_text_tl { \tl_trim_spaces:V \l__akizumi_hf_text_tl }
+              \hbox_set:Nn \l__akizumi_hf_box { \l__akizumi_hf_text_tl … }
+            }
+        }
+      \box_use:N \l__akizumi_hf_box
+    \group_end:
+  }
+\cs_generate_variant:Nn \tl_trim_spaces:n { V }
+% the natural width of another part (same rules for what it shows)
+\dim_new:N \l__akizumi_hf_other_dim
+\cs_new_protected:Npn \__akizumi_hf_width:nnn #1#2#3
+  {
+    \group_begin:
+      \cs_set_eq:NN \MakeUppercase \use:n
+      \cs_set_eq:NN \uppercase \use:n
+      \__akizumi_hf_fetch:nnn {#1} {#2} {#3}
+      \akizumi@headerstyle
+      \hbox_set:Nn \l_tmpa_box { \l__akizumi_hf_text_tl }
+      \dim_gset:Nn \g_tmpa_dim { \box_wd:N \l_tmpa_box }
+    \group_end:
+    \dim_set_eq:NN \l__akizumi_hf_other_dim \g_tmpa_dim
+  }
+\cs_new:Npn \__akizumi_hf_default:nn #1#2
+  { \str_if_eq:nnTF {#1} { first } { \__akizumi_hf_firstdefault:n {#2} } { \__akizumi_hf_preset:n {#2} } }
+\cs_new:Npn \__akizumi_hf_firstdefault:n #1
+  { \str_case:nn {#1} { {l}{\akizumiCourse} {r}{\akizumiByline} } }
+% #1 the part (l/c/r), #2 head/first: sets \l__akizumi_hf_max_dim
+\cs_new_protected:Npn \__akizumi_hf_room:nn #1#2
+  {
+    \str_if_eq:nnTF {#1} { c }
+      { \dim_set:Nn \l__akizumi_hf_max_dim { \headwidth / 3 } }
+      {
+        \__akizumi_hf_width:nnn {#2} { c } { \__akizumi_hf_default:nn {#2} { c } }
+        \dim_compare:nNnTF { \l__akizumi_hf_other_dim } > { \c_zero_dim }
+          {
+            \dim_set:Nn \l__akizumi_hf_max_dim
+              { ( \headwidth - \l__akizumi_hf_other_dim ) / 2 - 1.5em }
+          }
+          {
+            \__akizumi_hf_width:nnn {#2} { \str_if_eq:nnTF {#1} { l } { r } { l } }
+              { \__akizumi_hf_default:nn {#2} { \str_if_eq:nnTF {#1} { l } { r } { l } } }
+            \dim_set:Nn \l__akizumi_hf_max_dim
+              { \dim_max:nn { \headwidth - \l__akizumi_hf_other_dim - 2em } { 0.3 \headwidth } }
+          }
+      }
+  }
+% \akizumi@put \fancyhead {L} {text}: L/R, or LE/RO (mirrored) with twoside
+\cs_new_protected:Npn \akizumi@put #1#2
+  { \use:e { \exp_not:N #1 [ \if@twoside \str_if_eq:nnTF {#2} { L } { LE } { RO } \else #2 \fi ] } }
+\cs_new_protected:Npn \akizumi@footpart #1#2
+  {
+    \group_begin:
+      \__akizumi_hf_fetch:nnn { foot } {#1} {#2}
+      \akizumi@footerstyle \l__akizumi_hf_text_tl
+    \group_end:
+  }
+
+\cs_new_protected:Npn \akizumi@feet
+  {
+    \akizumi@put \fancyfoot { L }
+      { \akizumi@footpart { l } { } }
+    \fancyfoot [ C ]
+      { \akizumi@footpart { c } { \__akizumi_hf_footpreset: } }
+    \akizumi@put \fancyfoot { R }
+      { \akizumi@footpart { r } { } }
+    \renewcommand { \headrulewidth } { 0pt }
+    \renewcommand { \footrulewidth } { 0pt }
+    \akizumi@hfoffset
+  }
+\cs_new_protected:Npn \akizumi@heads #1
+  {
+    \akizumi@put \fancyhead { L }
+      { \akizumi@headpart { l } {#1} { \__akizumi_hf_preset:n { l } } }
+    \fancyhead [ C ]
+      { \akizumi@headpart { c } {#1} { \__akizumi_hf_preset:n { c } } }
+    \akizumi@put \fancyhead { R }
+      { \akizumi@headpart { r } {#1} { \__akizumi_hf_preset:n { r } } }
+  }
+% The title page: course left and byline right unless firstpage= says else.
+\cs_new_protected:Npn \akizumi@firsthead
+  {
+    \str_case:Vn \l__akizumi_hf_firstpage_tl
+      {
+        { title }
+          {
+            \fancyhead [ L ]
+              { \akizumi@headpart { l } { first } { \akizumiCourse } }
+            \fancyhead [ C ]
+              { \akizumi@headpart { c } { first } { } }
+            \fancyhead [ R ]
+              { \akizumi@headpart { r } { first } { \akizumiByline } }
+          }
+        { same } { \akizumi@heads { head } }
+      }
+  }
+\ExplSyntaxOff
+\newcommand{\akizumi@hfoffset}{%
+  \ifakizumi@marginlayout
+    \if@twoside\fancyhfoffset[RO,LE]{\dimexpr\marginparwidth+\marginparsep\relax}%
+    \else\fancyhfoffset[R]{\dimexpr\marginparwidth+\marginparsep\relax}\fi
+  \fi}
+
+% fancyhdr took \headwidth from the text width when it loaded, before the
+% class set the page layout: match the final text width.
+\AtBeginDocument{\setlength{\headwidth}{\textwidth}}
+\fancypagestyle{akizumi}{\fancyhf{}\akizumi@heads{head}\akizumi@feet}
+\fancypagestyle{akizumi-title}{\fancyhf{}\akizumi@firsthead\akizumi@feet}
+\fancypagestyle{plain}{\fancyhf{}\akizumi@feet}
+\pagestyle{akizumi}
+
+\endinput

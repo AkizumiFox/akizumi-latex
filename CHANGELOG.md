@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Footers show just the page number (`3`); `footer=page-total` brings back `3 / 5`, `footer=none` drops it (also for exams).
+- Headers and footers are configurable: `header=default|minimal|title|none`, and `\akizumisetup{header/left=…, header/center=…, header/right=…, footer/…, firstpage/…}` with keywords (`course`, `title`, `section`, `page-total`, …) or any text, plus `\akizumiCourse`, `\akizumiSection`, … to mix with text; `headerstyle`, `footerstyle`, `header/number=accent|plain`. Long parts are cut with an ellipsis before they reach their neighbours. Section numbers in headers are in the accent colour.
+- Fix: the running header was narrower than the text (fancyhdr kept the width from before the page layout was set), so right-hand parts stopped short of the margin and even pages of `twoside` books were shifted.
 - `codeblock` / `\inputcode` titles may contain `_` (`title=low_rank.py`); before, a file name with an underscore stopped the build with "Missing $ inserted". Titles with `$...$` keep their math subscripts.
 
 ## v0.9 — 2026-10-26

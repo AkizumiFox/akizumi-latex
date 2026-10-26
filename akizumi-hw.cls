@@ -2,7 +2,7 @@
 %   \documentclass[lang=zh, solutions=false]{akizumi-hw}
 %   \akizumisetup{course=ODE, number=3, due=2026/10/28, id=B12345678}
 %   \begin{problem}[optional title] ... \begin{solution} ... \end{solution} \end{problem}
-%   problem numbering, \inputproblem, parts, kind=, header=: see akizumi-problems.sty
+%   problem numbering, \inputproblem, parts, kind=: see akizumi-problems.sty; header=, footer=: akizumi-pagestyle.sty
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesClass{akizumi-hw}[2026/10/26 v0.9 Aaron Lin homework]
 
@@ -26,7 +26,7 @@
       { \use:c { akizumi@solutions \l_keys_choice_tl } },
     solutions .default:n = true,
     kind         .code:n = \PassOptionsToPackage { kind = #1 } { akizumi-problems },
-    header       .code:n = \PassOptionsToPackage { header = #1 } { akizumi-problems },
+    header       .code:n = \PassOptionsToPackage { header = #1 } { akizumi-pagestyle },
     problembreak .code:n = \PassOptionsToPackage { problembreak = #1 } { akizumi-problems },
     problembreak .default:n = true,
     10pt      .code:n = \tl_set:Nn \l__akizumi_size_tl { 10pt },
@@ -54,7 +54,7 @@
 \newcommand{\akizumi@duename}{\akizumi@str{due}}
 \renewcommand{\akizumi@headleft}{\akizumi@course\ifx\akizumi@course\@empty\else\quad\fi\@title}
 
-% ---------- problems, parts, kind=, header= ----------
+% ---------- problems, parts, kind= ----------
 \RequirePackage{akizumi-problems}
 
 % ---------- solutions: thin left rule; hidden with solutions=false ----------

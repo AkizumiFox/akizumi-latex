@@ -228,6 +228,27 @@ sub ax_makeindex {
   return system('makeindex', @_);
 }
 
+# ---------- \include into subfolders ----------
+# \include{chapters/intro} writes build/chapters/intro.aux, but latexmk creates
+# only one missing folder per failed run, so a book with a folder per chapter
+# took one full LaTeX run per chapter on its first build. Create them up front.
+sub ax_include_dirs {
+  foreach my $tex (glob('*.tex')) {
+    open(my $fh, '<', $tex) or next;
+    while (my $line = <$fh>) {
+      $line =~ s/(?<!\\)%.*//;
+      while ($line =~ /\\include\{([^{}]*)\/[^\/{}]*\}/g) {
+        my $dir = $1;
+        next if $dir =~ m{(^|/)\.\.(/|$)} || $dir =~ m{^[/\\]|^[A-Za-z]:};
+        File::Path::make_path("$aux_dir/$dir");
+      }
+    }
+    close $fh;
+  }
+}
+use File::Path ();
+ax_include_dirs();
+
 # ---- Your own settings go below this line; ax keeps them when it updates the file. ----
 """
 
@@ -1644,8 +1665,8 @@ def restricted_minted():
 
 
 # Lines that only a current latexmkrc has: "shell_escape", the indexer, the
-# indexer's handling of an index with no entries, and "pdf".
-LATEXMKRC_MARKERS = ("shell_escape", "ax_makeindex", "-z $_[-1]", "ax_copy_pdf")
+# indexer's handling of an index with no entries, "pdf", and the \include folders.
+LATEXMKRC_MARKERS = ("shell_escape", "ax_makeindex", "-z $_[-1]", "ax_copy_pdf", "ax_include_dirs")
 
 
 RC_MARKER = "# ---- Your own settings go below this line"

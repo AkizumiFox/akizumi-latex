@@ -673,11 +673,22 @@
 % With layout=margin footnotes become sidenotes too. Without it, \sidenote is a
 % footnote, \marginnote an unnumbered footnote, and the margin floats ordinary
 % floats, so the same source compiles either way.
+% (declared outside the conditional so TeX can skip the branch below when it is false)
+\newif\ifakizumi@inbox
 \ifakizumi@marginlayout
   \RequirePackage{sidenotes}
   \RequirePackage[strict]{changepage}
   \renewcommand*{\marginfont}{\footnotesize}
   \let\footnote\sidenote
+  % sidenotes places a note with \marginpar, a float, which cannot live inside a
+  % box: a \footnote or \sidenote in a theorem, example or callout (all
+  % tcolorboxes) stopped the build with "Float(s) lost". Inside a tcolorbox use
+  % marginnote, which is not a float, so the same source builds either way.
+  \AddToHook{env/tcolorbox/begin}{\akizumi@inboxtrue}
+  \RenewDocumentCommand\@sidenotes@placemarginal{+m +m}{%
+    \IfNoValueOrEmptyTF{#1}
+      {\ifakizumi@inbox\marginnote{#2}\else\marginpar{#2}\fi}
+      {\marginnote{#2}[#1]}}
   \newenvironment{fullwidth}
     {\begin{adjustwidth}{}{-\dimexpr\marginparwidth+\marginparsep\relax}}
     {\end{adjustwidth}}

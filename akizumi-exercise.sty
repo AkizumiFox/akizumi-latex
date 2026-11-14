@@ -52,11 +52,19 @@
       { \clist_put_right:Nn \l_tmpb_clist {#1} }
   }
 \tl_set:Nx \@unusedoptionlist { \clist_use:Nn \l_tmpb_clist { , } }
-% Command-line override shared with hw / exam: \def\akizumisolutions{true|false}
+% Command-line override shared with hw / exam: \def\akizumisolutions{true|false},
+% and here also inline|chapter|end|hide. `true` keeps the document's own place
+% for solutions (inline when it hides them); the others set the place.
 \cs_if_exist:NT \akizumisolutions
   {
-    \str_if_eq:VnTF \akizumisolutions { false }
-      { \int_set:Nn \l__akizumi_solmode_int { 4 } }
+    \str_case_e:nnF { \akizumisolutions }
+      {
+        { false }   { \int_set:Nn \l__akizumi_solmode_int { 4 } }
+        { hide }    { \int_set:Nn \l__akizumi_solmode_int { 4 } }
+        { inline }  { \int_set:Nn \l__akizumi_solmode_int { 1 } }
+        { chapter } { \int_set:Nn \l__akizumi_solmode_int { 2 } }
+        { end }     { \int_set:Nn \l__akizumi_solmode_int { 3 } }
+      }
       { \int_compare:nNnT \l__akizumi_solmode_int = 4 { \int_set:Nn \l__akizumi_solmode_int { 1 } } }
   }
 \tl_if_empty:NT \l__akizumi_exwithin_tl

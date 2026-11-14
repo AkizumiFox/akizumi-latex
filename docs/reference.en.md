@@ -535,7 +535,7 @@ The layout of class reports, reflections and proposals:
 |---|---|
 | `\todo{derive this}` | Orange `[TODO: derive this]` |
 | `\blindfootnote{...}` | Footnote without a number, e.g. "Adapted from …" |
-| `\sidenote{...}`, `\marginnote{...}` | Margin notes (in the margin only with `layout=margin`; otherwise ordinary footnotes) |
+| `\sidenote{...}`, `\marginnote{...}` | Margin notes (in the margin only with `layout=margin`; otherwise ordinary footnotes). They work inside theorems and callouts too; there two notes on the same line overlap |
 | `\muted{...}` | Grey text |
 
 ### Exercises and solutions (books, notes)
@@ -577,7 +577,7 @@ Where solutions go is set by `solutions`:
 | `end` | Collected at the end of the document, or where `\printsolutions` is, grouped by chapter |
 | `hide` | Not printed |
 
-`chapter` and `end` write each solution's source to `build/<name>-sol.tex` and read it back, so solutions may contain `\verb` and `codeblock`. The exercise ends with "Solution on p. 12" linking to its solution, and the solution's "Exercise 3.2" links back (page numbers take two runs, which `ax build` does). `true` / `false` mean `inline` / `hide`, and `\def\akizumisolutions{false}` on the command line works too.
+`chapter` and `end` write each solution's source to `build/<name>-sol.tex` and read it back, so solutions may contain `\verb` and `codeblock`. The exercise ends with "Solution on p. 12" linking to its solution, and the solution's "Exercise 3.2" links back (page numbers take two runs, which `ax build` does). `true` / `false` mean `inline` / `hide`. A second main file can override the place: `\def\akizumisolutions{chapter}\input{main}` builds an answer key from a document that hides its solutions (also `inline`, `end`, `hide`; `true` keeps the document's own place, or inline when it hides them, and `false` hides them).
 
 Homework and exams keep their own `solution` and `parts`, and `solutions=true|false` as before; `exercise`, `exercises` and `example-problem` work there too.
 

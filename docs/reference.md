@@ -535,7 +535,7 @@ TikZ 預設只載入 `arrows.meta`、`positioning`、`calc`、`shapes.geometric`
 |---|---|
 | `\todo{補推導}` | 橘色的 `[TODO: 補推導]` |
 | `\blindfootnote{...}` | 沒有編號的註腳，例如「本講義改編自⋯」 |
-| `\sidenote{...}`、`\marginnote{...}` | 邊欄註記（`layout=margin` 時才在邊欄，否則變成一般註腳） |
+| `\sidenote{...}`、`\marginnote{...}` | 邊欄註記（`layout=margin` 時才在邊欄，否則變成一般註腳）。定理、callout 裡也能用；但框裡同一行有兩個註記時會重疊 |
 | `\muted{...}` | 灰色文字 |
 
 ### 習題與解答（書、講義）
@@ -577,7 +577,7 @@ $A\cup B=[-2,3]$。
 | `end` | 收集到全書最後，或 `\printsolutions` 所在的位置，按章分組 |
 | `hide` | 不印 |
 
-`chapter` 和 `end` 會把解答原文寫到 `build/<檔名>-sol.tex` 再讀回來，所以解答裡可以放 `\verb`、`codeblock`；習題結尾會有「Solution on p. 12」連到解答，解答開頭的「Exercise 3.2」連回習題（頁碼要編兩次，`ax build` 會自動處理）。`true`／`false` 等同 `inline`／`hide`，命令列的 `\def\akizumisolutions{false}` 也有效。
+`chapter` 和 `end` 會把解答原文寫到 `build/<檔名>-sol.tex` 再讀回來，所以解答裡可以放 `\verb`、`codeblock`；習題結尾會有「Solution on p. 12」連到解答，解答開頭的「Exercise 3.2」連回習題（頁碼要編兩次，`ax build` 會自動處理）。`true`／`false` 等同 `inline`／`hide`。另一個主檔可以改掉解答的位置：`\def\akizumisolutions{chapter}\input{main}` 從隱藏解答的文件編出解答本（也可以寫 `inline`、`end`、`hide`；`true` 沿用文件原本的位置，原本隱藏就改成 inline，`false` 隱藏）。
 
 作業和考卷保留原本的 `solution`、`parts`，`solutions=true|false` 照舊；`exercise`、`exercises`、`example-problem` 也能用。
 

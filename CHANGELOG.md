@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fix: the first build of a book (or any document) that `\include`s files in subfolders, such as one folder per chapter with `\chapterdir`, took one full LaTeX run per folder, because latexmk creates only one missing `build/<folder>` per failed run; a 38-chapter book seemed to hang. The latexmkrc ax writes now creates every `build/<folder>` up front (projects get it on their next `ax build` or `ax upgrade`).
+- Fix: with `layout=margin`, a `\footnote` or `\sidenote` inside a theorem, example or callout stopped the build with "Float(s) lost"; inside these boxes the note is now placed with marginnote.
+- `\def\akizumisolutions{...}` before `\input{main}` accepts `inline`, `chapter`, `end` and `hide` as well as `true` / `false`, so a separate answer-key file can collect solutions at the end of each chapter or of the book. Before, any value but `false` meant inline.
+
 ## v1.0 — 2026-10-27
 
 - Fix: updating a project's `latexmkrc` (ax build, ax upgrade, ax migrate --project) threw away settings the user had added, and `ax migrate --project` overwrote a `latexmkrc` / `.latexmkrc` ax did not write. Now ax's part ends at a separator line and everything below it is kept; files from older ax versions are recognised (bin/latexmkrc-history.json) and their additions kept; a user's own file is renamed `*.before-ax` and its settings listed.

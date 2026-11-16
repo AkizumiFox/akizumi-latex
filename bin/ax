@@ -1455,6 +1455,49 @@ def fallback_latexmkrc(main):
     return ["-r", str(path)]
 
 
+def build_timeout():
+    """Seconds a latexmk run may take: AX_TIMEOUT, else "timeout" in .ax.json,
+    else TIMEOUT (10 minutes). Large books need longer for a full rebuild."""
+    for source, value in (("AX_TIMEOUT", os.environ.get("AX_TIMEOUT")),
+                          ('"timeout"', project_config().get("timeout"))):
+        if value in (None, ""):
+            continue
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            seconds = 0
+        if seconds > 0:
+            return seconds
+        warn(T(f"{source} 要是正數（秒），改用預設 {TIMEOUT} 秒",
+               f"{source} must be a positive number of seconds; using the default {TIMEOUT}"))
+    return TIMEOUT
+
+
+def fmt_duration(seconds):
+    if seconds % 60 == 0:
+        return T(f"{int(seconds // 60)} 分鐘", f"{int(seconds // 60)} minutes")
+    return T(f"{seconds:g} 秒", f"{seconds:g} seconds")
+
+
+def remove_partial_outputs(job, since):
+    """After a stopped run: delete build/<job>.{out,aux,toc,fdb_latexmk} and any
+    .aux under build/ that the run rewrote (\\include files). Returns the count."""
+    build = Path("build")
+    if not build.is_dir():
+        return 0
+    victims = [build / f"{job}.{ext}" for ext in ("out", "aux", "toc", "fdb_latexmk")]
+    victims += [p for p in build.rglob("*.aux") if p.parent != build]
+    removed = 0
+    for p in victims:
+        try:
+            if p.is_file() and (p.parent == build or p.stat().st_mtime >= since - 1):
+                p.unlink()
+                removed += 1
+        except OSError:
+            pass
+    return removed
+
+
 def latexmk(main, label, jobname=None, pretex=None, clean_first=False):
     need_tool("latexmk", T("請先安裝 TeX Live，再執行 ax doctor", "Install TeX Live, then run ax doctor"))
     base = ["latexmk", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error"]
@@ -1480,7 +1523,22 @@ def latexmk(main, label, jobname=None, pretex=None, clean_first=False):
         base.append("-g")
     if clean_first:
         subprocess.run(base[:1] + ["-C"] + base[4:] + [str(main)], capture_output=True)
-    code, output, secs = run_with_spinner(base + [str(main)], label)
+    limit = build_timeout()
+    started = time.time()
+    code, output, secs = run_with_spinner(base + [str(main)], label, timeout=limit, fatal=False)
+    if code == 124:
+        # A run stopped mid-pass leaves half-written files (a truncated .out
+        # breaks every later build with "File ended while scanning use of
+        # \@@BOOKMARK"): remove what this run was writing, so the next build
+        # starts from a clean state.
+        removed = remove_partial_outputs(job, started)
+        die(T(f"超過 {fmt_duration(limit)}還沒結束，已停止", f"Still running after {fmt_duration(limit)}; stopped"),
+            T("可能是 LaTeX 在等輸入（看 build/ 裡的 .log），或文件很大需要更久："
+              "在 .ax.json 加上 \"timeout\": 秒數（或設環境變數 AX_TIMEOUT）"
+              + (f"；已刪除寫到一半的 {removed} 個檔案" if removed else ""),
+              "LaTeX may be waiting for input (see the .log in build/), or a large document needs longer: "
+              "add \"timeout\": seconds to .ax.json (or set AX_TIMEOUT)"
+              + (f"; removed {removed} half-written files" if removed else "")))
     if code == 0 and Path("build").is_dir():
         try:
             stamp_file.write_text(stamp)

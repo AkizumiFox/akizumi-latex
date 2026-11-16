@@ -838,7 +838,7 @@ The two `l.10` lines are line 10 of the source, broken where the error happened.
 `ax build` also handles a few common situations:
 
 - When latexmk remembers a previous failure and refuses to rerun, it cleans up and retries once.
-- It stops a build that runs over 10 minutes (usually one waiting for input).
+- It stops a build that runs over 10 minutes (usually one waiting for input), and deletes the files that run was writing (a half-written `build/*.out` would break the next build). A large book may need longer: set `"timeout"` in `.ax.json` or `AX_TIMEOUT` (seconds).
 - When you mistype a command, document kind or option value, it guesses what you meant, e.g. `ax biuld` → `ax build`.
 - With output redirected to a file, or `NO_COLOR` set, it drops colour and the spinner.
 
@@ -849,13 +849,16 @@ The two `l.10` lines are line 10 of the source, broken where the error happened.
   "kind": "note", "main": "main.tex", "template": "v1.0",
   "prebuild": ["python scripts/make_figures.py", "stata-mp -b do analysis.do"],
   "shell_escape": true,
-  "pdf": "final-report.pdf"
+  "pdf": "final-report.pdf",
+  "timeout": 1800
 }
 ```
 
 - `prebuild`: run in the project folder, in order, before `ax build`, `ax both` and `ax watch` compile (`ax watch` runs them once when it starts, not on every save). Each step goes to the system shell (`/bin/sh` on macOS / Linux, `cmd` on Windows), so `&&` works; a list such as `["python", "make.py"]` runs without a shell. The first step that fails (non-zero exit code) stops the build: ax prints the command, its exit code and the last lines of its output, and the PDF stays as it was. `--no-prebuild` skips the steps. `ax doctor` checks that the programs they call are on PATH.
 - `shell_escape: true`: lets LaTeX run programs (`minted`, `svg`, Stata's `texdoc`, ...). `ax build` / `both` / `watch` pass `-shell-escape`, and the `latexmkrc` ax writes reads the setting too, so Cursor / VS Code calling latexmk directly behave the same. An older project's `latexmkrc` does not know the setting; the first `ax build` updates it.
 - `pdf`: the name of the output PDF, instead of `main.pdf`. `ax build` and `ax watch` (also `--bg`) copy a successful build to this name and `ax open` opens it; `ax both` writes the solutions to `final-report-solutions.pdf`; `ax build --chapter` still writes `main-chN.pdf`. The `latexmkrc` ax writes reads it too, so a Cursor build updates this file as well (the preview still shows `build/main.pdf`). An older project's `latexmkrc` is updated by the next `ax build`. `ax migrate --project` sets it when the one PDF git tracks in the folder is not named after the main file (for example `HW3 report.pdf`).
+
+- `timeout`: seconds one compile may take before ax stops it (default 600). Raise it for long books, whose full rebuild runs several passes; the environment variable `AX_TIMEOUT` overrides it.
 
 `prebuild` and `shell_escape` run commands written in the project; use them only in your own projects.
 

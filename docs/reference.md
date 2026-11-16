@@ -839,7 +839,7 @@ $A\cup B=[-2,3]$。
 `ax build` 還會處理幾種常見狀況：
 
 - latexmk 記住上一次的失敗而不肯重跑時，自動清掉重試一次。
-- 編譯超過 10 分鐘（通常是在等輸入）就停止。
+- 編譯超過 10 分鐘（通常是在等輸入）就停止，並刪掉那次編譯寫到一半的檔案（寫到一半的 `build/*.out` 會讓下次編譯出錯）。很長的書需要更久：在 `.ax.json` 設 `"timeout"`，或設環境變數 `AX_TIMEOUT`（秒）。
 - 打錯指令、文件種類或選項值時，猜你想打什麼，例如 `ax biuld` → `ax build`。
 - 輸出導到檔案或設定了 `NO_COLOR` 時，不加顏色和轉圈動畫。
 
@@ -850,13 +850,16 @@ $A\cup B=[-2,3]$。
   "kind": "note", "main": "main.tex", "template": "v1.0",
   "prebuild": ["python scripts/make_figures.py", "stata-mp -b do analysis.do"],
   "shell_escape": true,
-  "pdf": "期末報告.pdf"
+  "pdf": "期末報告.pdf",
+  "timeout": 1800
 }
 ```
 
 - `prebuild`：`ax build`、`ax both`、`ax watch` 編譯前，在專案資料夾依序執行（`ax watch` 只在開始時跑一次，不是每次存檔）。每個步驟交給系統的 shell（macOS／Linux 是 `/bin/sh`，Windows 是 `cmd`），所以可以用 `&&`；也可以寫成清單 `["python", "make.py"]`，不經過 shell。任何一步失敗（結束碼不是 0）就停下來，印出失敗的指令、結束碼和最後幾行輸出，PDF 保留上一份。`--no-prebuild` 跳過這些步驟。`ax doctor` 會檢查步驟用到的程式在不在 PATH 上。
 - `shell_escape: true`：讓 LaTeX 可以執行外部程式（`minted`、`svg`、Stata 的 `texdoc` 等）。`ax build`／`both`／`watch` 都會加上 `-shell-escape`；ax 寫的 `latexmkrc` 也會讀這個設定，所以 Cursor／VS Code 直接呼叫 latexmk 時一樣。舊專案的 `latexmkrc` 不認得這個設定，第一次 `ax build` 時會自動更新它。
 - `pdf`：輸出的 PDF 檔名，取代 `main.pdf`。`ax build`、`ax watch`（含 `--bg`）把成功的結果複製成這個名字，`ax open` 打開它；`ax both` 的解答是 `期末報告-solutions.pdf`；`ax build --chapter` 照樣是 `main-chN.pdf`。ax 寫的 `latexmkrc` 也會讀它，所以 Cursor 編譯成功後一樣會更新這個檔案（預覽仍然顯示 `build/main.pdf`）。舊專案的 `latexmkrc` 在下一次 `ax build` 時更新。`ax migrate --project` 遇到資料夾裡 git 追蹤的 PDF 跟主檔不同名時（例如 `HW3 報告.pdf`），會自動寫上這一項。
+
+- `timeout`：一次編譯最多可以跑幾秒，超過就停止（預設 600）。很長的書完整重編要跑好幾個回合，可以調高；環境變數 `AX_TIMEOUT` 優先。
 
 `prebuild` 和 `shell_escape` 都會執行專案裡寫的指令，只用在自己的專案。
 

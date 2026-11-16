@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `"timeout"` in `.ax.json` (or `AX_TIMEOUT`) sets how many seconds one compile may take, instead of the fixed 10 minutes: a full rebuild of an 800-page book runs several passes of minutes each. When a compile is stopped, ax now deletes the files that run was writing; a half-written `build/*.out` used to break every later build with "File ended while scanning use of \@@BOOKMARK".
 - Fix: the first build of a book (or any document) that `\include`s files in subfolders, such as one folder per chapter with `\chapterdir`, took one full LaTeX run per folder, because latexmk creates only one missing `build/<folder>` per failed run; a 38-chapter book seemed to hang. The latexmkrc ax writes now creates every `build/<folder>` up front (projects get it on their next `ax build` or `ax upgrade`).
 - Fix: with `layout=margin`, a `\footnote` or `\sidenote` inside a theorem, example or callout stopped the build with "Float(s) lost"; inside these boxes the note is now placed with marginnote.
 - `\def\akizumisolutions{...}` before `\input{main}` accepts `inline`, `chapter`, `end` and `hide` as well as `true` / `false`, so a separate answer-key file can collect solutions at the end of each chapter or of the book. Before, any value but `false` meant inline.
